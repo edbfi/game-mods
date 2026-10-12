@@ -1,0 +1,469 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- Munitorum Logistics: local player, idle leaders, and varied weapon mixtures.
+-- Paid actions share one scheduler. Trooper overwatch remains passive.
+-- Weapon catalog is appended below before Scar_AddInit executes.
+import("ScarUtil.scar")
+
+AutoReinforce_ReqThreshold = 1000
+AutoReinforce_WeaponsEnabled = true
+AutoReinforce_LeadersEnabled = true
+AutoReinforce_Ticks = 0
+AutoReinforce_CommandsSent = 0
+AutoReinforce_LeaderRequestsSent = 0
+AutoReinforce_WeaponRequestsSent = 0
+AutoReinforce_ActionCursor = 1
+AutoReinforce_State = {}
+AutoReinforce_RequirementCache = {}
+AutoReinforce_LocalIndex = nil
+AutoReinforce_PlayerId = nil
+AutoReinforce_LastRequisition = nil
+AutoReinforce_ReportedCommands = false
+AutoReinforce_DebugEnabled = true
+AutoReinforce_NextDebug = 0
+AutoReinforce_DebugSquadCount = -1
+
+function AutoReinforce_Name(name)
+    -- The game's string.lower corrupts underscores into byte 127. Fold only
+    -- ASCII letters ourselves and preserve punctuation in blueprint names.
+    local parts = {}
+    name = name or ""
+    for index = 1, string.len(name) do
+        local byte = string.byte(name, index)
+        if byte == 47 or byte == 92 then
+            parts = {}
+        else
+            if byte >= 65 and byte <= 90 then byte = byte + 32 end
+            table.insert(parts, string.char(byte))
+        end
+    end
+    local value = table.concat(parts)
+    local suffix = string.sub(value, -4)
+    if suffix == ".lua" or suffix == ".rgd" then value = string.sub(value, 1, -5) end
+    return value
+end
+
+function AutoReinforce_Status()
+    local message = "Munitorum Logistics: ticks=" .. tostring(AutoReinforce_Ticks)
+        .. ", local_index=" .. tostring(AutoReinforce_LocalIndex)
+        .. ", requisition=" .. tostring(AutoReinforce_LastRequisition)
+        .. ", troop_requests=" .. tostring(AutoReinforce_CommandsSent)
+        .. ", leader_requests=" .. tostring(AutoReinforce_LeaderRequestsSent)
+        .. ", weapon_requests=" .. tostring(AutoReinforce_WeaponRequestsSent)
+        .. ", weapons_enabled=" .. tostring(AutoReinforce_WeaponsEnabled)
+    if print ~= nil then print(message) end
+    return message
+end
+
+function AutoReinforce_HasRequirement(requirement)
+    local key = requirement.kind .. ":" .. table.concat(requirement.names or {}, ",")
+        .. ":" .. tostring(requirement.amount or 0)
+    local cached = AutoReinforce_RequirementCache[key]
+    if cached ~= nil then return cached end
+    local result = false
+    if requirement.kind == "building" then
+        result = Player_HasBuildingType(AutoReinforce_PlayerId, requirement.names[1])
+    elseif requirement.kind == "either_building" then
+        for _, name in ipairs(requirement.names) do
+            if Player_HasBuildingType(AutoReinforce_PlayerId, name) then result = true end
+        end
+    elseif requirement.kind == "research" then
+        result = Player_GetResearchState(AutoReinforce_PlayerId, requirement.names[1]) == RS_Complete
+    elseif requirement.kind == "pop" then
+        result = Player_GetResource(AutoReinforce_PlayerId, RT_Pop) >= requirement.amount
+    elseif requirement.kind == "addon" then
+        EGroup_ForEach(Player_GetEntities(AutoReinforce_PlayerId), function(group, index, entity)
+            if Entity_IsBuilding(entity) and Entity_HasProductionQueue(entity)
+                and Entity_ContainsAddOn(entity, requirement.names[1]) then result = true end
+            return result
+        end)
+    end
+    AutoReinforce_RequirementCache[key] = result
+    return result
+end
+
+function AutoReinforce_LegalWeapon(info, weapon)
+    if info.mounted and info.occupiedMounts[weapon.mount] then
+        info.weaponChecks[weapon.name] = "mount already upgraded"
+        return false
+    end
+    if (info.state.blocked[weapon.name] or 0) > AutoReinforce_Ticks then
+        info.weaponChecks[weapon.name] = "retry cooldown"
+        return false
+    end
+    if not Squad_CanUpgradeWeapon(info.id, weapon.name) then
+        info.weaponChecks[weapon.name] = "not in native upgrade list"
+        return false
+    end
+    for _, requirement in ipairs(weapon.requires) do
+        if not AutoReinforce_HasRequirement(requirement) then
+            info.weaponChecks[weapon.name] = "requires " .. requirement.kind .. ":"
+                .. table.concat(requirement.names or {}, ",") .. tostring(requirement.amount or "")
+            return false
+        end
+    end
+    info.weaponChecks[weapon.name] = "available"
+    return true
+end
+
+function AutoReinforce_CopyCounts(counts, weapons)
+    local copy = {}
+    for _, weapon in ipairs(weapons) do copy[weapon.name] = counts[weapon.name] or 0 end
+    return copy
+end
+
+function AutoReinforce_CountTypes(counts, weapons)
+    local total = 0
+    for _, weapon in ipairs(weapons) do
+        if (counts[weapon.name] or 0) > 0 then total = total + 1 end
+    end
+    return total
+end
+
+-- Enumerate legal mixed loadouts for ordinary squads. Reservoir sampling limits
+-- stored candidates; unusually large option sets use bounded random sampling.
+function AutoReinforce_Candidates(info, legal)
+    local slots = info.cap - info.totalWeapons
+    local candidates = {}
+    local seen = 0
+    local counts = AutoReinforce_CopyCounts(info.counts, info.catalog.weapons)
+    local function keep()
+        if not info.mounted and info.cap > 1 and table.getn(legal) > 1
+            and AutoReinforce_CountTypes(counts, info.catalog.weapons) < 2 then return end
+        seen = seen + 1
+        local index = seen
+        if index > 192 then index = World_GetRand(1, seen) end
+        if index <= 192 then
+            candidates[index] = AutoReinforce_CopyCounts(counts, info.catalog.weapons)
+        end
+    end
+    if info.mounted then
+        -- Vehicle weapons belong to separate hardpoints. Pick at most one
+        -- alternative per empty mount, and fill all available mounts up to
+        -- the native limit. Preserve any manually upgraded mount.
+        local groups = {}
+        local byMount = {}
+        for _, weapon in ipairs(legal) do
+            local group = byMount[weapon.mount]
+            if group == nil then
+                group = {}
+                byMount[weapon.mount] = group
+                table.insert(groups, group)
+            end
+            table.insert(group, weapon)
+        end
+        local function mounts(index, remaining)
+            if remaining == 0 then keep(); return end
+            if index > table.getn(groups) then return end
+            if table.getn(groups) - index >= remaining then mounts(index + 1, remaining) end
+            for _, weapon in ipairs(groups[index]) do
+                local before = counts[weapon.name] or 0
+                counts[weapon.name] = before + 1
+                mounts(index + 1, remaining - 1)
+                counts[weapon.name] = before
+            end
+        end
+        mounts(1, math.min(slots, table.getn(groups)))
+    elseif info.cap <= 8 and table.getn(legal) <= 8 then
+        local function distribute(index, remaining)
+            local name = legal[index].name
+            local initial = info.counts[name] or 0
+            if index == table.getn(legal) then
+                counts[name] = initial + remaining
+                keep()
+            else
+                for amount = 0, remaining do
+                    counts[name] = initial + amount
+                    distribute(index + 1, remaining - amount)
+                end
+            end
+            counts[name] = initial
+        end
+        distribute(1, slots)
+    else
+        for sample = 1, 192 do
+            counts = AutoReinforce_CopyCounts(info.counts, info.catalog.weapons)
+            for slot = 1, slots do
+                local name = legal[World_GetRand(1, table.getn(legal))].name
+                counts[name] = counts[name] + 1
+            end
+            keep()
+        end
+    end
+    return candidates
+end
+
+-- Prefer loadouts that differ from other equivalent squads, then balance total
+-- weapon variety across those squads. Randomly choose among equally good plans.
+function AutoReinforce_ChoosePlan(info, legal, army)
+    local candidates = AutoReinforce_Candidates(info, legal)
+    local best = {}
+    local bestOverlap = nil
+    local bestBalance = nil
+    for _, candidate in ipairs(candidates) do
+        local maxOverlap = 0
+        local totals = AutoReinforce_CopyCounts(candidate, info.catalog.weapons)
+        for _, other in ipairs(army) do
+            if other.key ~= info.key and other.blueprint == info.blueprint and other.cap == info.cap then
+                local counts = other.counts
+                if other.state.plan and other.state.plan.cap == info.cap then
+                    counts = other.state.plan.counts
+                end
+                local overlap = 0
+                for _, weapon in ipairs(info.catalog.weapons) do
+                    local amount = counts[weapon.name] or 0
+                    overlap = overlap + math.min(candidate[weapon.name] or 0, amount)
+                    totals[weapon.name] = totals[weapon.name] + amount
+                end
+                maxOverlap = math.max(maxOverlap, overlap)
+            end
+        end
+        local balance = 0
+        for _, weapon in ipairs(info.catalog.weapons) do
+            balance = balance + totals[weapon.name] * totals[weapon.name]
+        end
+        if bestOverlap == nil or maxOverlap < bestOverlap then
+            bestOverlap = maxOverlap
+            bestBalance = balance
+            best = {{counts = candidate, balance = balance}}
+        elseif maxOverlap == bestOverlap then
+            bestBalance = math.min(bestBalance, balance)
+            table.insert(best, {counts = candidate, balance = balance})
+        end
+    end
+    -- Keep randomness among near-balanced mixtures rather than prescribing
+    -- the same perfectly even first squad every match.
+    local varied = {}
+    for _, candidate in ipairs(best) do
+        if candidate.balance <= bestBalance + info.cap * 2 then
+            table.insert(varied, candidate.counts)
+        end
+    end
+    if table.getn(varied) == 0 then return nil end
+    return varied[World_GetRand(1, table.getn(varied))]
+end
+
+function AutoReinforce_WeaponChoice(info, army)
+    if info.cap <= info.totalWeapons then info.reason = "no empty weapon slots"; return nil end
+    local legal = {}
+    local names = {}
+    for _, weapon in ipairs(info.catalog.weapons) do
+        if AutoReinforce_LegalWeapon(info, weapon) then
+            table.insert(legal, weapon)
+            table.insert(names, weapon.name)
+        end
+    end
+    if table.getn(legal) == 0 then info.reason = "no unlocked weapon options"; return nil end
+    local signature = tostring(info.cap) .. ":" .. table.concat(names, ",")
+    local plan = info.state.plan
+    local valid = plan and plan.signature == signature and plan.cap == info.cap
+    if valid then
+        for _, weapon in ipairs(info.catalog.weapons) do
+            if (info.counts[weapon.name] or 0) > (plan.counts[weapon.name] or 0) then valid = false end
+        end
+    end
+    if not valid then
+        local counts = AutoReinforce_ChoosePlan(info, legal, army)
+        if counts == nil then info.reason = "no loadout plan"; return nil end
+        plan = {signature = signature, cap = info.cap, counts = counts}
+        info.state.plan = plan
+    end
+    local choices = {}
+    local requisition = Player_GetResource(AutoReinforce_PlayerId, RT_Requisition)
+    local power = Player_GetResource(AutoReinforce_PlayerId, RT_Power)
+    for _, weapon in ipairs(legal) do
+        local missing = (plan.counts[weapon.name] or 0) - (info.counts[weapon.name] or 0)
+        if missing > 0 and requisition >= weapon.req and power >= weapon.power then
+            -- Weight the draw by the number of this weapon still planned.
+            for i = 1, missing do table.insert(choices, weapon) end
+        end
+    end
+    if table.getn(choices) == 0 then info.reason = "planned weapons unaffordable or already present"; return nil end
+    return choices[World_GetRand(1, table.getn(choices))]
+end
+
+function AutoReinforce_CheckPending(info)
+    local pending = info.state.pending
+    if pending == nil then return false end
+    if (info.counts[pending.name] or 0) > pending.before then
+        info.state.pending = nil
+        return false
+    end
+    if info.upgrading then
+        pending.started = true
+        return true
+    end
+    if not pending.started and AutoReinforce_Ticks < pending.deadline then return true end
+    -- A request was rejected or cancelled. Try other choices without hammering
+    -- a locked option. Never alter any existing weapon or manual queue item.
+    info.state.blocked[pending.name] = AutoReinforce_Ticks + 15
+    info.state.pending = nil
+    info.state.plan = nil
+    return false
+end
+
+function AutoReinforce_ReadSquad(squad)
+    -- SCAR wraps SquadID in a new Lua table on each enumeration. Keep plans
+    -- and pending requests by the stable game ID, not wrapper identity.
+    local key = Squad_GetGameID(squad)
+    local state = AutoReinforce_State[key]
+    if state == nil then
+        state = {blocked = {}, nextPaid = 0, nextLeader = 0}
+        AutoReinforce_State[key] = state
+    end
+    local rawBlueprint = Squad_GetBlueprintName(squad)
+    local blueprint = AutoReinforce_Name(rawBlueprint)
+    local catalog = AutoReinforce_Catalog[blueprint] or {leader = false, weapons = {}}
+    local leaders = Squad_CountLeaders(squad)
+    local maxTroopers = Squad_GetMax(squad)
+    local mounted = catalog.mounted and maxTroopers == 1
+    local cap = 0
+    -- This native getter has no null check for SquadReinforceExtInfo.
+    -- Builders and commanders often lack it. Only query blueprints verified
+    -- to have squad_reinforce_ext and ordinary purchasable weapon options.
+    if AutoReinforce_WeaponsEnabled and catalog.canUpgrade
+        and table.getn(catalog.weapons) > 0 then
+        cap = math.max(0, math.floor(Squad_GetUpgradeMax(squad)))
+        if mounted then cap = math.min(cap, catalog.mountCount) end
+    end
+    local troopers = Squad_Count(squad) - leaders
+    local command = Squad_GetActiveCommand(squad)
+    local info = {id = squad, key = key, state = state, blueprint = blueprint, catalog = catalog,
+        rawBlueprint = rawBlueprint, maxTroopers = maxTroopers, troopers = troopers, command = command,
+        leaders = leaders, cap = cap,
+        counts = {}, totalWeapons = 0, occupiedMounts = {}, mounted = mounted,
+        weaponChecks = {}, reason = "not visited this tick",
+        full = maxTroopers > 0 and troopers >= maxTroopers,
+        idle = command == SQUADSTATEID_Idle,
+        reinforcing = Squad_IsReinforcing(squad),
+        leaderQueued = Squad_IsReinforcingLeader(squad), upgrading = Squad_IsUpgrading(squad)}
+    for _, weapon in ipairs(catalog.weapons) do
+        local count = Squad_WeaponCount(squad, weapon.name)
+        info.counts[weapon.name] = count
+        info.totalWeapons = info.totalWeapons + count
+        if mounted and count > 0 then info.occupiedMounts[weapon.mount] = true end
+    end
+    return info
+end
+
+function AutoReinforce_PaidAction(info, army)
+    if AutoReinforce_CheckPending(info) then info.reason = "pending weapon request"; return false end
+    -- The idle gate protects movement, building, capture, combat, and patrol.
+    if not info.idle then info.reason = "busy command"; return false end
+    if not info.full then info.reason = "troops not full"; return false end
+    if info.reinforcing then info.reason = "trooper queued"; return false end
+    if info.leaderQueued then info.reason = "leader queued"; return false end
+    if info.upgrading then info.reason = "weapon queued"; return false end
+    if info.state.nextPaid > AutoReinforce_Ticks then info.reason = "paid action cooldown"; return false end
+    if Player_GetResource(AutoReinforce_PlayerId, RT_Requisition) < AutoReinforce_ReqThreshold then
+        info.reason = "below requisition threshold"; return false
+    end
+    SGroup_Clear(AutoReinforce_Group)
+    SGroup_Add(AutoReinforce_Group, info.id)
+    if AutoReinforce_LeadersEnabled and info.catalog.leader and info.leaders == 0
+        and info.state.nextLeader <= AutoReinforce_Ticks then
+        Command_Squad(AutoReinforce_PlayerId, AutoReinforce_Group, SCMD_ReinforceLeader)
+        AutoReinforce_LeaderRequestsSent = AutoReinforce_LeaderRequestsSent + 1
+        info.state.nextLeader = AutoReinforce_Ticks + 5
+        info.state.nextPaid = AutoReinforce_Ticks + 3
+        info.reason = "leader requested"
+        return true
+    end
+    if AutoReinforce_WeaponsEnabled then
+        local weapon = AutoReinforce_WeaponChoice(info, army)
+        if weapon ~= nil then
+            -- Index is the normal upgrade option in the base trooper's combat
+            -- data. This queues a paid upgrade; no direct/free weapon mutation.
+            Command_SquadExt(AutoReinforce_PlayerId, AutoReinforce_Group,
+                SCMD_UpgradeTrooper, weapon.index, 0)
+            AutoReinforce_WeaponRequestsSent = AutoReinforce_WeaponRequestsSent + 1
+            info.state.pending = {name = weapon.name, before = info.counts[weapon.name] or 0,
+                started = false, deadline = AutoReinforce_Ticks + 3}
+            info.state.nextPaid = AutoReinforce_Ticks + 3
+            info.reason = "weapon requested " .. weapon.name .. " index=" .. tostring(weapon.index)
+            return true
+        end
+    else
+        info.reason = "weapons disabled"
+    end
+    return false
+end
+
+-- Read only cached squad data. No extra native unit queries or game commands.
+function AutoReinforce_DebugArmy(army)
+    if not AutoReinforce_DebugEnabled or print == nil then return end
+    local count = table.getn(army)
+    if AutoReinforce_Ticks < AutoReinforce_NextDebug
+        and count == AutoReinforce_DebugSquadCount then return end
+    AutoReinforce_NextDebug = AutoReinforce_Ticks + 20
+    AutoReinforce_DebugSquadCount = count
+    AutoReinforce_Status()
+    for _, info in ipairs(army) do
+        print("Munitorum Logistics squad=" .. tostring(info.key) .. " raw=" .. tostring(info.rawBlueprint)
+            .. " name=" .. info.blueprint .. " troops=" .. tostring(info.troopers) .. "/" .. tostring(info.maxTroopers)
+            .. " leaders=" .. tostring(info.leaders) .. " leaderAllowed=" .. tostring(info.catalog.leader)
+            .. " options=" .. tostring(table.getn(info.catalog.weapons)) .. " weapons=" .. tostring(info.totalWeapons)
+            .. "/" .. tostring(info.cap) .. " mounted=" .. tostring(info.mounted) .. " command=" .. tostring(info.command)
+            .. " idleConstant=" .. tostring(SQUADSTATEID_Idle) .. " full=" .. tostring(info.full)
+            .. " reinforcing=" .. tostring(info.reinforcing) .. " leaderQueued=" .. tostring(info.leaderQueued)
+            .. " upgrading=" .. tostring(info.upgrading) .. " reason=" .. info.reason)
+        for name, reason in pairs(info.weaponChecks) do print("Munitorum Logistics weapon=" .. name .. " " .. reason) end
+    end
+end
+
+function AutoReinforce_MainRule()
+    AutoReinforce_Ticks = AutoReinforce_Ticks + 1
+    AutoReinforce_LocalIndex = Tut_GetLocalPlayerIndex()
+    AutoReinforce_PlayerId = nil
+    AutoReinforce_LastRequisition = nil
+    if AutoReinforce_LocalIndex == nil or AutoReinforce_LocalIndex < 0
+        or AutoReinforce_LocalIndex >= World_GetPlayerCount() then return end
+    AutoReinforce_PlayerId = World_GetPlayerAt(AutoReinforce_LocalIndex)
+    if AutoReinforce_PlayerId == nil then return end
+    AutoReinforce_LastRequisition = Player_GetResource(AutoReinforce_PlayerId, RT_Requisition)
+    if AutoReinforce_LastRequisition < AutoReinforce_ReqThreshold then
+        AutoReinforce_DebugArmy({})
+        return
+    end
+    AutoReinforce_RequirementCache = {}
+    local army = {}
+    local live = {}
+    SGroup_ForEach(Player_GetSquads(AutoReinforce_PlayerId), function(group, index, squad)
+        SGroup_Clear(AutoReinforce_Group)
+        SGroup_Add(AutoReinforce_Group, squad)
+        Command_SquadExt(AutoReinforce_PlayerId, AutoReinforce_Group,
+            SCMD_ReinforceTrooperOverwatch, 1, 0)
+        AutoReinforce_CommandsSent = AutoReinforce_CommandsSent + 1
+        local info = AutoReinforce_ReadSquad(squad)
+        table.insert(army, info)
+        live[info.key] = true
+    end)
+    for squad in pairs(AutoReinforce_State) do
+        if not live[squad] then AutoReinforce_State[squad] = nil end
+    end
+    local count = table.getn(army)
+    if count > 0 then
+        local position = AutoReinforce_ActionCursor - 1
+        local start = position - math.floor(position / count) * count + 1
+        for offset = 0, count - 1 do
+            local position = start + offset - 1
+            local index = position - math.floor(position / count) * count + 1
+            if AutoReinforce_PaidAction(army[index], army) then
+                AutoReinforce_ActionCursor = index + 1
+                break
+            end
+        end
+    end
+    if not AutoReinforce_ReportedCommands and table.getn(army) > 0 then
+        AutoReinforce_ReportedCommands = true
+        AutoReinforce_Status()
+    end
+    AutoReinforce_DebugArmy(army)
+end
+
+function AutoReinforce_Init()
+    AutoReinforce_Group = SGroup_CreateIfNotFound("auto_reinforce_group")
+    Rule_AddInterval(AutoReinforce_MainRule, 1)
+    AutoReinforce_Status()
+end
+
+Scar_AddInit(AutoReinforce_Init)

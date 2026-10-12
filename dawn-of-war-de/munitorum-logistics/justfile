@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+modules := "W40k WXP DXP2 DXP3"
+
+# List available commands.
+default:
+    @just --list
+
+# Write build/<Module>/Data/scar/winconditions/ from the template and each module's catalog.
+build:
+    rm -rf build
+    for module in {{modules}}; do \
+        out=build/$module/Data/scar/winconditions; \
+        mkdir -p "$out"; \
+        { cat src/autoreinforce.template.scar; printf '\n'; cat "src/catalogs/$module.scar"; } > "$out/autoreinforce.scar"; \
+        cp src/autoreinforce_local.lua "$out/"; \
+    done
+
+# Syntax-check the built scripts. luac 5.1 parses DoW's Lua 5.0 code; it does not run it.
+test: build
+    for file in build/*/Data/scar/winconditions/*; do luac5.1 -p "$file"; done
+
+# Zip the four modules, README and license as dist/dawn-of-war-de-munitorum-logistics-<version>.zip.
+package version: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{quote(version)}}
+    [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Bad version: $version" >&2; exit 1; }
+    zip=$PWD/dist/dawn-of-war-de-munitorum-logistics-$version.zip
+    rm -rf dist/stage "$zip"
+    mkdir -p dist/stage
+    cp -R build/. dist/stage/
+    cp README.md ../../LICENSE dist/stage/
+    (cd dist/stage && python3 -m zipfile -c "$zip" {{modules}} README.md LICENSE)
+    rm -rf dist/stage
+    echo "Created $zip"
+
+# Remove generated outputs.
+clean:
+    rm -rf build dist
