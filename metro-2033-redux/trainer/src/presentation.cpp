@@ -54,7 +54,7 @@ void acknowledge(Model& model, bool master, const std::map<std::string, bool>& s
     model.selected = selected;
     model.effective.clear();
     for (const auto& feature : selected) {
-        const auto bit = effective_controls(true, {{feature.first, true}});
+        const auto bit = effective_controls(true, {{feature.first, true}}, false);
         model.effective[feature.first] = feature.second && bit && (controls & bit) == bit;
     }
 }

@@ -30,13 +30,13 @@ int main(int argc, char** argv) {
         }
         std::map<std::string, bool> selection{{"no_reload", true}, {"god_mode", true}};
         if (metro::effective_controls(false, selection) != 0 ||
-            metro::effective_controls(true, selection) != (metro::no_reload_control_bits | (1u << 5)))
+            metro::effective_controls(true, selection) != (metro::pressure_control_bit | metro::no_reload_control_bits | (1u << 5)))
             throw std::runtime_error("Global or paused control mask incorrect");
         selection["no_reload"] = false;
         const auto classes = metro::verified_no_reload_classes();
         for (unsigned i = 0; i < classes.size(); ++i) {
             selection[classes[i].feature] = true;
-            if (metro::effective_controls(true, selection) != ((1u << (7+i)) | (1u << 5)))
+            if (metro::effective_controls(true, selection) != ((1u << (7+i)) | (1u << 5) | (std::string(classes[i].feature) == "no_reload_helsing" ? metro::pressure_control_bit : 0)))
                 throw std::runtime_error("Individual control bit incorrect");
             selection[classes[i].feature] = false;
         }
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
         selection.clear();
         for (unsigned i=0;i<7;++i) {
             selection[ordinary[i]]=true;
-            if (metro::effective_controls(true, selection)!=(1u<<i)) throw std::runtime_error("Ordinary control bit incorrect");
+            if (metro::effective_controls(true, selection)!=((1u<<i) | (i == 0 ? metro::pressure_control_bit : 0))) throw std::runtime_error("Ordinary control bit incorrect");
             if (metro::effective_controls(false, selection)!=0) throw std::runtime_error("Paused ordinary control not zero");
             selection[ordinary[i]]=false;
         }

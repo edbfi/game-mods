@@ -1,6 +1,7 @@
 #pragma once
 #include "metro/no_reload.hpp"
 #include "metro/conditional_hooks.hpp"
+#include "metro/pressure.hpp"
 #include "metro/windows_controls.hpp"
 #include <windows.h>
 #include <algorithm>
@@ -23,7 +24,8 @@ public:
         const auto sites = verified_no_reload_sites();
         if (sites.empty()) throw std::runtime_error("Unexpected no-reload hook count");
         const auto conditional = verified_conditional_sites();
-        const auto allocation_size = 4096 * (sites.size() + conditional.size());
+        const auto pressure = verified_pressure_sites();
+        const auto allocation_size = 4096 * (sites.size() + conditional.size() + pressure.size());
         SYSTEM_INFO info{}; GetSystemInfo(&info);
         const auto granularity = static_cast<std::uintptr_t>(info.dwAllocationGranularity);
         const auto origin = (base + no_reload_hook_rva) & ~(granularity - 1);
@@ -36,11 +38,13 @@ public:
         }
         if (!allocation_) throw std::runtime_error("Cannot allocate nearby no-reload cave");
         try {
-            for (std::size_t i=0; i<sites.size()+conditional.size(); ++i) {
+            for (std::size_t i=0; i<sites.size()+conditional.size()+pressure.size(); ++i) {
                 const auto address = allocation_+4096*i;
                 auto image = i < sites.size()
                     ? make_no_reload_image(base, address, controls_.remote_address(), classes_, sites[i])
-                    : make_conditional_image(base, address, controls_.remote_address(), conditional[i-sites.size()]);
+                    : i < sites.size()+conditional.size()
+                    ? make_conditional_image(base, address, controls_.remote_address(), conditional[i-sites.size()])
+                    : make_pressure_image(base, address, controls_.remote_address(), pressure[i-sites.size()-conditional.size()].site);
                 if (image.code.empty() || image.code.size() > 4096) throw std::runtime_error("No-reload cave exceeds page");
                 SIZE_T done = 0;
                 if (!WriteProcessMemory(process_, reinterpret_cast<void*>(address), image.code.data(), image.code.size(), &done) || done != image.code.size()) throw std::runtime_error("Cannot initialize no-reload cave");

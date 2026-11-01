@@ -44,7 +44,14 @@ mask, or refill an exhausted filter.
 
 Feature values are `true` or `false`. Keys and hotkey names are case-sensitive.
 INI edits take effect on the next trainer launch; hotkeys toggle the current
-session immediately. The dashboard shows selected and applied state separately;
+session immediately.
+
+`[trainer] preserve_weapon_pressure=true` (the default) maintains normal Hellsing
+pressure while unlimited ammo or Hellsing no reload is active, including global
+no reload. Set it to `false` to retain manual pumping with those cheats enabled.
+This does not grant maximum overpressure or affect other weapons.
+
+The dashboard shows selected and applied state separately;
 `GLOBAL` means covered by all-weapons no reload, and `PAUSED` retains selections.
 Use Left/Right with the console focused to page through the 24 weapon classes.
 The dashboard needs at least 72 columns and 24 rows. Smaller consoles print all

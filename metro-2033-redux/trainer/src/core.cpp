@@ -89,7 +89,8 @@ Config parse_config(const std::string& text) {
         }
         if (value != "true" && value != "false") throw std::runtime_error("Expected true or false: " + key);
         const bool on = value == "true";
-        if (section == "trainer" && key == "enabled") result.enabled = on;
+        if (section == "trainer" && key == "preserve_weapon_pressure") result.preserve_weapon_pressure = on;
+        else if (section == "trainer" && key == "enabled") result.enabled = on;
         else if (section == "features" && key == "unlimited_ammo") result.unlimited_ammo = on;
         else if (section == "features" && key == "unlimited_throwables") result.unlimited_throwables = on;
         else if (section == "features" && key == "unlimited_medkits") result.unlimited_medkits = on;

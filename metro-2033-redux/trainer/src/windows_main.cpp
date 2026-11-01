@@ -374,6 +374,15 @@ int wmain(int argc, wchar_t** argv) {
                 require(readonly.read(base+site.rva, original) && original == site.original,
                         "No-reload original bytes differ from reviewed profile.");
             }
+            for (const auto& site : metro::verified_pressure_sites()) {
+                const auto hook = metro::make_pressure_image(base, base+0x1000000, base, site.site).hook;
+                require(hook.address >= base && hook.address-base < image.nt.OptionalHeader.SizeOfImage
+                    && hook.original.size() <= image.nt.OptionalHeader.SizeOfImage-(hook.address-base),
+                    "Pressure hook exceeds image bounds.");
+                std::vector<std::uint8_t> original(hook.original.size());
+                require(readonly.read(hook.address, original) && original == hook.original,
+                    "Pressure original bytes differ from reviewed profile.");
+            }
             selected["no_reload"] = config.no_reload;
             for (const auto& entry : metro::verified_no_reload_classes()) selected[entry.feature] = config.feature_enabled(entry.feature);
             if (check) { log("All available patch profile contexts and original bytes verified read-only."); return 0; }
@@ -452,7 +461,7 @@ int wmain(int argc, wchar_t** argv) {
                 show(metro::ui::Lifecycle::Installing, "Installing hooks with controls disabled.");
                 transaction = std::make_unique<metro::PatchTransaction>(reload_hooks);
                 require(change(false), "Could not apply selected features; inspect recovery log.");
-                reload.publish(metro::effective_controls(master, selected));
+                reload.publish(metro::effective_controls(master, selected, config.preserve_weapon_pressure));
                 sync();
                 auto log_selection = [&]() {
                     std::string snapshot = "Selection snapshot: enabled=" + std::string(master ? "true" : "false");
@@ -488,10 +497,10 @@ int wmain(int argc, wchar_t** argv) {
                     for (const auto& name : pressed) {
                         const auto binding = *config.hotkeys.find(name);
                         if (binding.first != "enabled" && !selected.count(binding.first)) { log("No verified profile for " + binding.first); continue; }
-                        const auto previous_mask = metro::effective_controls(master, selected);
+                        const auto previous_mask = metro::effective_controls(master, selected, config.preserve_weapon_pressure);
                         if (binding.first == "enabled") master = !master;
                         else selected[binding.first] = !selected[binding.first];
-                        const auto next_mask = metro::effective_controls(master, selected);
+                        const auto next_mask = metro::effective_controls(master, selected, config.preserve_weapon_pressure);
                         const auto publication_started = std::chrono::steady_clock::now();
                         const bool published = reload.publish(next_mask);
                         const auto publication_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(

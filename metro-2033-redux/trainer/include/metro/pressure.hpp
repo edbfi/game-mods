@@ -25,7 +25,7 @@ inline NoReloadImage make_pressure_image(std::uintptr_t base, std::uintptr_t cav
  // Keep the saved value at +16 intact and use +20 for the masked copy.
  bytes({0x8b,0x44,0x24,0x10,0x0d,0x80,0x1f,0,0,0x89,0x44,0x24,0x14,
         0x0f,0xae,0x54,0x24,0x14});
- bytes({0x49,0xbb});emit_integer(control,8);bytes({0x41,0x8b,0x03,0xa9,0,0,0,0x80});exit_if(0x84);
+ bytes({0x49,0xbb});emit_integer(control,8);bytes({0x41,0x8b,0x03,0xa9});emit_integer(pressure_control_bit,4);exit_if(0x84);
  bytes(recovery?std::initializer_list<std::uint8_t>{0x49,0x89,0xcb}:std::initializer_list<std::uint8_t>{0x49,0x89,0xdb});
  bytes({0x49,0x8b,0x83,0x18,1,0,0,0x48,0x85,0xc0});exit_if(0x84);
  bytes({0x48,0x8b,0x10,0x48,0x85,0xd2});exit_if(0x84);
@@ -48,4 +48,14 @@ inline NoReloadImage make_pressure_image(std::uintptr_t base, std::uintptr_t cav
  std::vector<std::uint8_t> jump{0xe9};for(unsigned i=0;i<4;++i)jump.push_back(static_cast<std::uint32_t>(distance)>>(8*i));jump.resize(original.size(),0x90);
  return {code,{base+rva,original,jump}};
 }
+struct PressureProfileSite {
+    const char* family;
+    PressureSite site;
+};
+inline std::array<PressureProfileSite, 3> verified_pressure_sites() {
+    return {{{"helsing_pressure", PressureSite::Recovery},
+        {"helsing_pressure", PressureSite::Consumption1},
+        {"helsing_pressure", PressureSite::Consumption2}}};
+}
+
 }
