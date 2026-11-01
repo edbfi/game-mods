@@ -3,7 +3,7 @@
     "rea": {
       "type": "stdio",
       "command": "sh",
-      "args": ["scripts/rea-mcp.sh"]
+      "args": ["-c", "exec sh \"$(git rev-parse --show-toplevel)/scripts/rea-mcp.sh\""]
     }
   }
 }

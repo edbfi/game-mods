@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 [mcp_servers.rea]
 command = "sh"
-args = ["scripts/rea-mcp.sh"]
+args = ["-c", 'exec sh "$(git rev-parse --show-toplevel)/scripts/rea-mcp.sh"']
 startup_timeout_sec = 30
 tool_timeout_sec = 300

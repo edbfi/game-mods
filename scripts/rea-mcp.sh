@@ -13,8 +13,11 @@ if command -v brew >/dev/null 2>&1; then
     if [ -z "${GHIDRA_INSTALL_DIR-}" ] && [ -d "$prefix/opt/ghidra/libexec" ]; then
         export GHIDRA_INSTALL_DIR="$prefix/opt/ghidra/libexec"
     fi
-    if [ -z "${JAVA_HOME-}" ] && [ -d "$prefix/opt/openjdk@25/libexec" ]; then
-        export JAVA_HOME="$prefix/opt/openjdk@25/libexec"
-    fi
+    # The JDK home is libexec on Linux and libexec/openjdk.jdk/Contents/Home on macOS.
+    for jdk in "$prefix/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home" "$prefix/opt/openjdk@25/libexec"; do
+        if [ -z "${JAVA_HOME-}" ] && [ -x "$jdk/bin/java" ]; then
+            export JAVA_HOME="$jdk"
+        fi
+    done
 fi
 exec "$modules/node/bin/node" "$modules/rea-agents/scripts/rea.mjs" mcp

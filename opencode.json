@@ -3,7 +3,7 @@
   "mcp": {
     "rea": {
       "type": "local",
-      "command": ["sh", "scripts/rea-mcp.sh"],
+      "command": ["sh", "-c", "exec sh \"$(git rev-parse --show-toplevel)/scripts/rea-mcp.sh\""],
       "enabled": true,
       "timeout": 300000
     }
