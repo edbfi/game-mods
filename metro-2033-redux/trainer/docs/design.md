@@ -18,8 +18,8 @@ ConPTY has no reliable foreground-tab identity or record timestamps: a tap
 released before async polling remains unsupported there, because accepting its
 records alone would also accept indistinguishable stale/background pairs.
 Releases, modifier changes, focus records and incomplete input batches cancel
-pending holds. Presentation
-updates do not consume input. Mouse input is disabled during console ownership;
+pending holds. Presentation updates do not consume input. Mouse input is disabled
+during console ownership;
 all original input flags are restored on exit. A failed input reader is disabled
 permanently for the session, preserving game async hotkeys and plain output.
 No terminal process or host window is whitelisted.

@@ -59,11 +59,15 @@ struct WindowsConsole::Impl {
         cursor_saved = GetConsoleCursorInfo(out,&cursor) != 0;
         info_saved = GetConsoleScreenBufferInfo(out,&saved) != 0;
         // Preserve processed Ctrl+C and resize flags; the dashboard has no mouse UI.
-        if (allow && output_saved && input_saved && info_saved && cursor_saved) {
+        if (enabled && input_saved) {
+            input_healthy = true;
             if (!SetConsoleMode(in,(input_mode | ENABLE_EXTENDED_FLAGS) & ~(ENABLE_QUICK_EDIT_MODE | ENABLE_MOUSE_INPUT))) {
                 failure = "Console setup failed; using plain output.";
-                allow = false;
+                input_healthy = false;
             }
+        }
+        allow = allow && input_healthy && output_saved && info_saved && cursor_saved;
+        if (allow) {
             // Classic conhost opens its system menu for Alt+Space before key
             // records reach us. Remove that menu for our console, then restore
             // the exact style on exit. This cannot control a ConPTY host's menu
@@ -75,8 +79,7 @@ struct WindowsConsole::Impl {
                 style_saved = old != 0 || GetLastError() == 0;
                 if (!style_saved) failure = "Cannot disable console system menu; choose a master binding other than Alt+Space.";
             }
-        } else allow = false;
-        input_healthy = allow;
+        }
     }
     ~Impl() noexcept {
         if (style_saved) SetWindowLongPtrW(window,GWL_STYLE,window_style);

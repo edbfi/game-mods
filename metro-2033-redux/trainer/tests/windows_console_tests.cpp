@@ -290,6 +290,30 @@ int main() {
                 && std::string(tail,100) == std::string(100,' '),"classic/VT prompt row has no dashboard leftovers");
         }
         check(SetConsoleMode(out,output_mode),"restore test output mode");
+        const auto redirected = CreateFileW(L"NUL",GENERIC_WRITE,FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,0,nullptr);
+        check(redirected != INVALID_HANDLE_VALUE,"open redirected output");
+        SetStdHandle(STD_OUTPUT_HANDLE,redirected);
+        {
+            metro::ui::WindowsConsole console;
+            metro::ui::Model model;
+            console.update(model);
+            check(!console.dashboard_active() && !console.error(),"redirected output uses healthy plain mode");
+            metro::ui::test_classic_foreground(false);
+            FlushConsoleInputBuffer(in);
+            INPUT_RECORD record{};
+            record.EventType = KEY_EVENT;
+            record.Event.KeyEvent.bKeyDown = TRUE;
+            record.Event.KeyEvent.wVirtualKeyCode = '1';
+            record.Event.KeyEvent.dwControlKeyState = LEFT_CTRL_PRESSED;
+            record.Event.KeyEvent.wRepeatCount = 1;
+            DWORD written = 0;
+            check(WriteConsoleInputW(in,&record,1,&written) && written == 1,"queue redirected-output hotkey");
+            console.refresh();
+            check(console.hotkey_pressed(metro::parse_hotkey("CTRL+1"),true,true,false),"redirected output preserves console hotkeys");
+        }
+        check(GetConsoleMode(in,&restored) && restored == mode,"redirected session restores input mode");
+        SetStdHandle(STD_OUTPUT_HANDLE,out);
+        CloseHandle(redirected);
         HANDLE broken = nullptr;
         check(DuplicateHandle(GetCurrentProcess(),in,GetCurrentProcess(),&broken,0,FALSE,DUPLICATE_SAME_ACCESS),"duplicate input");
         SetStdHandle(STD_INPUT_HANDLE,broken);
