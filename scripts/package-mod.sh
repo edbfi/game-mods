@@ -32,14 +32,21 @@ zip="$dir/dist/$game-$mod-$version.zip"
 python3 - "$zip" <<'PY'
 import stat, sys, zipfile
 infos = zipfile.ZipFile(sys.argv[1]).infolist()
-if not infos:
-    sys.exit("::error::The zip is empty")
+if not any(not info.is_dir() for info in infos):
+    sys.exit("::error::The zip holds no files")
+seen = set()
 for info in infos:
-    name, parts = info.filename, info.filename.split("/")
-    if name.startswith("/") or "\\" in name or ".." in parts or ":" in parts[0]:
+    name = info.filename
+    path = name.removesuffix("/") if info.is_dir() else name
+    parts = path.split("/")
+    if "\\" in name or ":" in parts[0] or any(part in ("", ".", "..") for part in parts):
         sys.exit(f"::error::Unsafe zip entry {name!r}")
-    mode = info.external_attr >> 16
-    if mode and not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+    # Windows and Vortex unzip case-insensitively, so case-only twins overwrite each other.
+    if path.lower() in seen:
+        sys.exit(f"::error::Zip entry {name!r} is a duplicate")
+    seen.add(path.lower())
+    kind = stat.S_IFMT(info.external_attr >> 16)
+    if kind not in (0, stat.S_IFDIR if info.is_dir() else stat.S_IFREG):
         sys.exit(f"::error::Zip entry {name!r} is not a regular file or folder")
 print(f"{len(infos)} entries")
 PY

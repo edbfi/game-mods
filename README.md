@@ -9,8 +9,8 @@ Mods for games I play. One folder per game, one subfolder per mod.
 
 ## Download
 
-A **release** is a tested version of one mod, with a version number. A **nightly** is the latest build of `main`:
-every change, built and checked by the mod's tests, but not tried in-game. Each mod's README says how to install it.
+A **release** is a version of one mod picked to keep, with a version number. A **nightly** is the latest build of
+`main`: every change, built and checked by the mod's tests, but not necessarily tried in-game. Each mod's README says how to install it.
 
 Nightly downloads go through [nightly.link](https://nightly.link). If it fails, open the
 [latest successful nightly run](https://github.com/edbfi/game-mods/actions/workflows/nightly.yml?query=branch%3Amain+is%3Asuccess)

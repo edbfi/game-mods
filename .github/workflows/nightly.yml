@@ -74,7 +74,8 @@ jobs:
     needs: [mods, build]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Each mod takes up to about 6 minutes, 5 of them polling VirusTotal: room for about 10 mods.
+    timeout-minutes: 60
     permissions: { actions: read, contents: read }
     env:
       GH_REPO: ${{ github.repository }}
@@ -115,6 +116,7 @@ jobs:
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
         run: |
           set -euo pipefail
+          # Each row goes into the summary as soon as it exists, so a later failure keeps it.
           {
             echo "### Nightly build of \`${GITHUB_SHA:0:7}\`, run $GITHUB_RUN_NUMBER"
             echo
@@ -122,13 +124,12 @@ jobs:
             echo
             echo '| File | SHA-256 | Analysis | Reports |'
             echo '| --- | --- | --- | --- |'
-          } > "$RUNNER_TEMP/summary.md"
+          } >> "$GITHUB_STEP_SUMMARY"
           first=1
           while read -r zip; do
             # The script spaces its own requests; space the files too.
             ((first)) || sleep 15
             first=0
             bash "$RUNNER_TEMP/release-virustotal.sh" scan "$zip" "$RUNNER_TEMP/virustotal.md"
-            grep '^| `' "$RUNNER_TEMP/virustotal.md" >> "$RUNNER_TEMP/summary.md"
+            grep '^| `' "$RUNNER_TEMP/virustotal.md" >> "$GITHUB_STEP_SUMMARY"
           done < "$RUNNER_TEMP/zips.txt"
-          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
