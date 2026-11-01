@@ -9,7 +9,8 @@
 //!
 //! On Windows the replacement is `ReplaceFileW`, which hands back the replaced file. Elsewhere it is a hard
 //! link to the old file followed by `rename`, so an editor that itself renames a file into place between those
-//! two steps can still be lost; only Windows builds ship.
+//! two steps can still be lost; only Windows builds ship. Creating the file and keeping an external version
+//! use hard links on every platform, so the folder must be on a volume that supports them, such as NTFS.
 #![forbid(unsafe_code)]
 
 use std::fs::{self, File, OpenOptions, TryLockError};
@@ -49,7 +50,7 @@ enum Seen {
     Bytes(Vec<u8>),
     /// The contents of this complete copy.
     Copy(PathBuf),
-    /// A file too large to have read whole; nothing is ever equal to it.
+    /// A file too large to have read whole, or one that was invalid; nothing is ever equal to it.
     Unknown,
 }
 
@@ -77,7 +78,8 @@ pub enum Load {
 /// What [`Store::save`] did.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Saved {
-    /// The file already held exactly these settings; nothing was written.
+    /// The store last read or wrote exactly these settings, so nothing was written. The file itself is not
+    /// checked; an edit or deletion since then is found by the next save that writes.
     Unchanged,
     /// The file was replaced.
     Written {
@@ -223,7 +225,12 @@ impl Store {
             match self.read(&self.path.clone()) {
                 Ok(Some(bytes)) => {
                     let parsed = Settings::parse(profile, &bytes);
-                    self.baseline = Some(Seen::read(bytes));
+                    // An invalid file was never accepted, so replacing it must keep it.
+                    self.baseline = Some(if parsed.is_ok() {
+                        Seen::read(bytes)
+                    } else {
+                        Seen::Unknown
+                    });
                     return Ok(match parsed {
                         Ok(parsed) => Load::Read(parsed),
                         Err(error) => Load::Invalid(error),

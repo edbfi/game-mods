@@ -67,7 +67,7 @@ pub struct Event {
     pub severity: Severity,
     /// What it is about.
     pub kind: EntryKind,
-    /// One line for a person; at most [`Journal::MESSAGE_CAP`] bytes are kept.
+    /// One line for a person; at most [`Journal::MESSAGE_CAP`] bytes are kept, then an ellipsis.
     pub message: String,
     /// The hook site involved, if any.
     pub site: Option<SiteId>,
@@ -191,7 +191,7 @@ impl Journal {
     pub const ACTIVITY: usize = 64;
     /// The most bytes `trainer.log` grows to before it is rotated.
     pub const LOG_CAP: u64 = 1024 * 1024;
-    /// The most bytes of an event's message that are kept.
+    /// The most bytes of an event's message that are kept; a longer one also gets an ellipsis.
     pub const MESSAGE_CAP: usize = 1024;
 
     /// A journal writing `trainer.log` in `dir`, which is created if needed. The log starts with `header`

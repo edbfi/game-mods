@@ -644,6 +644,23 @@ fn an_invalid_file_is_reported_and_reset_keeps_every_backup() {
 }
 
 #[test]
+fn saving_over_an_invalid_file_keeps_it() {
+    let dir = TestDir::new("settings-invalid-save");
+    let profile = synthetic();
+    fs::write(dir.path().join("settings.toml"), "schema = 9\n").unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    assert!(matches!(store.load(&profile).unwrap(), Load::Invalid(_)));
+    let kept = dir.path().join("settings.external-1.toml");
+    assert_eq!(
+        store.save(&profile, &modified(&profile)).unwrap(),
+        Saved::Written {
+            external: Some(External::Kept(kept.clone()))
+        }
+    );
+    assert_eq!(read(&kept), "schema = 9\n");
+}
+
+#[test]
 fn reset_and_save_keep_an_oversized_file_whole() {
     let dir = TestDir::new("settings-oversized");
     let profile = synthetic();
