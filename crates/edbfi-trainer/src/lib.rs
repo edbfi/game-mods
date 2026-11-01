@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Shared trainer core for edbfi game mods.
+//! Shared trainer core for edbfi game mods: process identity, verified hooks, controls and settings.
 //!
-//! A game supplies a validated static profile. This crate finds and identifies the game process, installs
-//! the profile's hooks under a thread freeze, publishes the control word and restores every byte it changed.
-//! Portable modules forbid `unsafe`; all Win32 calls live in one `win32` module.
+//! All Win32 `unsafe` will live in a single `win32` module; everything else stays safe code.
 #![deny(unsafe_code)]

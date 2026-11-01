@@ -6,11 +6,14 @@ CI comes from [edbfi-ci](https://github.com/edbfi/edbfi-ci); its rules apply her
 ## Rules
 
 - A mod is a folder with a `README.md` and a `justfile` with `test`, `build` and `package <version>`.
-  `package` writes `dist/<game>-<mod>-<version>.zip`. Adding a mod needs no change outside its folder.
-- Rust code is one Cargo workspace. Rust trainers live in `<game>/trainer` and join it automatically; other Rust
-  mods add themselves to the root `Cargo.toml` members, and any Rust change may update the root `Cargo.lock`.
+  `package` writes `dist/<game>-<mod>-<version>.zip`. Adding a mod needs no change outside its folder,
+  except a non-trainer Rust mod's workspace entry (below).
+- Rust code is one Cargo workspace. Rust trainers live in `<game>/trainer` and join it automatically, so the mod name
+  `trainer` is reserved for Rust crates. Other Rust mods add themselves to the root `Cargo.toml` members, and any
+  Rust change may update the root `Cargo.lock`.
   Shared crates live in `crates/` and never hold a `justfile`.
-- Never commit game files, saves, captures or binaries. Build output goes in the mod's ignored `build/` and `dist/`.
+- Never commit game files, saves, captures or binaries. Build output goes in the mod's ignored `build/` and `dist/`
+  (Cargo's in the root `/target/`).
 - Conventional Commits scoped `<game>/<mod>` (e.g. `fix(metro-2033-redux/trainer): …`), with a DCO sign-off
   (`git commit -s`), through a PR.
 - New source files carry `SPDX-License-Identifier: AGPL-3.0-only`.

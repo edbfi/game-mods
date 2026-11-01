@@ -14,6 +14,7 @@ private = { ignore = true }
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+allow-wildcard-paths = true
 deny = [
     { crate = "serde", wrappers = [] },
     { crate = "serde_core", wrappers = ["serde_spanned", "toml", "toml_datetime"], reason = "embed-resource's build-time toml only" },
