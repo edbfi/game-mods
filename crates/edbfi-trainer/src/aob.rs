@@ -258,13 +258,14 @@ pub const fn parse<const N: usize>(text: &str) -> Result<[Token; N], AobError> {
 #[macro_export]
 macro_rules! aob {
     ($text:expr) => {{
-        const TEXT: &str = $text;
-        const TOKENS: [$crate::aob::Token; $crate::aob::token_count(TEXT)] =
-            match $crate::aob::parse(TEXT) {
+        // Item names are not hygienic: prefixed so they cannot shadow a caller's constant.
+        const __EDBFI_AOB_TEXT: &str = $text;
+        const __EDBFI_AOB_TOKENS: [$crate::aob::Token; $crate::aob::token_count(__EDBFI_AOB_TEXT)] =
+            match $crate::aob::parse(__EDBFI_AOB_TEXT) {
                 Ok(tokens) => tokens,
                 Err(_) => panic!("malformed byte signature"),
             };
-        match $crate::aob::Pattern::new(&TOKENS) {
+        match $crate::aob::Pattern::new(&__EDBFI_AOB_TOKENS) {
             Ok(pattern) => pattern,
             Err(_) => panic!("malformed byte signature"),
         }
@@ -277,6 +278,8 @@ mod tests {
     use proptest::prelude::*;
 
     const SAMPLE: Pattern<'static> = crate::aob!("f3 44 ?? 59\tCA ?");
+    const TEXT: &str = "48 8B";
+    const TOKENS: Pattern<'static> = crate::aob!(TEXT);
 
     #[test]
     fn grammar_accepts_hex_either_case_and_both_wildcards() {
@@ -292,6 +295,11 @@ mod tests {
             ]
         );
         assert_eq!(SAMPLE.to_string(), "F3 44 ?? 59 CA ??");
+        assert_eq!(
+            TOKENS.to_string(),
+            "48 8B",
+            "a caller's constant named like the macro's own items"
+        );
     }
 
     #[test]

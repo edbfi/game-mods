@@ -157,7 +157,7 @@ impl fmt::Debug for DesiredMask {
 /// A word that has been published to the game.
 ///
 /// Only the publisher creates one, so holding a `ControlMask` proves the game can observe it.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ControlMask(ControlSet);
 
 impl ControlMask {
