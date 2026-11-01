@@ -12,6 +12,12 @@ test: (each "test")
 # Build every mod.
 build: (each "build")
 
+# Run what CI runs: prek, then every mod's tests and build.
+ci:
+    prek run --all-files --hook-stage manual
+    just test
+    just build
+
 [private]
 each recipe:
     shopt -s nullglob; for file in */*/justfile; do \
