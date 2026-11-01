@@ -60,15 +60,15 @@ Edit the `[hotkeys]` section to change bindings. Defaults are:
 
 | Key | Toggle |
 | --- | --- |
-| Ctrl+Space | Master enable/pause (remembers individual selections) |
-| Ctrl+1 | Global no reload |
-| Ctrl+2 | God mode |
-| Ctrl+3 | Unlimited flashlight |
-| Ctrl+F1 | Unlimited reserve ammo |
-| Ctrl+F2 | Unlimited throwables |
-| Ctrl+F3 | Unlimited medkits |
-| Ctrl+F4 | Unlimited filters |
-| Ctrl+F5 | Indestructible mask |
+| Alt+Space | Master enable/pause (remembers individual selections) |
+| Alt+1 | Global no reload |
+| Alt+2 | God mode |
+| Alt+3 | Unlimited flashlight |
+| Alt+F1 | Unlimited reserve ammo |
+| Alt+F2 | Unlimited throwables |
+| Alt+F3 | Unlimited medkits |
+| Alt+F4 | Unlimited filters |
+| Alt+F5 | Indestructible mask |
 
 Bindings accept `F1`–`F24`, `A`–`Z`, `0`–`9`, `SPACE`, `INSERT`, `DELETE`,
 `HOME`, `END`, `PAGEUP`, `PAGEDOWN`, `PAUSE`, or `NONE`. Add `CTRL`, `ALT`,
@@ -92,8 +92,8 @@ no_reload_revolver=true
 no_reload_ak74=false
 
 [hotkeys]
-no_reload_revolver=CTRL+4
-no_reload_ak74=CTRL+5
+no_reload_revolver=ALT+4
+no_reload_ak74=ALT+5
 ```
 
 Use those entries within your existing sections; do not add duplicate sections.

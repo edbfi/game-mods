@@ -45,7 +45,7 @@ int main() {
     check(individual.feature_enabled("no_reload_ak74") && individual.hotkeys.at("no_reload_ak74") == 0x78);
     check(modern.no_reload && modern.god_mode && modern.unlimited_flashlight && modern.hotkeys.at("enabled") == 0x24);
     check(metro::parse_hotkey("F24") == 0x87 && metro::parse_hotkey("A") == 65);
-    rejects([] { metro::parse_config("[hotkeys]\nenabled=CTRL+F1"); });
+    rejects([] { metro::parse_config("[hotkeys]\nenabled=ALT+F1"); });
     rejects([] { metro::parse_config("[hotkeys]\nenabled=CTRL+CTRL+F1"); });
     check(metro::parse_hotkey("CTRL-1") == 0x131 && metro::parse_hotkey("CTRL+SHIFT+F1") == 0x570);
     check(metro::parse_hotkey("CTRL+SPACE") == 0x120);
