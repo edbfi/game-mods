@@ -59,7 +59,7 @@ jobs:
         with: { version: 0.17.0, use-cache: false }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
       - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" test
-      # Nightlies have no version of their own; the run number and commit name them.
+      # Nightlies have no version: 0.0.0 only names the zip extracted here. The scan summary names a build by commit and run.
       - run: bash scripts/package-mod.sh "$GAME/$MOD" 0.0.0 "$RUNNER_TEMP/nightly"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
