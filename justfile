@@ -24,3 +24,8 @@ each recipe:
         dir=${file%/justfile}; echo "==> $dir: {{recipe}}"; \
         just --justfile "$file" --working-directory "$dir" {{recipe}}; \
     done
+
+# Install the pinned REA (needs npm; Ghidra and OpenJDK 25 from Homebrew are optional), then check it.
+setup-rea:
+    npm ci --prefix .rea --no-audit --no-fund
+    .rea/node_modules/node/bin/node .rea/node_modules/rea-agents/scripts/rea.mjs doctor

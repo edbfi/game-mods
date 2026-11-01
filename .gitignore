@@ -17,3 +17,6 @@ Thumbs.db
 Desktop.ini
 /.idea/
 /.vscode/
+
+# REA install (just setup-rea)
+/.rea/node_modules/
