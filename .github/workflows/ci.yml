@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# From edbfi-ci templates/ci-shell.yml. Every added PR job belongs in ci-ok. No paths: filter:
-# a skipped workflow leaves the required checks pending.
+# From edbfi-ci templates/ci-shell.yml, plus the root Rust workspace. Every added PR job belongs in ci-ok.
+# No paths: filter: a skipped workflow leaves the required checks pending.
 name: CI
 on:
   pull_request:
@@ -12,33 +12,110 @@ permissions: {}
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.head.sha) || format('ci-{0}', github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  # The MSVC CRT and Windows SDK that cargo-xwin links Windows builds against.
+  XWIN_VERSION: "17"
+  XWIN_SDK_VERSION: 10.0.26100
+  XWIN_CRT_VERSION: 14.44.17.14
+  XWIN_ARCH: x86_64
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
+      - run: rustup toolchain install   # the version in rust-toolchain.toml
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with: { tool: cargo-xwin@0.23.1 }
+      - name: Install clang and llvm-rc for Windows resources
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang llvm
+          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
       - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
         with: { extra-args: "--all-files --hook-stage manual" }
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
-        with: { tool: just }
+        with: { tool: "just,cargo-xwin@0.23.1" }
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with: { version: 0.17.0 }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang llvm
+          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
       - run: just test
       - run: just build
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Cross-build the Rust trainer
+        env: { EDBFI_COMMIT: "${{ github.sha }}" }
+        run: |
+          cargo xwin build --locked --release --target x86_64-pc-windows-msvc -p metro-2033-redux-trainer
+          exe=target/x86_64-pc-windows-msvc/release/metro-trainer.exe
+          resources=$(llvm-readobj --coff-resources "$exe")
+          for type in MANIFEST VERSIONINFO; do
+            grep -q "Type: $type " <<<"$resources" || { echo "::error::$exe has no $type resource"; exit 1; }
+          done
+          mkdir -p candidate && cp "$exe" candidate/
+          (cd candidate && sha256sum metro-trainer.exe > metro-trainer.exe.sha256)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: rust-trainer-candidate, path: candidate/, retention-days: 7, if-no-files-found: error }
+  windows:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo test --locked --workspace -- --test-threads=1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { name: rust-trainer-candidate, path: candidate }
+      - name: Smoke-test the exact cross-built executable
+        working-directory: candidate
+        run: |
+          sha256sum -c metro-trainer.exe.sha256
+          version=$(./metro-trainer.exe --version)
+          [ "$version" = "metro-trainer 0.0.0" ] || { echo "::error::unexpected --version output: $version"; exit 1; }
+          status=0; ./metro-trainer.exe --bogus || status=$?
+          [ "$status" -eq 2 ] || { echo "::error::an unknown option exited $status, expected 2"; exit 1; }
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with: { tool: cargo-deny@0.20.2 }
+      - run: cargo deny --locked --workspace check bans licenses sources
+  # Advisories change without our commits, so they never block a PR.
+  audit:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with: { tool: cargo-deny@0.20.2 }
+      - run: cargo deny --locked --workspace check advisories
   ci-ok:
     if: always()
-    needs: [checks, build]
+    needs: [checks, build, windows, deny]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

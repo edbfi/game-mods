@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# From edbfi-ci templates/pre-commit/shell. Keep this filename: Dependabot's pre-commit updater
+# From edbfi-ci templates/pre-commit/shell and rust. Keep this filename: Dependabot's pre-commit updater
 # can't read prek.toml. CI runs prek run --all-files --hook-stage manual.
 default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit, manual]
@@ -69,3 +69,29 @@ repos:
         language: fail
         entry: "Game files and binaries never go in the repo; build output belongs in build/ or dist/."
         files: (?i)\.(exe|dll|pdb|sga|rgd|player)$
+      - id: cargo-fmt
+        name: cargo fmt
+        language: system
+        entry: cargo fmt --all -- --check
+        files: \.rs$
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy
+        language: system
+        entry: cargo clippy --locked --workspace --all-targets -- -D warnings
+        files: (\.rs|Cargo\.(toml|lock)|clippy\.toml|rust-toolchain\.toml|\.cargo/config\.toml)$
+        pass_filenames: false
+      # cfg(windows) code is invisible to host clippy. Needs cargo-xwin, clang and llvm-rc, so CI and `just ci` only.
+      - id: cargo-clippy-windows
+        name: cargo clippy (Windows target)
+        language: system
+        entry: cargo xwin clippy --locked --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+        files: (\.rs|Cargo\.(toml|lock)|clippy\.toml|rust-toolchain\.toml|\.cargo/config\.toml)$
+        pass_filenames: false
+        stages: [manual]
+      - id: cargo-test
+        name: cargo test
+        language: system
+        entry: cargo test --locked --workspace
+        files: (\.rs|Cargo\.(toml|lock)|rust-toolchain\.toml|\.cargo/config\.toml)$
+        pass_filenames: false

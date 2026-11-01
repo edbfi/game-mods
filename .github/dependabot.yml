@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# From edbfi-ci templates/dependabot.shell.yml.
+# From edbfi-ci templates/dependabot.shell.yml, plus the root Cargo workspace and its pinned toolchain.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,6 +10,20 @@ updates:
     groups:
       patch-minor: { patterns: ["*"], update-types: [minor, patch] }
   - package-ecosystem: pre-commit
+    directory: /
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Copenhagen }
+    cooldown: { exclude: ["*"] } # zizmor: ignore[dependabot-cooldown] -- updates merge on green without delay
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      patch-minor: { patterns: ["*"], update-types: [minor, patch] }
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Copenhagen }
+    cooldown: { exclude: ["*"] } # zizmor: ignore[dependabot-cooldown] -- updates merge on green without delay
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      patch-minor: { patterns: ["*"], update-types: [minor, patch] }
+  - package-ecosystem: rust-toolchain
     directory: /
     schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Copenhagen }
     cooldown: { exclude: ["*"] } # zizmor: ignore[dependabot-cooldown] -- updates merge on green without delay

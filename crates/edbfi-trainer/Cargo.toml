@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "edbfi-trainer"
+description = "Process attachment, verified hooks and settings for edbfi game trainers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
