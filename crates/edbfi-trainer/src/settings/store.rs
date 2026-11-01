@@ -36,10 +36,31 @@ pub struct Store {
     dir: PathBuf,
     path: PathBuf,
     _lease: File,
-    /// The exact bytes last read or written; `None` before the first load.
-    baseline: Option<Vec<u8>>,
+    /// The file as last read or written; `None` before the first load or once it was missing.
+    baseline: Option<Seen>,
     sequence: u32,
     disk: Disk,
+}
+
+/// A version of the file the store has seen, so replacing it loses nothing.
+#[derive(Debug)]
+enum Seen {
+    /// These exact bytes, at most [`MAX_BYTES`].
+    Bytes(Vec<u8>),
+    /// The contents of this complete copy.
+    Copy(PathBuf),
+    /// A file too large to have read whole; nothing is ever equal to it.
+    Unknown,
+}
+
+impl Seen {
+    fn read(bytes: Vec<u8>) -> Self {
+        if bytes.len() > MAX_BYTES {
+            Self::Unknown
+        } else {
+            Self::Bytes(bytes)
+        }
+    }
 }
 
 /// What [`Store::load`] found.
@@ -202,7 +223,7 @@ impl Store {
             match self.read(&self.path.clone()) {
                 Ok(Some(bytes)) => {
                     let parsed = Settings::parse(profile, &bytes);
-                    self.baseline = Some(bytes);
+                    self.baseline = Some(Seen::read(bytes));
                     return Ok(match parsed {
                         Ok(parsed) => Load::Read(parsed),
                         Err(error) => Load::Invalid(error),
@@ -213,7 +234,7 @@ impl Store {
                     let bytes = defaults.to_toml(profile).into_bytes();
                     match self.create(&bytes) {
                         Ok(true) => {
-                            self.baseline = Some(bytes);
+                            self.baseline = Some(Seen::Bytes(bytes));
                             return Ok(Load::Created(defaults));
                         }
                         // Someone created the file meanwhile: read theirs.
@@ -247,13 +268,13 @@ impl Store {
         settings: &Settings,
     ) -> Result<Saved, StoreError> {
         let bytes = settings.to_toml(profile).into_bytes();
-        if self.baseline.as_ref() == Some(&bytes) {
+        if matches!(&self.baseline, Some(Seen::Bytes(seen)) if *seen == bytes) {
             return Ok(Saved::Unchanged);
         }
         let external = self
             .write(&bytes)
             .map_err(|source| self.error_write(source))?;
-        self.baseline = Some(bytes);
+        self.baseline = Some(Seen::Bytes(bytes));
         Ok(Saved::Written { external })
     }
 
@@ -262,30 +283,29 @@ impl Store {
     ///
     /// # Errors
     ///
-    /// [`StoreError::Unreadable`] if the current file cannot be read for its backup, [`StoreError::Write`] if
-    /// the backup or the defaults cannot be written. The file is unchanged on error.
+    /// [`StoreError::Write`] if the backup or the defaults cannot be written. The file is unchanged on error.
     pub fn reset(&mut self, profile: &ValidProfile<'_>) -> Result<Reset, StoreError> {
-        let current = self
-            .read(&self.path.clone())
-            .map_err(|source| StoreError::Unreadable {
-                path: self.path.clone(),
-                source,
-            })?;
-        let backup = match &current {
-            Some(bytes) => Some(
-                self.numbered("invalid", |disk, path| disk.op(|| write_new(path, bytes)))
+        let path = self.path.clone();
+        let exists = self
+            .disk
+            .op(|| path.try_exists())
+            .map_err(|source| self.error_write(source))?;
+        let backup = if exists {
+            Some(
+                self.numbered("invalid", |disk, copy| disk.op(|| copy_new(&path, copy)))
                     .map_err(|source| self.error_write(source))?,
-            ),
-            None => None,
+            )
+        } else {
+            None
         };
-        // The backup holds these bytes, so replacing them loses nothing; a later change is still kept.
-        self.baseline = current;
+        // The backup is a complete copy, so replacing that version loses nothing; a later change is still kept.
+        self.baseline = backup.clone().map(Seen::Copy);
         let settings = Settings::defaults(profile);
         let bytes = settings.to_toml(profile).into_bytes();
         let external = self
             .write(&bytes)
             .map_err(|source| self.error_write(source))?;
-        self.baseline = Some(bytes);
+        self.baseline = Some(Seen::Bytes(bytes));
         Ok(Reset {
             settings,
             backup,
@@ -374,7 +394,12 @@ impl Store {
                 match self.disk.op(|| replace(&path, temp, &backup)) {
                     Ok(()) => return Ok(self.settle(&backup)),
                     Err(error) => {
-                        self.salvage(&backup);
+                        if let Some(kept) = self.salvage(&backup) {
+                            return Err(io::Error::new(
+                                error.kind(),
+                                format!("{error}; the previous file is kept at {}", kept.display()),
+                            ));
+                        }
                         if error.kind() != io::ErrorKind::NotFound {
                             return Err(error);
                         }
@@ -393,9 +418,18 @@ impl Store {
 
     /// Deals with the replaced version: dropped if it is what the store last saw, otherwise kept.
     fn settle(&mut self, backup: &Path) -> Option<External> {
-        if let Ok(Some(previous)) = self.read(backup)
-            && self.baseline.as_ref() == Some(&previous)
-        {
+        let baseline = self.baseline.take();
+        let seen = match &baseline {
+            Some(Seen::Bytes(bytes)) => {
+                matches!(self.read(backup), Ok(Some(previous)) if previous == *bytes)
+            }
+            Some(Seen::Copy(copy)) => {
+                matches!(self.disk.op(|| same_contents(backup, copy)), Ok(true))
+            }
+            Some(Seen::Unknown) | None => false,
+        };
+        self.baseline = baseline;
+        if seen {
             self.remove(backup);
             return None;
         }
@@ -414,21 +448,21 @@ impl Store {
         Some(External::Kept(kept))
     }
 
-    /// After a failed replacement, puts back a replaced file that was moved aside but not replaced.
-    fn salvage(&mut self, backup: &Path) {
+    /// After a failed replacement, puts back a replaced file that was moved aside but not replaced. Returns
+    /// the moved-aside file if it had to be left in place.
+    fn salvage(&mut self, backup: &Path) -> Option<PathBuf> {
         let path = self.path.clone();
         if !matches!(self.disk.op(|| backup.try_exists()), Ok(true)) {
-            return;
+            return None;
         }
         if matches!(self.disk.op(|| path.try_exists()), Ok(false)) {
             let _ignored = self.disk.op(|| fs::hard_link(backup, &path));
         }
-        let same = matches!(
-            (self.read(backup), self.read(&path)),
-            (Ok(Some(a)), Ok(Some(b))) if a == b
-        );
-        if same {
+        if matches!(self.disk.op(|| same_contents(backup, &path)), Ok(true)) {
             self.remove(backup);
+            None
+        } else {
+            Some(backup.to_owned())
         }
     }
 
@@ -462,6 +496,51 @@ fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let _ignored = fs::remove_file(path);
     }
     written
+}
+
+/// Creates `copy`, which must not exist, holding all of `source`, flushed to disk. If copying fails, the new
+/// file is removed again.
+fn copy_new(source: &Path, copy: &Path) -> io::Result<()> {
+    let mut source = File::open(source)?;
+    let mut file = OpenOptions::new().write(true).create_new(true).open(copy)?;
+    let copied = io::copy(&mut source, &mut file).and_then(|_| file.sync_all());
+    if copied.is_err() {
+        drop(file);
+        let _ignored = fs::remove_file(copy);
+    }
+    copied
+}
+
+/// Whether two files hold the same bytes, reading both whole.
+fn same_contents(a: &Path, b: &Path) -> io::Result<bool> {
+    let (mut a, mut b) = (File::open(a)?, File::open(b)?);
+    if a.metadata()?.len() != b.metadata()?.len() {
+        return Ok(false);
+    }
+    let (mut x, mut y) = ([0; 8192], [0; 8192]);
+    loop {
+        let (n, m) = (fill(&mut a, &mut x)?, fill(&mut b, &mut y)?);
+        if x[..n] != y[..m] {
+            return Ok(false);
+        }
+        if n == 0 {
+            return Ok(true);
+        }
+    }
+}
+
+/// Reads until `buffer` is full or the file ends; returns the bytes read.
+fn fill(file: &mut File, buffer: &mut [u8]) -> io::Result<usize> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match file.read(&mut buffer[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(filled)
 }
 
 /// Replaces `target` with `replacement`, leaving the replaced file at `backup`.

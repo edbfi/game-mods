@@ -644,6 +644,36 @@ fn an_invalid_file_is_reported_and_reset_keeps_every_backup() {
 }
 
 #[test]
+fn reset_and_save_keep_an_oversized_file_whole() {
+    let dir = TestDir::new("settings-oversized");
+    let profile = synthetic();
+    let path = dir.path().join("settings.toml");
+    let big = format!("{SYNTHETIC_DEFAULTS}{}\n", "#".repeat(MAX_BYTES + 4096));
+    fs::write(&path, &big).unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    assert!(matches!(store.load(&profile).unwrap(), Load::Invalid(_)));
+    let saved = store.save(&profile, &modified(&profile)).unwrap();
+    let Saved::Written {
+        external: Some(External::Kept(kept)),
+    } = saved
+    else {
+        panic!("an unread version was not kept: {saved:?}");
+    };
+    assert_eq!(read(&kept), big);
+
+    fs::write(&path, &big).unwrap();
+    let mut store = {
+        drop(store);
+        Store::open(dir.path()).unwrap()
+    };
+    store.load(&profile).unwrap();
+    let reset = store.reset(&profile).unwrap();
+    assert_eq!(read(&reset.backup.unwrap()), big);
+    assert_eq!(reset.external, None);
+    assert_eq!(read(&path), SYNTHETIC_DEFAULTS);
+}
+
+#[test]
 fn saving_writes_only_changes() {
     let dir = TestDir::new("settings-save");
     let profile = synthetic();
