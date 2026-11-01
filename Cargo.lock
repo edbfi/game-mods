@@ -153,6 +153,8 @@ dependencies = [
  "proptest",
  "sha2",
  "thiserror",
+ "toml",
+ "windows-sys",
 ]
 
 [[package]]

@@ -19,7 +19,9 @@ pub mod synthetic;
 mod tests;
 
 pub use check::ProfileError;
-pub use select::{ClassId, Desired, OptionId, OptionSet, Selection, ToggleId, ValidProfile};
+pub use select::{
+    ClassId, Desired, OptionId, OptionSet, Selection, ToggleId, ToggleMap, ValidProfile,
+};
 
 use std::fmt;
 
