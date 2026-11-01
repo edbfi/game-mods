@@ -31,7 +31,8 @@ mask, or refill an exhausted filter.
 
 ## Use
 
-1. Put `metro-trainer.exe` and `metro-trainer.ini` together in their own folder.
+1. [Download](https://github.com/edbfi/game-mods#download) a release or nightly zip and unzip it. Keep
+   `metro-trainer.exe` and `metro-trainer.ini` together in their own folder.
    Keep your original saves backed up before testing an experimental mod.
 2. Edit the INI: set `[trainer] enabled=true` and enable the desired options under
    `[features]`. The supplied example starts with everything disabled.

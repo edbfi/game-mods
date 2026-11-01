@@ -6,9 +6,9 @@ varied mix of weapon upgrades that your tech allows. It acts for the local playe
 
 ## Install
 
-Install the release zip with Vortex, or unzip it into the game folder
-(`…\steamapps\common\Dawn of War Definitive Edition`) so its `W40k`, `WXP`, `DXP2` and `DXP3` folders merge with
-the game's. It then shows up as the **Munitorum Logistics** game rule.
+[Download](https://github.com/edbfi/game-mods#download) a release or nightly zip. Install it with Vortex, or unzip it
+into the game folder (`…\steamapps\common\Dawn of War Definitive Edition`) so its `W40k`, `WXP`, `DXP2` and `DXP3`
+folders merge with the game's. It then shows up as the **Munitorum Logistics** game rule.
 
 Each module folder carries the same script with that module's unit catalog. Same-path files shadow each other
 rather than stack, so a game loads one copy: the one from the newest module in its stack.
