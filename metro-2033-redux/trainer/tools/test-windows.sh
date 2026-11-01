@@ -19,7 +19,7 @@ mkdir -p build
     -Wall -Wextra -Werror tests/windows_attach_tests.cpp \
     -municode -o build/windows-attach-tests.exe
 "$ZIG_BIN" c++ -target x86_64-windows-gnu -std=c++17 -O2 -static \
-    -Wall -Wextra -Werror -Iinclude src/core.cpp src/presentation.cpp src/windows_console.cpp tests/windows_console_tests.cpp \
+    -Wall -Wextra -Werror -DMETRO_CONSOLE_TESTING -Iinclude src/core.cpp src/presentation.cpp src/windows_console.cpp tests/windows_console_tests.cpp \
     -o build/windows-console-tests.exe
 ZIG_BIN="$ZIG_BIN" ./tools/build-windows.sh
 # WSL reaches this shared checkout. The attach test runs the trainer only against copies of the

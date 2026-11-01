@@ -4,6 +4,10 @@
 #include <memory>
 
 namespace metro::ui {
+#ifdef METRO_CONSOLE_TESTING
+// Deterministic provenance injection for disposable console tests only.
+void test_classic_foreground(bool foreground) noexcept;
+#endif
 // Construct only for normal interactive runs, never --check or --stop.
 // Owns no logger, timer, thread, global hotkey or game resource.
 class WindowsConsole {
@@ -19,7 +23,8 @@ public:
     // of already queued events. No wait or logger writes. Left/Right page only
     // within the console; the runtime keeps all global feature hotkeys.
     void refresh() noexcept;
-    // Match an async edge with console evidence during the same physical hold.
+    // Classic foreground accepts delivered event taps. Otherwise match an async
+    // edge with console evidence during the same physical hold.
     // Call once per binding each input poll, including releases. Presentation
     // updates do not consume input. Game foreground preserves async behavior.
     bool hotkey_pressed(unsigned binding, bool down, bool async_rising, bool game_foreground) noexcept;

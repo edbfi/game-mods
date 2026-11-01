@@ -21,6 +21,9 @@ int main() {
         SetStdHandle(STD_OUTPUT_HANDLE,out);
         DWORD mode = 0;
         check(GetConsoleMode(in,&mode) != 0,"read input mode");
+        check(SetConsoleMode(in,mode | ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT | ENABLE_QUICK_EDIT_MODE
+            | ENABLE_EXTENDED_FLAGS),"seed mouse, resize and QuickEdit modes");
+        check(GetConsoleMode(in,&mode),"read seeded mode");
         const auto style = GetWindowLongPtrW(GetConsoleWindow(),GWL_STYLE);
         CONSOLE_CURSOR_INFO cursor{};
         check(GetConsoleCursorInfo(out,&cursor) != 0,"read cursor");
@@ -44,6 +47,8 @@ int main() {
             check(masthead.Attributes == (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY),"amber masthead");
             DWORD current = 0;
             check(GetConsoleMode(in,&current) && (current & ENABLE_PROCESSED_INPUT) == (mode & ENABLE_PROCESSED_INPUT),"processed Ctrl+C preserved");
+            check(!(current & (ENABLE_MOUSE_INPUT | ENABLE_QUICK_EDIT_MODE)),"mouse and QuickEdit disabled");
+            check((current & ENABLE_WINDOW_INPUT) == (mode & ENABLE_WINDOW_INPUT),"resize mode preserved");
             check(!(GetWindowLongPtrW(GetConsoleWindow(),GWL_STYLE) & WS_SYSMENU),"Alt+Space system menu disabled");
             char before[100]{}, after[100]{};
             DWORD done = 0;
@@ -58,6 +63,8 @@ int main() {
             check(std::string(before,100) != std::string(after,100),"console record pages weapon rows");
             DWORD available = 0;
             check(GetNumberOfConsoleInputEvents(in,&available) && available == 0,"UI consumes queued input");
+            metro::ui::test_classic_foreground(false);
+            console.refresh();
             const auto chord = metro::parse_hotkey("CTRL+1");
             const auto second = metro::parse_hotkey("CTRL+2");
             auto queue = [&](WORD type, bool down, DWORD modifiers = LEFT_CTRL_PRESSED, WORD vk = '1') {
@@ -74,6 +81,9 @@ int main() {
                 check(WriteConsoleInputW(in,&record,1,&done) && done == 1,"queue shortcut evidence");
             };
             auto release = [&]() {
+                queue(KEY_EVENT,false);
+                queue(KEY_EVENT,false,LEFT_CTRL_PRESSED,'2');
+                console.refresh();
                 console.hotkey_pressed(chord,false,false,false);
                 console.hotkey_pressed(second,false,false,false);
             };
@@ -90,12 +100,14 @@ int main() {
             console.refresh();
             check(!console.hotkey_pressed(chord,true,false,false),"repeat record never duplicates toggle");
             release();
+            metro::KeyLatch latch;
+            check(!latch.update(false),"latch starts released");
             queue(KEY_EVENT,true);
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false,false),"record before edge waits");
-            console.refresh();
-            check(console.hotkey_pressed(chord,true,true,false),"record survives until later edge in same hold");
+            check(console.hotkey_pressed(chord,true,latch.update(true),false),"same-poll edge and record fire");
+            check(!console.hotkey_pressed(chord,true,latch.update(true),false),"real held latch has no new edge");
             release();
+            check(!latch.update(false),"latch release is not a rising edge");
             check(console.hotkey_pressed(chord,true,true,true),"game retains async path without console records");
             check(!console.hotkey_pressed(chord,true,false,true),"game hold never repeats");
             release();
@@ -162,6 +174,63 @@ int main() {
             console.refresh();
             check(!console.hotkey_pressed(chord,true,false,false),"drained focus loss cannot revive pending edge");
             release();
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,false);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"background paired tap rejected");
+            metro::ui::test_classic_foreground(true);
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,false);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"focus-entry stale pair rejected");
+            console.refresh();
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,false);
+            console.refresh();
+            check(console.hotkey_pressed(chord,false,false,false),"classic short tap needs no async edge");
+            check(!console.hotkey_pressed(chord,false,false,false),"classic tap consumed once");
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,false);
+            queue(KEY_EVENT,false,0,VK_CONTROL);
+            console.refresh();
+            check(console.hotkey_pressed(chord,false,false,false),"completed tap survives subsequent modifier release");
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(console.hotkey_pressed(chord,true,true,false),"classic full hold fires once");
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,true,false,false),"classic autorepeat suppressed");
+            check(!console.hotkey_pressed(chord,true,false,true),"console to game transition cannot duplicate hold");
+            release();
+            check(console.hotkey_pressed(chord,true,true,true),"game edge starts a new hold");
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,true,false,false),"game to console transition cannot duplicate hold");
+            release();
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,false);
+            queue(KEY_EVENT,true,LEFT_CTRL_PRESSED,'2');
+            queue(KEY_EVENT,false,LEFT_CTRL_PRESSED,'2');
+            console.refresh();
+            check(console.hotkey_pressed(chord,false,false,false)
+                && console.hotkey_pressed(second,false,false,false),"classic multiple paired bindings");
+            queue(KEY_EVENT,true,LEFT_CTRL_PRESSED | SHIFT_PRESSED);
+            queue(KEY_EVENT,false,LEFT_CTRL_PRESSED | SHIFT_PRESSED);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"classic modifiers must match exactly");
+            queue(KEY_EVENT,true);
+            queue(FOCUS_EVENT,false);
+            queue(KEY_EVENT,false);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"focus boundary cancels classic tap");
+            release();
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,true,LEFT_CTRL_PRESSED | SHIFT_PRESSED,VK_SHIFT);
+            queue(KEY_EVENT,false,LEFT_CTRL_PRESSED | SHIFT_PRESSED);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"modifier change cancels unfinished classic chord");
+            release();
             model.error = "Restoration incomplete. Close the game before restarting trainer.";
             console.update(model);
             console.refresh();
@@ -221,6 +290,31 @@ int main() {
                 && std::string(tail,100) == std::string(100,' '),"classic/VT prompt row has no dashboard leftovers");
         }
         check(SetConsoleMode(out,output_mode),"restore test output mode");
+        HANDLE broken = nullptr;
+        check(DuplicateHandle(GetCurrentProcess(),in,GetCurrentProcess(),&broken,0,FALSE,DUPLICATE_SAME_ACCESS),"duplicate input");
+        SetStdHandle(STD_INPUT_HANDLE,broken);
+        {
+            metro::ui::WindowsConsole console;
+            metro::ui::Model model;
+            console.update(model);
+            check(console.dashboard_active(),"failure test starts healthy");
+            metro::ui::test_classic_foreground(false);
+            console.refresh();
+            check(!console.hotkey_pressed(metro::parse_hotkey("CTRL+2"),true,true,false),"pending edge before reader failure");
+            CloseHandle(broken);
+            console.refresh();
+            check(console.error() && !console.dashboard_active(),"invalid input switches to plain output");
+            const std::string diagnostic = console.error();
+            CONSOLE_SCREEN_BUFFER_INFO before{}, after{};
+            check(GetConsoleScreenBufferInfo(out,&before),"read fallback position");
+            for (int i=0; i<5; ++i) console.refresh();
+            check(GetConsoleScreenBufferInfo(out,&after) && before.dwCursorPosition.X == after.dwCursorPosition.X
+                && before.dwCursorPosition.Y == after.dwCursorPosition.Y,"failed reader does not dirty fallback repeatedly");
+            check(console.error() && diagnostic == console.error(),"input diagnostic persists");
+            check(console.hotkey_pressed(metro::parse_hotkey("CTRL+1"),true,true,true),"game hotkeys survive input failure");
+            check(!console.hotkey_pressed(metro::parse_hotkey("CTRL+2"),true,true,false),"failed input cannot authorize console hotkeys");
+        }
+        SetStdHandle(STD_INPUT_HANDLE,in);
         CloseHandle(in); CloseHandle(out);
         FreeConsole();
         std::cout << "Windows console checks passed\n";

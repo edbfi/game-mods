@@ -18,7 +18,7 @@ class NoReloadRuntime {
 public:
     NoReloadRuntime(HANDLE process, std::uintptr_t base, std::vector<NoReloadClass> classes)
         : process_(process), controls_(process), classes_(std::move(classes)) {
-        if (classes_.empty() || classes_.size() != 24) throw std::runtime_error("Invalid no-reload class registry");
+        if (classes_.empty() || classes_.size() != no_reload_class_count) throw std::runtime_error("Invalid no-reload class registry");
         // One executable page per hook site; controls are a separate shared RW view.
         const auto sites = verified_no_reload_sites();
         if (sites.empty()) throw std::runtime_error("Unexpected no-reload hook count");

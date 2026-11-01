@@ -93,7 +93,10 @@ the classic console's system menu cannot control that host. In classic conhost,
 the trainer temporarily removes the system menu, which also disables its Close,
 Minimize and Maximize buttons; use Ctrl+C to restore and exit. If a shortcut is
 intercepted, choose another binding in `[hotkeys]`, such as `enabled=CTRL+0`.
-Host shortcut passthrough requires physical validation in your terminal.
+Host shortcut passthrough requires physical validation in your terminal. ConPTY
+shortcuts require an async edge correlated with a console record during the same
+physical hold; taps released before polling can be missed. The foreground
+classic console supports delivered short taps after its first focus-entry batch.
 
 Successful changes play a quiet, short sine chime: higher for enabling, lower
 for disabling. Set `[trainer] sounds=false` to mute them. A paused trainer

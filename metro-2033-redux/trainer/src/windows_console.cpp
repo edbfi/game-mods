@@ -11,6 +11,10 @@
 #include <utility>
 
 namespace metro::ui {
+#ifdef METRO_CONSOLE_TESTING
+namespace { bool test_foreground = false; }
+void test_classic_foreground(bool foreground) noexcept { test_foreground = foreground; }
+#endif
 struct WindowsConsole::Impl {
     HWND window = GetConsoleWindow();
     LONG_PTR window_style = 0;
@@ -31,7 +35,9 @@ struct WindowsConsole::Impl {
     std::set<unsigned> pressed;
     struct Hold { bool pending = false, fired = false, blocked = false; };
     std::map<unsigned, Hold> holds;
-    bool cancel_hold = false, input_complete = true;
+    bool cancel_hold = false, input_complete = true, input_healthy = false;
+    bool classic_foreground = false, classic_events = false;
+    std::set<unsigned> record_down, classic_ready;
     std::optional<SHORT> dashboard_bottom;
 
     void finish_dashboard() noexcept {
@@ -52,9 +58,9 @@ struct WindowsConsole::Impl {
         input_saved = GetConsoleMode(in,&input_mode) != 0;
         cursor_saved = GetConsoleCursorInfo(out,&cursor) != 0;
         info_saved = GetConsoleScreenBufferInfo(out,&saved) != 0;
-        // Do not enable raw input: processed Ctrl+C and all other flags survive.
+        // Preserve processed Ctrl+C and resize flags; the dashboard has no mouse UI.
         if (allow && output_saved && input_saved && info_saved && cursor_saved) {
-            if (!SetConsoleMode(in,(input_mode | ENABLE_EXTENDED_FLAGS) & ~ENABLE_QUICK_EDIT_MODE)) {
+            if (!SetConsoleMode(in,(input_mode | ENABLE_EXTENDED_FLAGS) & ~(ENABLE_QUICK_EDIT_MODE | ENABLE_MOUSE_INPUT))) {
                 failure = "Console setup failed; using plain output.";
                 allow = false;
             }
@@ -70,6 +76,7 @@ struct WindowsConsole::Impl {
                 if (!style_saved) failure = "Cannot disable console system menu; choose a master binding other than Alt+Space.";
             }
         } else allow = false;
+        input_healthy = allow;
     }
     ~Impl() noexcept {
         if (style_saved) SetWindowLongPtrW(window,GWL_STYLE,window_style);
@@ -93,6 +100,8 @@ struct WindowsConsole::Impl {
     void fail(const char* reason) noexcept {
         pressed.clear();
         holds.clear();
+        record_down.clear();
+        classic_ready.clear();
         failure = reason;
         allow = active = false;
         if (cursor_saved && cursor_hidden) SetConsoleCursorInfo(out,&cursor);
@@ -173,22 +182,38 @@ struct WindowsConsole::Impl {
         previous_plain.clear();
         dirty = false;
     }
+    bool is_classic_foreground() const noexcept {
+#ifdef METRO_CONSOLE_TESTING
+        return test_foreground;
+#else
+        return window && IsWindowVisible(window) && GetForegroundWindow() == window;
+#endif
+    }
+    void fail_input() noexcept {
+        input_healthy = false;
+        fail("Console input failed; using plain output.");
+    }
     void navigation() {
         cancel_hold = false;
         input_complete = true;
-        if (!input_saved) return;
-        // This class is the sole input consumer. Retain chord evidence until
-        // release so async state and delayed ConPTY records can meet either way.
-        // Focus records only cancel; they never authorize a terminal host.
+        classic_ready.clear();
+        const bool foreground = is_classic_foreground();
+        // Drain the first batch after entering the classic window without event-only
+        // authorization: it may predate the focus change. ConPTY never uses this path.
+        classic_events = foreground && classic_foreground;
+        classic_foreground = foreground;
+        if (!input_healthy) return;
+        // Async edges may precede records or arrive in the same poll, but must
+        // remain in the same physical hold. Focus records only cancel.
         DWORD available = 0;
         if (!GetNumberOfConsoleInputEvents(in,&available)) {
-            fail("Console input failed; using plain output."); return;
+            fail_input(); return;
         }
         if (!available) return;
         INPUT_RECORD records[64]{};
         DWORD count = 0;
         if (!ReadConsoleInputW(in,records,std::min<DWORD>(available,64),&count)) {
-            fail("Console input failed; using plain output."); return;
+            fail_input(); return;
         }
         for (DWORD i=0; i<count; ++i) {
             const auto& record = records[i];
@@ -196,6 +221,9 @@ struct WindowsConsole::Impl {
                 up = down = false;
                 // Reserved event: conservative cancellation, never authorization.
                 pressed.clear();
+                classic_ready.clear();
+                classic_events = false;
+                classic_foreground = false;
                 cancel_hold = true;
                 for (auto& hold : holds) hold.second = {false,false,true};
             }
@@ -204,6 +232,13 @@ struct WindowsConsole::Impl {
             const unsigned modifiers = ((key.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) ? 0x100 : 0)
                 | ((key.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) ? 0x200 : 0)
                 | ((key.dwControlKeyState & SHIFT_PRESSED) ? 0x400 : 0);
+            // A modifier change cancels an unfinished event chord, but not a
+            // completed tap followed by the modifier's release in this batch.
+            for (auto it=classic_ready.begin(); it!=classic_ready.end();) {
+                if (record_down.count(*it & 0xff) && (*it & 0x700) != modifiers)
+                    it = classic_ready.erase(it);
+                else ++it;
+            }
             // Cancel existing holds on modifier changes; unrelated typing must
             // not pre-block a binding that has not started a hold yet.
             for (auto& hold : holds) {
@@ -217,8 +252,16 @@ struct WindowsConsole::Impl {
                 if ((*it & 0x700) != modifiers) it = pressed.erase(it);
                 else ++it;
             }
-            if (key.bKeyDown) pressed.insert(key.wVirtualKeyCode | modifiers);
+            if (key.bKeyDown) {
+                const auto binding = key.wVirtualKeyCode | modifiers;
+                const bool fresh = record_down.insert(key.wVirtualKeyCode).second;
+                const auto hold = holds.find(binding);
+                const bool blocked = hold != holds.end() && (hold->second.blocked || hold->second.fired);
+                if (fresh && classic_events && !cancel_hold && !blocked) classic_ready.insert(binding);
+                pressed.insert(binding);
+            }
             else {
+                record_down.erase(key.wVirtualKeyCode);
                 for (auto it = pressed.begin(); it != pressed.end();) {
                     if ((*it & 0xff) == key.wVirtualKeyCode) it = pressed.erase(it);
                     else ++it;
@@ -238,8 +281,11 @@ struct WindowsConsole::Impl {
         }
         // A later loss/key-up may still be queued. Do not authorize from a
         // partial batch; subsequent refreshes drain the backlog without waiting.
-        input_complete = GetNumberOfConsoleInputEvents(in,&available) && !available;
+        if (!GetNumberOfConsoleInputEvents(in,&available)) { fail_input(); return; }
+        input_complete = !available;
         if (!input_complete) {
+            classic_foreground = false;
+            classic_ready.clear();
             pressed.clear();
             for (auto& hold : holds) hold.second = {false,false,true};
         }
@@ -263,6 +309,14 @@ bool WindowsConsole::hotkey_pressed(unsigned binding, bool down, bool async_risi
     if (!binding || !impl_) return binding && async_rising && game_foreground;
     try {
         auto& hold = impl_->holds[binding];
+        const bool console_event = impl_->classic_ready.erase(binding) != 0;
+        if (console_event && impl_->input_healthy && impl_->classic_events
+                && impl_->is_classic_foreground() && !game_foreground
+                && !hold.fired) {
+            hold = {};
+            hold.fired = down;
+            return true;
+        }
         if (!down) {
             hold = {};
             impl_->pressed.erase(binding);
@@ -273,6 +327,7 @@ bool WindowsConsole::hotkey_pressed(unsigned binding, bool down, bool async_risi
             hold.fired = hold.fired || async_rising;
             return async_rising;
         }
+        if (!impl_->input_healthy) return false;
         if (impl_->cancel_hold || !impl_->input_complete) hold.blocked = true;
         if (async_rising && !hold.blocked) hold.pending = true;
         if (!hold.pending || hold.fired || hold.blocked || !impl_->pressed.count(binding)) return false;
