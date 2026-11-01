@@ -215,30 +215,38 @@ impl Chord {
         self.key
     }
 
-    /// Whether the trainer accepts this chord as a binding.
+    /// Whether the trainer accepts this chord as a binding. Usable in constants, so a profile's default
+    /// bindings are checked at build time.
     ///
     /// # Errors
     ///
     /// The [`Refusal`] explaining why the chord would misbehave.
-    pub fn check_policy(self) -> Result<(), Refusal> {
-        let (mods, key) = (self.modifiers, self.key);
-        let exactly = |m: Modifiers| mods == m;
-        if (exactly(Modifiers::ALT) && (key == Key::SPACE || Key::function(4) == Some(key)))
-            || (exactly(Modifiers::CTRL.union(Modifiers::ALT)) && key == Key::DELETE)
-            || (mods.contains(Modifiers::CTRL) && key == Key::PAUSE)
+    pub const fn check_policy(self) -> Result<(), Refusal> {
+        const CTRL_ALT: u8 = Modifiers::CTRL.0 | Modifiers::ALT.0;
+        let (mods, vk) = (self.modifiers.0, self.key.0);
+        let alt_only = mods == Modifiers::ALT.0;
+        if (alt_only && (vk == Key::SPACE.0 || vk == VK_F1 + 3))
+            || (mods == CTRL_ALT && vk == Key::DELETE.0)
+            || (self.modifiers.contains(Modifiers::CTRL) && vk == Key::PAUSE.0)
         {
             return Err(Refusal::System);
         }
-        if exactly(Modifiers::CTRL) && Key::letter(b'C') == Some(key) {
+        if mods == Modifiers::CTRL.0 && vk == VK_LETTER_A + (b'C' - b'A') {
             return Err(Refusal::Interrupt);
         }
-        if Modifiers::SHIFT.contains(mods) && key.is_typing() {
+        if Modifiers::SHIFT.contains(self.modifiers) && self.key.is_typing() {
             return Err(Refusal::Typing);
         }
-        if mods.is_empty() && matches!(key.0, 0x21..=0x24) {
+        if self.modifiers.is_empty() && matches!(vk, 0x21..=0x24) {
             return Err(Refusal::Navigation);
         }
         Ok(())
+    }
+
+    /// Whether both chords need the same key and modifiers. `==` for constants.
+    #[must_use]
+    pub const fn same(self, other: Self) -> bool {
+        self.modifiers.0 == other.modifiers.0 && self.key.0 == other.key.0
     }
 }
 

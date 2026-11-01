@@ -10,4 +10,5 @@ pub mod chord;
 pub mod control;
 pub mod identity;
 pub mod pe;
+pub mod profile;
 pub mod recovery;
