@@ -1,6 +1,6 @@
 # Metro 2033 Redux INI trainer
 
-Windows x64 trainer for the Steam build of Metro 2033 Redux, from any install folder.
+Windows 10 version 1703 or newer, x64 trainer for the Steam build of Metro 2033 Redux, from any install folder.
 
 Configure features before starting the companion executable. It waits for the
 game and applies reversible memory patches; no overlay, game-file replacement,
@@ -32,17 +32,25 @@ mask, or refill an exhausted filter.
 1. [Download](https://github.com/edbfi/game-mods#download) a release or nightly zip and unzip it. Keep
    `metro-trainer.exe` and `metro-trainer.ini` together in their own folder.
    Keep your original saves backed up before testing an experimental mod.
-2. Edit the INI: set `[trainer] enabled=true` and enable the desired options under
-   `[features]`. The supplied example starts with everything disabled.
+2. Edit the INI to select the desired options under `[features]`. The master starts
+   active after installation; set `[trainer] enabled=false` to start paused.
+   All individual features in the supplied example start disabled.
 3. Run `metro-trainer.exe`, then launch the game normally through Steam. Starting
    the trainer after the game is also supported. Keep the console open.
-4. Wait for the console to report that hotkeys are ready.
+4. Wait for the dashboard to show **ACTIVE** (or **PAUSED**). Its master row shows
+   your configured pause hotkey, **Alt+Space** by default.
 5. Press **Ctrl+C** in the trainer console to restore the original instructions
    before exiting the trainer. Closing the game also discards all memory patches.
 
 Feature values are `true` or `false`. Keys and hotkey names are case-sensitive.
 INI edits take effect on the next trainer launch; hotkeys toggle the current
-session immediately. The log is written beside the executable.
+session immediately. The dashboard shows selected and applied state separately;
+`GLOBAL` means covered by all-weapons no reload, and `PAUSED` retains selections.
+Use Left/Right with the console focused to page through the 24 weapon classes.
+The dashboard needs at least 72 columns and 24 rows; smaller or redirected output
+uses plain state snapshots. Detailed lifecycle, toggle and timing events go to
+`metro-trainer.log` beside the executable; its path appears on the dashboard.
+`--check` and `--stop` keep plain diagnostic output.
 Do not force-close the trainer while the game is running; if that happens,
 restart the game before another trainer run. It refuses to attach to unknown
 builds or code modified by conflicting mods.
@@ -78,9 +86,19 @@ Modifiers must match exactly. Bindings must be unique;
 trainer console is focused. Choose keys that do not conflict with your game
 controls. Hotkey changes are session-only and do not rewrite the INI.
 
+In Windows Terminal, shortcuts must reach the trainer's tab. A terminal host
+may intercept Alt+Space (the default master binding) or other shortcuts; changing
+the classic console's system menu cannot control that host. If a shortcut is
+intercepted, choose another binding in `[hotkeys]`, such as `enabled=CTRL+0`.
+Host shortcut passthrough requires physical validation in your terminal.
+
 Successful changes play a quiet, short sine chime: higher for enabling, lower
 for disabling. Set `[trainer] sounds=false` to mute them. A paused trainer
-still accepts hotkeys; feature selections take effect when you enable it.
+still accepts hotkeys and remembers selections. All controls are disabled
+while entry hooks remain installed. Every toggle publishes shared controls without
+suspending the game or rewriting executable code. Gameplay frame-time improvements
+remain unmeasured. The master starts active after successful installation by default;
+explicit `[trainer] enabled=false` starts paused. Per-feature defaults still apply.
 
 Individual no-reload options appear under both `[features]` and `[hotkeys]` in
 the example INI. They start disabled and unbound. For example:
@@ -122,8 +140,9 @@ Run these from this folder with [just](https://github.com/casey/just); `just` li
   checksum). Put it on `PATH` or set `ZIG_BIN`. No game files are needed.
 - `just package 0.1.0` writes `dist/metro-2033-redux-trainer-0.1.0.zip` with the
   executable, the example INI, this README and the license.
-- `just test-windows` checks the Windows memory backend against a disposable
-  process. It needs WSL with Windows interop.
+- `just test-windows` checks the Windows memory backend, console and trainer
+  attachment against disposable processes. It needs WSL with Windows interop;
+  the attachment checks refuse to run while a real `metro.exe` is running.
 
 See [design and lifecycle](docs/design.md), [ammunition analysis](docs/ammo-analysis.md),
 [consumable analysis](docs/consumables-analysis.md),

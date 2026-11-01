@@ -12,6 +12,8 @@ test: test-hooks
     mkdir -p build
     $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/core_tests.cpp -o build/core_tests
     $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/profile_tests.cpp -o build/profile_tests
+    $CXX $CPPFLAGS $CXXFLAGS src/core.cpp src/presentation.cpp tests/presentation_tests.cpp -o build/presentation_tests
+    ./build/presentation_tests
     ./build/core_tests
     ./build/profile_tests
 
@@ -20,6 +22,8 @@ test-hooks:
     mkdir -p build
     $CXX $CPPFLAGS $CXXFLAGS tools/verify-no-reload.cpp -o build/verify-no-reload
     ./build/verify-no-reload
+    $CXX $CPPFLAGS $CXXFLAGS tests/conditional_hook_tests.cpp -o build/conditional_hook_tests
+    ./build/conditional_hook_tests
 
 # Cross-build build/metro-trainer.exe with Zig 0.17.0.
 build:

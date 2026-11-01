@@ -7,7 +7,7 @@
 
 namespace metro {
 struct Config {
-    bool enabled = false;
+    bool enabled = true;
     bool unlimited_ammo = false;
     bool unlimited_throwables = false;
     bool unlimited_medkits = false;

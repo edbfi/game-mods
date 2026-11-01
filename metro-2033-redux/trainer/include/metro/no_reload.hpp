@@ -53,13 +53,15 @@ inline std::vector<NoReloadSite> verified_no_reload_sites() {
 }
 inline constexpr std::uint32_t no_reload_hook_rva = 0x2a9a0c;
 inline constexpr const char* no_reload_context = "49 8B 06 41 2B FD 8B D7 49 8B CE FF 90 60 13 00 00";
-// One control byte per class; nonzero suppresses that class's firing decrement.
+// One aligned DWORD snapshot: class i uses bit 7+i. Zero bypasses classification.
 // Caller must validate context, write/verify cave before installing hook, and
 // retain cave allocation until process exit even after restoring the hook.
 inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         std::uintptr_t cave, std::uintptr_t controls,
         const std::vector<NoReloadClass>& classes,
         const NoReloadSite& site = verified_no_reload_sites().front()) {
+    if (classes.empty() || classes.size() > 24 || controls % 4)
+        throw std::runtime_error("Invalid no-reload control layout");
     std::vector<std::uint8_t> code;
     auto bytes=[&](std::initializer_list<std::uint8_t> b){code.insert(code.end(),b);};
     auto u64=[&](std::uint64_t n){for(unsigned i=0;i<8;++i)code.push_back(static_cast<std::uint8_t>(n>>(8*i)));};
@@ -73,7 +75,10 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         else if(site.kind==NoReloadSiteKind::HellsingFire) bytes({0x48,0x8b,0x87});
         else bytes({0x48,0x8b,0x81});
         bytes({offset_low,offset_high,0x00,0x00});};
-    bytes({0x9c,0x50,0x51,0x52}); // flags, rax, rcx, rdx
+    bytes({0x9c,0x50,0x51,0x52,0x41,0x50}); // flags, rax, rcx, rdx, r8
+    bytes({0x48,0xb8});u64(controls);
+    bytes({0x44,0x8b,0x00,0x41,0xf7,0xc0});u32(0x7fffff80); // snapshot once, disabled fast path
+    normal.push_back(branch(0x84));
     load_receiver(0x18,0x01);
     bytes({0x48,0x85,0xc0});
     normal.push_back(branch(0x84));
@@ -91,15 +96,15 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         for(auto id:classes[i].class_id_rvas){bytes({0x48,0xb9});u64(base+id);bytes({0x3b,0x01});matches.push_back(branch(0x84));}
         bytes({0xe9});auto next=code.size();u32(0);
         for(auto p:matches)fix(p,code.size());
-        bytes({0x48,0xb9});u64(controls+i);bytes({0x80,0x39,0x00});selected.push_back(branch(0x85));
+        bytes({0x41,0xf7,0xc0});u32(std::uint32_t{1} << (7+i));selected.push_back(branch(0x85));
         fix(next,code.size());
     }
     auto ordinary=code.size();
-    bytes({0x5a,0x59,0x58,0x9d});
+    bytes({0x41,0x58,0x5a,0x59,0x58,0x9d});
     code.insert(code.end(),site.original.begin(),site.original.end());
     bytes({0xff,0x25,0x00,0x00,0x00,0x00});u64(base+site.rva+site.original.size());
     auto enabled=code.size();
-    bytes({0x5a,0x59,0x58,0x9d});
+    bytes({0x41,0x58,0x5a,0x59,0x58,0x9d});
     if(site.kind==NoReloadSiteKind::Shared) bytes({0x49,0x8b,0x06});
     else if(site.kind==NoReloadSiteKind::DirectCallback) bytes({0x8b,0xd0,0xff,0x93,0x60,0x13,0x00,0x00});
     else if(site.kind==NoReloadSiteKind::EventCallback) bytes({0x8b,0xd0,0x48,0x8b,0x46,0xf8});

@@ -80,7 +80,7 @@ struct Fake {
     Fake& operator=(const Fake&) = delete;
 };
 struct Result { DWORD code; std::string output; };
-// Runs the trainer with its stdout and stderr, which carry every log line, in a pipe.
+// Read-only commands keep plain diagnostics; normal runtime emits state snapshots.
 Result run_trainer(const std::wstring& exe, const wchar_t* argument) {
     SECURITY_ATTRIBUTES security{sizeof security, nullptr, TRUE};
     HANDLE read = nullptr, write = nullptr;
@@ -136,6 +136,11 @@ int wmain() {
             Fake fake(game);
             expect("fake game from another folder, --check", run_trainer(trainer, L"--check"), 1,
                    {"Game: " + utf8(game), "Unsupported executable build; no memory was changed."});
+            const auto normal = run_trainer(trainer, L"");
+            expect("fake game, dashboard fallback", normal, 1,
+                   {"edbfi / Metro", "Unsupported executable build", "metro-trainer.log", "Alt+Space"});
+            require(normal.output.find("Game SHA-256:") == std::string::npos,
+                    "Normal runtime must send routine log events only to file.");
             expect("fake game, --stop without a trainer", run_trainer(trainer, L"--stop"), 1,
                    {"No active trainer stop event"});
             Fake second(game);
