@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Rust trainers live in <game>/trainer; shared libraries in crates/. Other Rust mods add themselves to members.
+[workspace]
+members = ["crates/*", "*/trainer"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "AGPL-3.0-only"
+publish = false
+
+# Exact pins. Every build, test and check runs with --locked.
+[workspace.dependencies]
+edbfi-trainer = { path = "crates/edbfi-trainer" }
+edbfi-tui = { path = "crates/edbfi-tui" }
+anyhow = "=1.0.104"
+crossterm = { version = "=0.29.0", default-features = false }
+embed-resource = "=3.0.12"
+iced-x86 = { version = "=1.22.0", default-features = false, features = ["std", "code_asm", "decoder", "encoder", "block_encoder", "instr_info"] }
+insta = "=1.49.0"
+libc = "=0.2.191"
+proptest = "=1.12.0"
+ratatui = { version = "=0.30.2", default-features = false, features = ["crossterm_0_29", "std"] }
+sha2 = "=0.11.1"
+thiserror = "=2.0.21"
+toml = { version = "=1.1.8", default-features = false, features = ["parse", "std"] }
+windows-sys = "=0.61.2"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
+exit = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "unwind"
+strip = "symbols"

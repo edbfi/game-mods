@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# cargo deny --locked --workspace check bans licenses sources. Advisories run off-PR in the audit job.
+[graph]
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+all-features = false
+
+[licenses]
+allow = ["Apache-2.0", "MIT", "Unlicense"]
+unused-allowed-license = "allow"
+confidence-threshold = 0.9
+private = { ignore = true }
+
+# The workspace never depends on these directly. `wrappers` lists the only crates allowed to pull one in.
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+deny = [
+    { crate = "serde", wrappers = [] },
+    { crate = "serde_core", wrappers = ["serde_spanned", "toml", "toml_datetime"], reason = "embed-resource's build-time toml only" },
+    { crate = "serde_json", wrappers = [] },
+    { crate = "memchr", wrappers = ["embed-resource"], reason = "embed-resource's build-time scanner only" },
+    { crate = "tracing", wrappers = [] },
+    { crate = "tracing-subscriber", wrappers = [] },
+    { crate = "clap", wrappers = [] },
+    { crate = "directories", wrappers = [] },
+    { crate = "dirs", wrappers = [] },
+    { crate = "chrono", wrappers = [] },
+    { crate = "tokio", wrappers = [] },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -1,6 +1,7 @@
 # Build output
 build/
 dist/
+/target/
 
 # Credentials and machine-local overrides
 .env
