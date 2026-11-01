@@ -6,10 +6,14 @@
 #   build  (unprivileged) tests and packages each mod and uploads the zip's files as the
 #          artifact <game>-<mod>-nightly, which GitHub zips once;
 #   scan   (privileged: VT_API_KEY; shell only, no actions) takes in exactly those artifact
-#          zips, the bytes users download, and submits them to VirusTotal.
+#          zips, the bytes users download, and submits them to VirusTotal;
+#   readme (privileged: NIGHTLY_DEPLOY_KEY; shell only, no actions) points the README's
+#          VirusTotal links at those zips and pushes straight to main, as homebrew-taps'
+#          updater does. A newer push cancels this run first, so main gets only the newest links.
 name: Nightly
 on:
-  push: { branches: [main] }
+  # The readme job's own commits change only README.md, which no build reads.
+  push: { branches: [main], paths-ignore: [README.md] }
   schedule: [{ cron: "29 4 * * 1" }]
 permissions: {}
 concurrency:
@@ -77,6 +81,8 @@ jobs:
     # Each mod takes up to about 6 minutes, 5 of them polling VirusTotal: room for about 10 mods.
     timeout-minutes: 60
     permissions: { actions: read, contents: read }
+    outputs:
+      scanned: ${{ steps.submit.outputs.scanned }}
     env:
       GH_REPO: ${{ github.repository }}
     steps:
@@ -112,6 +118,7 @@ jobs:
           gh api -H 'Accept: application/vnd.github.raw' \
             "repos/$GH_REPO/contents/scripts/release-virustotal.sh?ref=$GITHUB_SHA" > "$RUNNER_TEMP/release-virustotal.sh"
       - name: Submit to VirusTotal
+        id: submit
         env:
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
         run: |
@@ -133,3 +140,68 @@ jobs:
             bash "$RUNNER_TEMP/release-virustotal.sh" scan "$zip" "$RUNNER_TEMP/virustotal.md"
             grep '^| `' "$RUNNER_TEMP/virustotal.md" >> "$GITHUB_STEP_SUMMARY"
           done < "$RUNNER_TEMP/zips.txt"
+          echo "scanned=$(jq -c 'map({name, sha256: (.digest | ltrimstr("sha256:"))})' "$RUNNER_TEMP/artifacts.json")" >> "$GITHUB_OUTPUT"
+
+  readme:
+    needs: scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Push the README's VirusTotal links with the deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.NIGHTLY_DEPLOY_KEY }}
+          SCANNED: ${{ needs.scan.outputs.scanned }}
+          REMOTE: git@github.com:${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          # One reference link per scanned zip, named vt-<game>-<mod> for the README's table.
+          links="$(jq -re '
+            if length > 0 and all(.[]; (.name | test("^[a-z0-9]+(-[a-z0-9]+)*-nightly$"))
+              and (.sha256 | test("^[0-9a-f]{64}$")))
+            then sort_by(.name)[] | "[vt-\(.name | rtrimstr("-nightly"))]: https://www.virustotal.com/gui/file/\(.sha256)/detection"
+            else error("unexpected scan output") end' <<<"$SCANNED")"
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$ssh_dir/key"
+          unset DEPLOY_KEY
+          # known_hosts from GitHub's published host keys; never trust on first use.
+          curl -fsS --proto '=https' https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > "$ssh_dir/known_hosts"
+          if [[ ! -s "$ssh_dir/known_hosts" ]] ||
+            grep -Ev '^github\.com (ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa) [A-Za-z0-9+/=]+$' "$ssh_dir/known_hosts"
+          then
+            echo "::error::Unexpected GitHub SSH host keys"
+            exit 1
+          fi
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i $ssh_dir/key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          for try in 1 2 3; do
+            src="$(mktemp -d)"
+            git -c core.hooksPath=/dev/null clone -q --depth 1 --branch main "$REMOTE" "$src"
+            # Replace the lines between the markers; anything but one start then one end fails.
+            LINKS="$links" awk '
+              $0 == "<!-- nightly-virustotal:start -->" { if (state) exit 2; print; print ENVIRON["LINKS"]; state = 1; next }
+              $0 == "<!-- nightly-virustotal:end -->" { if (state != 1) exit 2; state = 2 }
+              state != 1 { print }
+              END { if (state != 2) exit 2 }
+            ' "$src/README.md" > "$ssh_dir/README.md" || { echo "::error::README.md needs one pair of nightly-virustotal markers"; exit 1; }
+            if cmp -s "$ssh_dir/README.md" "$src/README.md"; then
+              echo "The README already links these zips."
+              exit 0
+            fi
+            cp "$ssh_dir/README.md" "$src/README.md"
+            git -C "$src" -c core.hooksPath=/dev/null add README.md
+            git -C "$src" -c core.hooksPath=/dev/null \
+              -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q --signoff -m "docs: point the nightly VirusTotal links at ${GITHUB_SHA:0:7}"
+            if err="$(git -C "$src" -c core.hooksPath=/dev/null push -q origin HEAD:refs/heads/main 2>&1)"; then
+              echo "Pushed the VirusTotal links for ${GITHUB_SHA:0:7}."
+              exit 0
+            fi
+            echo "$err"
+            grep -Eq 'non-fast-forward|fetch first|\[rejected\]' <<<"$err" || { echo "::error::The push failed"; exit 1; }
+            echo "main moved (try $try); retrying from a fresh clone."
+          done
+          echo "::error::main kept moving"
+          exit 1
