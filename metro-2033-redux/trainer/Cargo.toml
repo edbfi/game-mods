@@ -12,6 +12,12 @@ publish.workspace = true
 name = "metro-trainer"
 path = "src/main.rs"
 
+[dependencies]
+edbfi-trainer.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
 [build-dependencies]
 embed-resource.workspace = true
 

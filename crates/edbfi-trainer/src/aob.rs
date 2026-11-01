@@ -138,6 +138,12 @@ pub enum AobError {
         /// Zero-based token position.
         index: usize,
     },
+    /// A wildcard where only concrete bytes are allowed, as in [`bytes!`](crate::bytes!).
+    #[error("token {index} is a wildcard, but these bytes must be concrete")]
+    Wildcard {
+        /// Zero-based token position.
+        index: usize,
+    },
     /// The destination does not have one slot per token.
     #[error("signature has {actual} tokens, expected {expected}")]
     WrongLength {
@@ -244,6 +250,29 @@ pub const fn parse<const N: usize>(text: &str) -> Result<[Token; N], AobError> {
     }
 }
 
+/// Parses `text` into exactly `N` concrete bytes, in the same notation as [`parse`] but without wildcards.
+/// Usable in constants; see [`bytes!`](crate::bytes!).
+///
+/// # Errors
+///
+/// [`AobError::Wildcard`] for a `?` or `??` token, otherwise as [`parse`].
+pub const fn parse_concrete<const N: usize>(text: &str) -> Result<[u8; N], AobError> {
+    let tokens = match parse::<N>(text) {
+        Ok(tokens) => tokens,
+        Err(error) => return Err(error),
+    };
+    let mut bytes = [0; N];
+    let mut index = 0;
+    while index < N {
+        bytes[index] = match tokens[index] {
+            Token::Byte(byte) => byte,
+            Token::Any => return Err(AobError::Wildcard { index }),
+        };
+        index += 1;
+    }
+    Ok(bytes)
+}
+
 /// Fails a constant evaluation with a message naming the error; used by [`aob!`](crate::aob!).
 #[doc(hidden)]
 pub const fn __build_error(error: AobError) -> ! {
@@ -251,6 +280,7 @@ pub const fn __build_error(error: AobError) -> ! {
         AobError::Empty => panic!("byte signature is empty"),
         AobError::AllWildcards => panic!("byte signature has no concrete byte"),
         AobError::BadToken { .. } => panic!("byte signature token is not two hex digits or ??"),
+        AobError::Wildcard { .. } => panic!("concrete bytes cannot hold a wildcard"),
         AobError::WrongLength { .. } => panic!("byte signature token count changed during parsing"),
     }
 }
@@ -280,6 +310,27 @@ macro_rules! aob {
             Ok(pattern) => pattern,
             Err(error) => $crate::aob::__build_error(error),
         }
+    }};
+}
+
+/// Compile-time checked concrete bytes, as a `&'static [u8]`: `bytes!("48 89 5C 24 08")`.
+///
+/// The notation is [`aob!`](crate::aob!)'s, so original bytes and their context read alike, but a wildcard
+/// fails the build:
+///
+/// ```compile_fail
+/// const BAD: &[u8] = edbfi_trainer::bytes!("48 ?? 5C");
+/// ```
+#[macro_export]
+macro_rules! bytes {
+    ($text:expr) => {{
+        const __EDBFI_BYTES_TEXT: &str = $text;
+        const __EDBFI_BYTES: [u8; $crate::aob::token_count(__EDBFI_BYTES_TEXT)] =
+            match $crate::aob::parse_concrete(__EDBFI_BYTES_TEXT) {
+                Ok(bytes) => bytes,
+                Err(error) => $crate::aob::__build_error(error),
+            };
+        &__EDBFI_BYTES as &'static [u8]
     }};
 }
 
@@ -341,6 +392,21 @@ mod tests {
             };
             assert_eq!(error, Some(AobError::BadToken { index }), "{text:?}");
         }
+    }
+
+    #[test]
+    fn concrete_bytes_refuse_wildcards() {
+        const BYTES: &[u8] = crate::bytes!("48 89\t5c 24 08");
+        assert_eq!(BYTES, [0x48, 0x89, 0x5C, 0x24, 0x08]);
+        assert_eq!(
+            parse_concrete::<3>("48 ?? 5C"),
+            Err(AobError::Wildcard { index: 1 })
+        );
+        assert_eq!(parse_concrete::<0>(""), Err(AobError::Empty));
+        assert_eq!(
+            parse_concrete::<1>("4G"),
+            Err(AobError::BadToken { index: 0 })
+        );
     }
 
     #[test]
