@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <string>
 int main(){
  auto* region=static_cast<unsigned char*>(mmap(nullptr,0x1000000,PROT_READ|PROT_WRITE|PROT_EXEC,MAP_PRIVATE|MAP_ANONYMOUS,-1,0));assert(region!=MAP_FAILED);
  auto base=reinterpret_cast<std::uintptr_t>(region);auto cave=base+0x100;auto control=base+0x1100;
@@ -38,6 +39,7 @@ int main(){
  setptr(vt+0x1360,region+0x1800);setptr(weapon,vt);
  auto sites=metro::verified_no_reload_sites();
  for(std::size_t i=1;i<sites.size();++i){
+  if(sites[i].kind==metro::NoReloadSiteKind::HellsingFire)continue;
   auto cb=metro::make_no_reload_image(base,base+0x2000,control,metro::verified_no_reload_classes(),sites[i]);
   std::memcpy(region+0x2000,cb.code.data(),cb.code.size());
   auto end=sites[i].rva+sites[i].original.size();
@@ -51,7 +53,31 @@ int main(){
   region[0x1100]=0;assert(run_cb()==6);region[0x1100]=1;assert(run_cb()==7);
   setptr(owner,player);assert(run_cb()==6);setptr(owner,player+0xa0);
  }
+ // Hellsing fire: weapon in RDI, vtable in RBX, loaded count in EAX; rejoins call [rbx+1360].
+ bool hellsing_seen=false;
+ for(const auto& site:sites){
+  if(site.kind!=metro::NoReloadSiteKind::HellsingFire)continue;
+  hellsing_seen=true;
+  std::size_t helsing=0;while(helsing<classes.size()&&std::string(classes[helsing].feature)!="no_reload_helsing")++helsing;
+  assert(helsing<classes.size());
+  const auto id=classes[helsing].class_id_rvas.front();setid(region+id,4242);setid(config,4242);
+  auto hc=metro::make_no_reload_image(base,base+0x3000,control,classes,site);
+  std::memcpy(region+0x3000,hc.code.data(),hc.code.size());
+  const unsigned char continuation[]={0xff,0x93,0x60,0x13,0,0,0xc3};
+  std::memcpy(region+site.rva+site.original.size(),continuation,sizeof continuation);
+  auto run_h=[&](std::uintptr_t& receiver){unsigned result;auto wp=reinterpret_cast<std::uintptr_t>(weapon);auto target=base+0x3000;std::uintptr_t rcx_out;
+   // Skip the red zone; RCX starts null so the cave must set it from RDI.
+   asm volatile("sub $128,%%rsp; mov %3,%%rdi; mov (%3),%%rbx; xor %%ecx,%%ecx; mov $7,%%eax; call *%2; add $128,%%rsp; mov %%eax,%0; mov %%rcx,%1":"=&r"(result),"=&r"(rcx_out):"r"(target),"r"(wp):"rax","rbx","rcx","rdx","rdi","cc","memory");receiver=rcx_out;return result;};
+  std::uintptr_t receiver=0;const auto wp=reinterpret_cast<std::uintptr_t>(weapon);
+  std::memset(region+0x1100,0,classes.size());
+  assert(run_h(receiver)==6&&receiver==wp);
+  region[0x1100+helsing]=1;assert(run_h(receiver)==7&&receiver==wp);
+  setptr(owner,player);assert(run_h(receiver)==6);setptr(owner,player+0xa0);
+  region[0x1100+helsing]=0;region[0x1100]=1;assert(run_h(receiver)==6);region[0x1100]=0;
+  setptr(weapon+0x1b8,nullptr);region[0x1100+helsing]=1;assert(run_h(receiver)==6);setptr(weapon+0x1b8,config);region[0x1100+helsing]=0;
+ }
+ assert(hellsing_seen);
  bool range_rejected=false;try{metro::make_no_reload_image(base,base+0x90000000,control,metro::verified_no_reload_classes());}catch(const std::runtime_error&){range_rejected=true;}assert(range_rejected);
  munmap(region,0x1000000);
- std::cout<<"All three no-reload caves executed: selected, ordinary and NPC paths passed\n";
+ std::cout<<"All "<<sites.size()<<" no-reload caves executed: selected, ordinary and NPC paths passed\n";
 }

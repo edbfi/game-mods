@@ -48,7 +48,7 @@ int wmain(int argc, wchar_t**) {
                 || cave_info.Protect != PAGE_EXECUTE_READ) throw std::runtime_error("Cave is not RX");
         }
         const auto controls = reload.selected({{"no_reload",true}});
-        if (controls.size() != 4 || controls.front().replacement.size() != reload.classes().size()) throw std::runtime_error("Global selector count incorrect");
+        if (controls.size() != 1 + metro::verified_no_reload_sites().size() || controls.front().replacement.size() != reload.classes().size()) throw std::runtime_error("Global selector count incorrect");
         MEMORY_BASIC_INFORMATION control_info{};
         if (!VirtualQueryEx(child.hProcess, reinterpret_cast<LPCVOID>(controls.front().address), &control_info, sizeof control_info)
             || control_info.Protect != PAGE_READWRITE) throw std::runtime_error("Selectors are not RW");

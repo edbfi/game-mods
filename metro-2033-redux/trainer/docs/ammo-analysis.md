@@ -62,6 +62,21 @@ preserves other registers and leaves flags unchanged until the existing TEST
 instruction. The original checker performs virtual queries; absence of side
 effects in every possible implementation has not been established.
 
+### Hellsing reload
+
+The Hellsing's reload-transfer slot `+0x12f0` (`0x1402b9940`) never calls the
+predicate, so the entry patch does not reach it. It looks up the arrow inventory item,
+takes `min(capacity - loaded, item count)` into the magazine through `+0x1350`, then
+subtracts that from the item and stores it through item setter `+0x1f8`.
+`unlimited_ammo` replaces that `sub ebx,edi` at `0x2b9a58` (`2B DF`) with two NOPs,
+so the setter stores the unchanged count. Like the forced predicate, it applies to
+every owner. Unique signature, starting six bytes before the patch:
+`41 FF D1 49 8B 06 2B DF 8B D3 49 8B CE FF 90 F8 01 00 00`.
+
+Its eligibility slot `+0x12d0` (`0x1402b9d40`) first requires a nonzero arrow
+count from `+0x1348` (`0x1402b91f0`) and only then tail-calls `0x1402a2ca0`. A Hellsing with
+no arrows left still cannot reload; the patch keeps the arrows you have.
+
 The six direct callers of `0x1402aec80` at `0x1401bb3eb`, `0x1402c6df3`,
 `0x1402d0335`, `0x1402d6fd4`, `0x1402d7625`, and `0x1402dd42b` gate reload
 availability or weapon state progression. They do not directly subtract reserve

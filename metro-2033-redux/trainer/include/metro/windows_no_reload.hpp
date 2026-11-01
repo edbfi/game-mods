@@ -10,12 +10,17 @@ namespace metro {
 class NoReloadRuntime {
     HANDLE process_;
     std::uintptr_t allocation_ = 0;
+    std::uintptr_t controls_ = 0;
     std::vector<NoReloadClass> classes_;
     std::vector<NoReloadImage> images_;
 public:
     NoReloadRuntime(HANDLE process, std::uintptr_t base, std::vector<NoReloadClass> classes)
         : process_(process), classes_(std::move(classes)) {
         if (classes_.empty() || classes_.size() > 4096) throw std::runtime_error("Invalid no-reload class registry");
+        // One executable page per hook site, then one writable selector page.
+        const auto sites = verified_no_reload_sites();
+        if (sites.empty()) throw std::runtime_error("Unexpected no-reload hook count");
+        const auto allocation_size = 4096 * (sites.size() + 1);
         SYSTEM_INFO info{}; GetSystemInfo(&info);
         const auto granularity = static_cast<std::uintptr_t>(info.dwAllocationGranularity);
         const auto origin = (base + no_reload_hook_rva) & ~(granularity - 1);
@@ -23,16 +28,15 @@ public:
             for (unsigned direction = 0; direction < 2 && !allocation_; ++direction) {
                 if ((!direction && origin > UINTPTR_MAX-delta) || (direction && origin < delta)) continue;
                 const auto candidate = direction ? origin-delta : origin+delta;
-                allocation_ = reinterpret_cast<std::uintptr_t>(VirtualAllocEx(process_, reinterpret_cast<void*>(candidate), 16384, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE));
+                allocation_ = reinterpret_cast<std::uintptr_t>(VirtualAllocEx(process_, reinterpret_cast<void*>(candidate), allocation_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE));
             }
         }
         if (!allocation_) throw std::runtime_error("Cannot allocate nearby no-reload cave");
+        controls_ = allocation_ + 4096 * sites.size();
         try {
-            const auto sites = verified_no_reload_sites();
-            if (sites.size() != 3) throw std::runtime_error("Unexpected no-reload hook count");
             for (std::size_t i=0; i<sites.size(); ++i) {
                 const auto address = allocation_+4096*i;
-                auto image = make_no_reload_image(base, address, allocation_+12288, classes_, sites[i]);
+                auto image = make_no_reload_image(base, address, controls_, classes_, sites[i]);
                 if (image.code.empty() || image.code.size() > 4096) throw std::runtime_error("No-reload cave exceeds page");
                 SIZE_T done = 0;
                 if (!WriteProcessMemory(process_, reinterpret_cast<void*>(address), image.code.data(), image.code.size(), &done) || done != image.code.size()) throw std::runtime_error("Cannot initialize no-reload cave");
@@ -67,7 +71,7 @@ public:
         for (std::size_t i=0;i<classes_.size();++i)
             if (enabled("no_reload") || enabled(classes_[i].feature)) mask[i] = 1;
         if (std::any_of(mask.begin(), mask.end(), [](std::uint8_t b) { return b != 0; })) {
-            result.push_back({allocation_+12288, std::vector<std::uint8_t>(classes_.size(),0), std::move(mask)});
+            result.push_back({controls_, std::vector<std::uint8_t>(classes_.size(),0), std::move(mask)});
             for (const auto& image : images_) result.push_back(image.hook);
         }
         return result;

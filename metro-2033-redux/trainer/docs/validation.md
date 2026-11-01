@@ -18,6 +18,7 @@ The example INI starts with every feature disabled.
 | Unlimited ammunition | PARTIAL | Works in shooting-range challenges (owner report). Currency isolation not established. |
 | Unlimited throwables, medkits, filters; indestructible mask | PENDING | Per-feature gameplay acceptance below. |
 | Global and individual no reload | PENDING | Per-weapon and transition checks. |
+| Hellsing no reload and unlimited ammunition | PENDING | Own fire and reload paths patched; static analysis and synthetic execution only. |
 | God mode | PENDING | Scripted kills, suffocation, falls and transitions. |
 | Unlimited flashlight | PENDING | Flashlight and night-vision drain. |
 | Feature and currency isolation | PENDING | No completed gameplay comparison. |

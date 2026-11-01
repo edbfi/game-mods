@@ -36,7 +36,8 @@ inline std::vector<NoReloadClass> verified_no_reload_classes() {
         {"no_reload_flamethrower",{0xf5d0f8}}};
 }
 struct NoReloadImage { std::vector<std::uint8_t> code; Patch hook; };
-enum class NoReloadSiteKind { Shared, DirectCallback, EventCallback };
+// The kind fixes the weapon receiver register and the selected-path replacement.
+enum class NoReloadSiteKind { Shared, DirectCallback, EventCallback, HellsingFire };
 struct NoReloadSite {
     NoReloadSiteKind kind;
     std::uint32_t rva;
@@ -47,7 +48,8 @@ inline std::vector<NoReloadSite> verified_no_reload_sites() {
     return {
       {NoReloadSiteKind::Shared,0x2a9a0c,"49 8B 06 41 2B FD 8B D7 49 8B CE FF 90 60 13 00 00",{0x49,0x8b,0x06,0x41,0x2b,0xfd}},
       {NoReloadSiteKind::DirectCallback,0x2c6ef4,"8D 50 FF FF 93 60 13 00 00 69 97 20 0C 00 00 E8 03 00 00",{0x8d,0x50,0xff,0xff,0x93,0x60,0x13,0x00,0x00}},
-      {NoReloadSiteKind::EventCallback,0x2c6fab,"8D 50 FF 48 8B 46 F8 FF 90 60 13 00 00 69 96 F8 0B 00 00 E8 03 00 00",{0x8d,0x50,0xff,0x48,0x8b,0x46,0xf8}}};
+      {NoReloadSiteKind::EventCallback,0x2c6fab,"8D 50 FF 48 8B 46 F8 FF 90 60 13 00 00 69 96 F8 0B 00 00 E8 03 00 00",{0x8d,0x50,0xff,0x48,0x8b,0x46,0xf8}},
+      {NoReloadSiteKind::HellsingFire,0x2b9dce,"48 8B CF 8D 50 FF FF 93 60 13 00 00 C6 87 10 0C 00 00 01",{0x48,0x8b,0xcf,0x8d,0x50,0xff}}};
 }
 inline constexpr std::uint32_t no_reload_hook_rva = 0x2a9a0c;
 inline constexpr const char* no_reload_context = "49 8B 06 41 2B FD 8B D7 49 8B CE FF 90 60 13 00 00";
@@ -65,9 +67,14 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
     auto branch=[&](std::uint8_t condition){bytes({0x0f,condition});auto p=code.size();u32(0);return p;};
     auto fix=[&](std::size_t p,std::size_t target){auto d=static_cast<std::int32_t>(target)-static_cast<std::int32_t>(p+4);for(unsigned i=0;i<4;++i)code[p+i]=static_cast<std::uint8_t>(static_cast<std::uint32_t>(d)>>(8*i));};
     std::vector<std::size_t> normal, selected;
+    // mov rax,[receiver+offset]: R14 (shared), RDI (Hellsing) or RCX (callbacks).
+    auto load_receiver=[&](std::uint8_t offset_low,std::uint8_t offset_high){
+        if(site.kind==NoReloadSiteKind::Shared) bytes({0x49,0x8b,0x86});
+        else if(site.kind==NoReloadSiteKind::HellsingFire) bytes({0x48,0x8b,0x87});
+        else bytes({0x48,0x8b,0x81});
+        bytes({offset_low,offset_high,0x00,0x00});};
     bytes({0x9c,0x50,0x51,0x52}); // flags, rax, rcx, rdx
-    if(site.kind==NoReloadSiteKind::Shared) bytes({0x49,0x8b,0x86,0x18,0x01,0x00,0x00});
-    else bytes({0x48,0x8b,0x81,0x18,0x01,0x00,0x00});
+    load_receiver(0x18,0x01);
     bytes({0x48,0x85,0xc0});
     normal.push_back(branch(0x84));
     bytes({0x48,0x8b,0x10,0x48,0x85,0xd2});normal.push_back(branch(0x84));
@@ -75,8 +82,7 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
     bytes({0x48,0x8b,0x00,0x48,0x85,0xc0});normal.push_back(branch(0x84));
     bytes({0x48,0x8b,0x40,0x38,0x48,0x85,0xc0});normal.push_back(branch(0x84));
     bytes({0x48,0x05,0xa0,0x00,0x00,0x00,0x48,0x39,0xc2});normal.push_back(branch(0x85));
-    if(site.kind==NoReloadSiteKind::Shared) bytes({0x49,0x8b,0x86,0xb8,0x01,0x00,0x00});
-    else bytes({0x48,0x8b,0x81,0xb8,0x01,0x00,0x00});
+    load_receiver(0xb8,0x01);
     bytes({0x48,0x85,0xc0});
     normal.push_back(branch(0x84));
     bytes({0x8b,0x00}); // configuration first DWORD: interned class identifier
@@ -96,7 +102,8 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
     bytes({0x5a,0x59,0x58,0x9d});
     if(site.kind==NoReloadSiteKind::Shared) bytes({0x49,0x8b,0x06});
     else if(site.kind==NoReloadSiteKind::DirectCallback) bytes({0x8b,0xd0,0xff,0x93,0x60,0x13,0x00,0x00});
-    else bytes({0x8b,0xd0,0x48,0x8b,0x46,0xf8});
+    else if(site.kind==NoReloadSiteKind::EventCallback) bytes({0x8b,0xd0,0x48,0x8b,0x46,0xf8});
+    else bytes({0x48,0x8b,0xcf,0x8b,0xd0});
     bytes({0xff,0x25,0x00,0x00,0x00,0x00});u64(base+site.rva+site.original.size());
     for(auto p:normal)fix(p,ordinary);
     for(auto p:selected)fix(p,enabled);

@@ -51,8 +51,8 @@ rewritten by hotkeys.
 
 No-reload hooks classify the weapon using its live configuration ID and require
 its owner to match the player. Each firing site jumps to a generated code page;
-the selectors live on a separate writable page. Three executable pages and one
-control page (16 KiB total per attachment) remain allocated after detachment,
+the selectors live on a separate writable page. One executable page per hook and one
+control page (20 KiB total per attachment) remain allocated after detachment,
 because a displaced setter call could still return through the generated code.
 Original hook bytes and selectors are restored; Windows frees those pages when
 the game exits. Repeated trainer restarts accumulate these small allocations

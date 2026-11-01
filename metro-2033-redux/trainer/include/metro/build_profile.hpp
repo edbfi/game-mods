@@ -30,6 +30,10 @@ inline std::vector<CodePatchDefinition> verified_code_patches() {
     std::vector<CodePatchDefinition> patches{{"unlimited_ammo", 0x2aecd0, {0x48,0x89,0x5c,0x24,0x08},
         0x2aecd0, "48 89 5C 24 08 57 48 83 EC 20 80 B9 F0 0B 00 00 00 48 8B D9",
         {0xb0,0x01,0xc3,0x90,0x90}},
+        // The Hellsing's own reload never asks the predicate above: keep its arrow count.
+        {"unlimited_ammo", 0x2b9a58, {0x2b,0xdf},
+        0x2b9a52, "41 FF D1 49 8B 06 2B DF 8B D3 49 8B CE FF 90 F8 01 00 00",
+        {0x90,0x90}},
         {"unlimited_throwables", 0x2e870a, {0xe8,0x91,0x36,0xf6,0xff},
         0x2e86ff, "48 8d 96 18 01 00 00 4c 89 70 e8 e8 91 36 f6 ff 48 8b 8e 18 01",
         {0xe8,0xc1,0x36,0xf6,0xff}},
