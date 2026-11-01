@@ -167,6 +167,46 @@ impl OptionSet {
     }
 }
 
+/// One value per toggle of one profile, such as each toggle's binding.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ToggleMap<T> {
+    brand: Brand,
+    values: Box<[T]>,
+}
+
+impl<T> ToggleMap<T> {
+    /// The value for `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` belongs to another profile.
+    #[must_use]
+    pub fn get(&self, id: ToggleId) -> &T {
+        self.brand.assert(id.brand);
+        &self.values[id.index()]
+    }
+
+    /// Replaces the value for `id`, returning the old one.
+    ///
+    /// # Panics
+    ///
+    /// If `id` belongs to another profile.
+    pub fn replace(&mut self, id: ToggleId, value: T) -> T {
+        self.brand.assert(id.brand);
+        std::mem::replace(&mut self.values[id.index()], value)
+    }
+
+    /// Every value with its toggle, in display order.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (ToggleId, &T)> {
+        let brand = self.brand;
+        self.values.iter().enumerate().map(move |(index, value)| {
+            // A map has one entry per toggle, and validation bounds toggles well below 256.
+            let index = index as u8;
+            (ToggleId { brand, index }, value)
+        })
+    }
+}
+
 /// What the user asked for: the master switch, the selection and the options.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Desired {
@@ -351,6 +391,17 @@ impl<'p> ValidProfile<'p> {
         OptionSet {
             brand: self.brand,
             bits: 0,
+        }
+    }
+
+    /// A [`ToggleMap`] holding `value(id, toggle)` for every toggle.
+    pub fn toggle_map<T>(&self, mut value: impl FnMut(ToggleId, &'p Toggle) -> T) -> ToggleMap<T> {
+        ToggleMap {
+            brand: self.brand,
+            values: self
+                .toggles()
+                .map(|(id, toggle)| value(id, toggle))
+                .collect(),
         }
     }
 
