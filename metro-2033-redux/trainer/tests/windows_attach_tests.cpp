@@ -84,7 +84,8 @@ struct Result { DWORD code; std::string output; };
 Result run_trainer(const std::wstring& exe, const wchar_t* argument) {
     SECURITY_ATTRIBUTES security{sizeof security, nullptr, TRUE};
     HANDLE read = nullptr, write = nullptr;
-    require(CreatePipe(&read, &write, &security, 0), "Cannot create a pipe.");
+    // Large enough for every line the trainer prints here, so it never blocks on a full pipe.
+    require(CreatePipe(&read, &write, &security, 65536), "Cannot create a pipe.");
     SetHandleInformation(read, HANDLE_FLAG_INHERIT, 0);
     std::wstring command = L"\"" + exe + L"\" " + argument;
     STARTUPINFOW startup{}; startup.cb = sizeof startup; startup.dwFlags = STARTF_USESTDHANDLES;
@@ -94,13 +95,13 @@ Result run_trainer(const std::wstring& exe, const wchar_t* argument) {
                                         nullptr, directory_of(exe).c_str(), &startup, &info);
     CloseHandle(write);
     if (!started) { CloseHandle(read); throw std::runtime_error("Cannot start the trainer."); }
+    // A trainer that hangs fails the test instead of hanging it; ending it closes the pipe.
+    const bool exited = WaitForSingleObject(info.hProcess, 30000) == WAIT_OBJECT_0;
+    if (!exited) { TerminateProcess(info.hProcess, 2); WaitForSingleObject(info.hProcess, 5000); }
     std::string output;
     char buffer[4096]; DWORD done = 0;
-    // The pipe closes when the trainer exits; it never runs longer than a read-only check.
     while (ReadFile(read, buffer, sizeof buffer, &done, nullptr) && done) output.append(buffer, done);
     CloseHandle(read);
-    const bool exited = WaitForSingleObject(info.hProcess, 30000) == WAIT_OBJECT_0;
-    if (!exited) TerminateProcess(info.hProcess, 2);
     DWORD code = 0;
     GetExitCodeProcess(info.hProcess, &code);
     CloseHandle(info.hThread); CloseHandle(info.hProcess);
