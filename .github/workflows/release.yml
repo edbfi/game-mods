@@ -1,0 +1,164 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Release automation, after EasyHDR's release.yml. Publish a GitHub release tagged
+# <game>/<mod>/v<semver>, e.g. metro-2033-redux/trainer/v0.1.0. Then:
+#   verify   (unprivileged) the tag names a mod at the released commit, which is on main;
+#   build    (unprivileged) runs the mod's `just package <version>` and checks the zip;
+#   publish  (privileged: VT_API_KEY, contents: write; shell only, no actions) takes the
+#            zip in, submits it to VirusTotal and attaches it and the report links.
+# A failed publish is retried with "Re-run failed jobs": it reuses the built artifact,
+# replaces the asset and the report block, and resubmits the same file.
+name: Release
+on:
+  release:
+    types: [published]
+permissions: {}
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    outputs:
+      game: ${{ steps.tag.outputs.game }}
+      mod: ${{ steps.tag.outputs.mod }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - id: tag
+        name: Require a mod tag whose commit is on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v([0-9]+\.[0-9]+\.[0-9]+)$'
+          [[ "$TAG" =~ $re ]] || { echo "::error::Release tags look like <game>/<mod>/v1.2.3"; exit 1; }
+          game="${BASH_REMATCH[1]}" mod="${BASH_REMATCH[3]}" version="${BASH_REMATCH[5]}"
+          # The tag must still point at the event's commit.
+          tagged="$(gh api "repos/$GH_REPO/commits/refs/tags/$(jq -rn --arg t "$TAG" '$t | @uri')" --jq .sha)"
+          if [[ "$tagged" != "$GITHUB_SHA" ]]; then
+            echo "::error::Tag $TAG points at '$tagged', not the released commit $GITHUB_SHA"
+            exit 1
+          fi
+          # compare/<commit>...main is "ahead" or "identical" only when main contains the commit.
+          status="$(gh api "repos/$GH_REPO/compare/$GITHUB_SHA...main" --jq .status)"
+          if [[ "$status" != ahead && "$status" != identical ]]; then
+            echo "::error::$GITHUB_SHA is not reachable from main (compare status: $status)"
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/contents/$game/$mod/justfile?ref=$GITHUB_SHA" --jq .type > /dev/null ||
+            { echo "::error::No mod at $game/$mod in $GITHUB_SHA"; exit 1; }
+          { echo "game=$game"; echo "mod=$mod"; echo "version=$version"; } >> "$GITHUB_OUTPUT"
+          echo "$TAG ($GITHUB_SHA) is on main"
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    outputs:
+      artifact: ${{ steps.check.outputs.artifact }}
+      sha256: ${{ steps.check.outputs.sha256 }}
+    env:
+      GAME: ${{ needs.verify.outputs.game }}
+      MOD: ${{ needs.verify.outputs.mod }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      # No build cache in a release (zizmor cache-poisoning).
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with: { tool: just }
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with: { version: 0.17.0, use-cache: false }
+      - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" package "$VERSION"
+      - id: check
+        env:
+          ARTIFACT: ${{ needs.verify.outputs.game }}-${{ needs.verify.outputs.mod }}-zip-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          zip="$GAME/$MOD/dist/$GAME-$MOD-$VERSION.zip"
+          [[ -f "$zip" && ! -L "$zip" ]] || { echo "::error::$zip was not built"; exit 1; }
+          # Every entry stays inside the folder it is unzipped into.
+          python3 - "$zip" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          if not names:
+              sys.exit("::error::The zip is empty")
+          for name in names:
+              parts = name.split("/")
+              if name.startswith("/") or "\\" in name or ".." in parts or ":" in parts[0]:
+                  sys.exit(f"::error::Unsafe zip entry {name!r}")
+          print(f"{len(names)} entries")
+          PY
+          sha="$(sha256sum "$zip" | cut -d' ' -f1)"
+          echo "$zip: $(stat -c %s "$zip") bytes, sha256 $sha"
+          { echo "artifact=$ARTIFACT"; echo "sha256=$sha"; echo "zip=$zip"; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.check.outputs.artifact }}
+          path: ${{ steps.check.outputs.zip }}
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: write, actions: read }
+    env:
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Take the zip in
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT: ${{ needs.build.outputs.artifact }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$ARTIFACT" =~ ^[a-z0-9-]+-zip-[0-9]+$ && "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+            { echo "::error::Malformed build outputs"; exit 1; }
+          # The file name comes from the tag, never from the build.
+          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v([0-9]+\.[0-9]+\.[0-9]+)$'
+          [[ "$TAG" =~ $re ]] || { echo "::error::Malformed tag"; exit 1; }
+          name="${BASH_REMATCH[1]}-${BASH_REMATCH[3]}-${BASH_REMATCH[5]}.zip"
+          # The tag must not have moved since verify.
+          tagged="$(gh api "repos/$GH_REPO/commits/refs/tags/$(jq -rn --arg t "$TAG" '$t | @uri')" --jq .sha)"
+          [[ "$tagged" == "$GITHUB_SHA" ]] || { echo "::error::Tag $TAG moved to '$tagged'"; exit 1; }
+          # Artifact intake (edbfi-ci's privileged_jobs.py): a fresh directory, exactly one regular file.
+          dir="$(mktemp -d)"
+          gh run download "$GITHUB_RUN_ID" -n "$ARTIFACT" -D "$dir"
+          mapfile -d '' entries < <(find "$dir" -mindepth 1 -print0)
+          zip="$dir/$name"
+          if [[ ${#entries[@]} -ne 1 || "${entries[0]}" != "$zip" || -L "$zip" || ! -f "$zip" ]]; then
+            echo "::error::The artifact must hold exactly one regular file, $name"
+            exit 1
+          fi
+          [[ "$(head -c 2 "$zip")" == PK ]] || { echo "::error::$name is not a zip"; exit 1; }
+          actual="$(sha256sum "$zip" | cut -d' ' -f1)"
+          [[ "$actual" == "$EXPECTED_SHA256" ]] || { echo "::error::sha256 $actual, build reported $EXPECTED_SHA256"; exit 1; }
+          # The VirusTotal script comes from the released commit, which verify found on main.
+          gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GH_REPO/contents/scripts/release-virustotal.sh?ref=$GITHUB_SHA" > "$RUNNER_TEMP/release-virustotal.sh"
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+      - name: Submit to VirusTotal
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/release-virustotal.sh" scan "$ZIP" "$RUNNER_TEMP/virustotal.md"
+          cat "$RUNNER_TEMP/virustotal.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Attach the zip and the report links
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$ZIP" --clobber
+          gh release view "$TAG" --json body > "$RUNNER_TEMP/release.json"
+          bash "$RUNNER_TEMP/release-virustotal.sh" notes "$RUNNER_TEMP/release.json" "$RUNNER_TEMP/virustotal.md" "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
