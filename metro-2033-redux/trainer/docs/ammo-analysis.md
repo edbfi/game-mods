@@ -70,7 +70,7 @@ takes `min(capacity - loaded, item count)` into the magazine through `+0x1350`, 
 subtracts that from the item and stores it through item setter `+0x1f8`.
 `unlimited_ammo` replaces that `sub ebx,edi` at `0x2b9a58` (`2B DF`) with two NOPs,
 so the setter stores the unchanged count. Like the forced predicate, it applies to
-every owner. Unique signature, starting three bytes before the patch:
+every owner. Unique signature, starting six bytes before the patch:
 `41 FF D1 49 8B 06 2B DF 8B D3 49 8B CE FF 90 F8 01 00 00`.
 
 Its eligibility slot `+0x12d0` (`0x1402b9d40`) first requires a nonzero arrow

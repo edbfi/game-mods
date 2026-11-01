@@ -58,7 +58,8 @@ int main(){
  for(const auto& site:sites){
   if(site.kind!=metro::NoReloadSiteKind::HellsingFire)continue;
   hellsing_seen=true;
-  std::size_t helsing=0;while(std::string(classes[helsing].feature)!="no_reload_helsing")++helsing;
+  std::size_t helsing=0;while(helsing<classes.size()&&std::string(classes[helsing].feature)!="no_reload_helsing")++helsing;
+  assert(helsing<classes.size());
   const auto id=classes[helsing].class_id_rvas.front();setid(region+id,4242);setid(config,4242);
   auto hc=metro::make_no_reload_image(base,base+0x3000,control,classes,site);
   std::memcpy(region+0x3000,hc.code.data(),hc.code.size());
