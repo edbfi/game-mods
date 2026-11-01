@@ -1,6 +1,6 @@
 # Metro 2033 Redux INI trainer
 
-Windows 10 version 1703 or newer, x64 trainer for the Steam build of Metro 2033 Redux, from any install folder.
+Windows x64 trainer (Windows 10 version 1703 or newer) for the Steam build of Metro 2033 Redux, from any install folder.
 
 Configure features before starting the companion executable. It waits for the
 game and applies reversible memory patches; no overlay, game-file replacement,
@@ -47,8 +47,9 @@ INI edits take effect on the next trainer launch; hotkeys toggle the current
 session immediately. The dashboard shows selected and applied state separately;
 `GLOBAL` means covered by all-weapons no reload, and `PAUSED` retains selections.
 Use Left/Right with the console focused to page through the 24 weapon classes.
-The dashboard needs at least 72 columns and 24 rows; smaller or redirected output
-uses plain state snapshots. Detailed lifecycle, toggle and timing events go to
+The dashboard needs at least 72 columns and 24 rows. Smaller consoles print all
+state and bindings initially, then only changed rows; redirected output uses full
+plain state snapshots. Detailed lifecycle, toggle and timing events go to
 `metro-trainer.log` beside the executable; its path appears on the dashboard.
 `--check` and `--stop` keep plain diagnostic output.
 Do not force-close the trainer while the game is running; if that happens,
@@ -88,7 +89,9 @@ controls. Hotkey changes are session-only and do not rewrite the INI.
 
 In Windows Terminal, shortcuts must reach the trainer's tab. A terminal host
 may intercept Alt+Space (the default master binding) or other shortcuts; changing
-the classic console's system menu cannot control that host. If a shortcut is
+the classic console's system menu cannot control that host. In classic conhost,
+the trainer temporarily removes the system menu, which also disables its Close,
+Minimize and Maximize buttons; use Ctrl+C to restore and exit. If a shortcut is
 intercepted, choose another binding in `[hotkeys]`, such as `enabled=CTRL+0`.
 Host shortcut passthrough requires physical validation in your terminal.
 

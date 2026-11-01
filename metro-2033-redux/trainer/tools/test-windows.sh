@@ -26,4 +26,6 @@ ZIG_BIN="$ZIG_BIN" ./tools/build-windows.sh
 # dummy executable named metro.exe. Identity rejection precedes any game writes.
 ./build/windows-backend-tests.exe
 ./build/windows-console-tests.exe
-./build/windows-attach-tests.exe
+if [ "${1:-}" != "--no-attach" ]; then
+    ./build/windows-attach-tests.exe
+fi

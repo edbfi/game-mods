@@ -14,28 +14,33 @@ struct ConditionalSite {
     std::uint32_t context_rva;
     const char* context;
 };
-inline std::vector<ConditionalSite> verified_conditional_sites() {
+inline std::vector<ConditionalSite> conditional_sites(const std::vector<CodePatchDefinition>& patches) {
     std::vector<ConditionalSite> sites;
-    for (const auto& patch : verified_code_patches())
+    for (const auto& patch : patches)
         sites.push_back({patch.feature, patch.rva, patch.original, patch.context_rva, patch.context});
-    for (auto& site : sites) {
-        if (site.rva == 0x1e371b) {
-            site.rva = 0x1e3714;
-            site.original = {0x80,0xb9,0x44,0x13,0,0,2};
-        } else if (site.rva == 0x2b9a58) {
-            site.rva = 0x2b9a55;
-            site.original = {0x49,0x8b,0x06,0x2b,0xdf};
-        }
-    }
+    auto extend = [&](std::uint32_t old_rva, const char* feature,
+                      std::vector<std::uint8_t> old_bytes, std::uint32_t rva,
+                      std::vector<std::uint8_t> original) {
+        if (std::count_if(sites.begin(),sites.end(),[&](const auto& site) { return site.rva == old_rva; }) != 1)
+            throw std::runtime_error("Conditional profile override must match exactly one site");
+        auto site = std::find_if(sites.begin(),sites.end(),[&](const auto& entry) { return entry.rva == old_rva; });
+        if (std::string_view(site->feature) != feature || site->original != old_bytes)
+            throw std::runtime_error("Conditional profile override has unexpected feature or bytes");
+        site->rva = rva;
+        site->original = std::move(original);
+    };
+    extend(0x1e371b,"god_mode",{0x75,0x1a},0x1e3714,{0x80,0xb9,0x44,0x13,0,0,2});
+    extend(0x2b9a58,"unlimited_ammo",{0x2b,0xdf},0x2b9a55,{0x49,0x8b,0x06,0x2b,0xdf});
     return sites;
+}
+inline std::vector<ConditionalSite> verified_conditional_sites() {
+    return conditional_sites(verified_code_patches());
 }
 inline NoReloadImage make_conditional_image(std::uintptr_t base, std::uintptr_t cave,
         std::uintptr_t controls, const ConditionalSite& site) {
-    constexpr const char* names[] = {"unlimited_ammo", "unlimited_throwables", "unlimited_medkits",
-        "unlimited_filters", "indestructible_mask", "god_mode", "unlimited_flashlight"};
-    const auto feature = std::find_if(std::begin(names), std::end(names),
+    const auto feature = std::find_if(ordinary_controls.begin(), ordinary_controls.end(),
         [&](const char* name) { return std::string_view(name) == site.feature; });
-    if (feature == std::end(names) || controls % 4 || site.original.size() < 5)
+    if (feature == ordinary_controls.end() || controls % 4 || site.original.size() < 5)
         throw std::runtime_error("Invalid conditional hook profile");
     std::vector<std::uint8_t> code;
     auto bytes = [&](std::initializer_list<std::uint8_t> b) { code.insert(code.end(), b); };
@@ -46,7 +51,7 @@ inline NoReloadImage make_conditional_image(std::uintptr_t base, std::uintptr_t 
     // One aligned DWORD snapshot. Restore RAX, RSP and flags before either path;
     // no SIMD state or other general registers are touched by the gate.
     bytes({0x9c,0x50,0x48,0xb8}); u64(controls);
-    bytes({0x8b,0x00,0xa9}); u32(std::uint32_t{1} << (feature-std::begin(names)));
+    bytes({0x8b,0x00,0xa9}); u32(std::uint32_t{1} << (feature-ordinary_controls.begin()));
     bytes({0x0f,0x85}); const auto selected = code.size(); u32(0);
     auto path = [&](bool enabled) {
         bytes({0x58,0x9d});

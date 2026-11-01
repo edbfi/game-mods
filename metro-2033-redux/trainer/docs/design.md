@@ -8,12 +8,12 @@ The console reports status. Configurable hotkeys toggle features during play;
 there is no overlay. Quiet generated WAV chimes indicate successful changes.
 
 The UI is the sole console input-record consumer. Game-focused hotkeys use
-global asynchronous rising edges. Outside the game, each edge also requires a
-matching key-down record from this console's current refresh, including in
-Windows Terminal; no terminal process or host window is whitelisted. Evidence
-expires on the next refresh and is rejected for incomplete input batches.
-Refresh precedes hotkey polling. This deliberately avoids a persistent focus
-latch: Microsoft documents [FOCUS_EVENT_RECORD](https://learn.microsoft.com/en-us/windows/console/focus-event-record-str)
+global asynchronous rising edges. Outside the game, each edge requires a
+matching console key-down record and exact modifiers during the same physical
+hold. Either can arrive first; a match toggles once. Releases, modifier changes,
+focus records and incomplete input batches cancel pending holds. Presentation
+updates do not consume input. No terminal process or host window is whitelisted.
+Focus records only cancel: Microsoft documents [FOCUS_EVENT_RECORD](https://learn.microsoft.com/en-us/windows/console/focus-event-record-str)
 as internal with a reserved field. [Console key records](https://learn.microsoft.com/en-us/windows/console/key-event-record-str)
 carry the key and exact modifier state. [GetConsoleWindow](https://learn.microsoft.com/en-us/windows/console/getconsolewindow)
 returns an undisplayed message window under ConPTY, so its system-menu style
@@ -85,9 +85,7 @@ on trainer shutdown. Each attachment retains 56 KiB of code plus the shared cont
 view (mapping granularity may reserve more). Forced termination needs a game restart.
 
 No gameplay frame-time measurement establishes that stutter is resolved.
-Breaking release notes: all paused features now retain disabled hooks; the default
-master starts active; coherent publication requires Windows 10 version 1703 or newer.
-Mark the eventual commit/PR as breaking under the repository's release rules.
+Coherent publication requires Windows 10 version 1703 or newer.
 
 Read-only dumps are for analysis, not runnable replacements. They and the
 game's proprietary assets stay out of the repo and must not be packaged

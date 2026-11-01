@@ -69,9 +69,3 @@ None of these launch the game or establish runtime feature behaviour.
   `.text`. The capture is game code: keep it out of the repo and releases.
 - `just test-windows` (WSL with `wsl.exe` interop and Zig 0.17.0) compiles `build/windows-backend-tests.exe`,
   which patches and restores a page in its own dummy child process. No game process is opened.
-
-The persistent ordinary gates pass synthetic execution and Windows cross-compilation.
-The Windows dummy-process backend also passes: fourteen RX caves, initially zero
-controls, repeated publications without executable-byte/protection changes, retained
-remote control views, rollback and thread resumption. Game frame-time acceptance
-remains pending; earlier gameplay rows describe the preceding patch implementation.

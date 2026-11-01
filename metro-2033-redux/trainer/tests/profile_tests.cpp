@@ -13,6 +13,21 @@
 // Game bytes are never required for the normal source-only test suite.
 int main(int argc, char** argv) {
     try {
+        for (const auto rva : {0x1e371bu,0x2b9a58u}) {
+            const auto baseline = metro::verified_code_patches();
+            for (unsigned defect=0; defect<4; ++defect) {
+                auto patches = baseline;
+                auto entry = std::find_if(patches.begin(),patches.end(),[&](const auto& patch) { return patch.rva == rva; });
+                if (defect == 0) patches.erase(entry);
+                else if (defect == 1) { const auto duplicate = *entry; patches.push_back(duplicate); }
+                else if (defect == 2) entry->feature = "unlimited_filters";
+                else entry->original.front() ^= 1;
+                bool rejected = false;
+                try { (void)metro::conditional_sites(patches); }
+                catch (const std::runtime_error&) { rejected = true; }
+                if (!rejected) throw std::runtime_error("Conditional override silently accepted a changed profile");
+            }
+        }
         std::map<std::string, bool> selection{{"no_reload", true}, {"god_mode", true}};
         if (metro::effective_controls(false, selection) != 0 ||
             metro::effective_controls(true, selection) != (metro::no_reload_control_bits | (1u << 5)))

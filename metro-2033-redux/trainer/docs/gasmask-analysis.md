@@ -1,5 +1,11 @@
 # Gas mask and filter candidates
 
+The byte replacements below describe the original implementation and its
+behavioral evidence. Current installation uses persistent gates: the selected
+filter path zeros consumption, and the selected mask path skips damage dispatch.
+Disabled gates execute the original MULSS/virtual call. Entry jumps remain
+installed during master pause.
+
 Static GNU objdump analysis uses the same original executable and reconstructed
 runtime hashes recorded in [ammunition analysis](ammo-analysis.md). No gameplay
 behavior has been validated. RVAs resolve relative to the loaded module base.

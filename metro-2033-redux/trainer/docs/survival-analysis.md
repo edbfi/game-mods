@@ -1,5 +1,11 @@
 # Player survival and flashlight
 
+The byte replacements below establish the selected behavior of the original
+implementation. Current installation uses persistent gates: god mode hooks the
+seven-byte comparison at `0x1e3714` and jumps to `0x1e372d` only when selected;
+the two flashlight call gates skip consumption only when selected. Disabled gates
+execute the original comparison/calls. Entry jumps remain installed during pause.
+
 This static analysis uses the exact reconstructed PE and hashes in
 [consumables analysis](consumables-analysis.md). Addresses below are RVAs unless
 prefixed with `0x140`. GNU objdump's decoded runtime image establishes instruction
@@ -20,7 +26,7 @@ reads `VS regen state is ON`. Otherwise it delegates to shared predicate
 `0x2427e0`, which checks global debug bit 2 and entity flags. That shared predicate
 has dozens of other vtable references; it must not be patched globally.
 
-Patch the two-byte branch at `0x1e371b` from `75 1A` to `EB 10`. This jumps
+The original implementation patched the two-byte branch at `0x1e371b` from `75 1A` to `EB 10`. This jumps
 directly to the existing `mov eax,1` return at `0x1e372d`, preserving the stack
 cleanup and avoiding repeated logging. Player-type vtables reference this
 specific override; NPC vtables using the shared predicate remain unchanged.
@@ -63,7 +69,7 @@ battery notifications. Night vision, inventory slot 5, calls the same battery
 routine later at `0x1e98f2`. Both calls must be suppressed to retain charge
 while either consumer is active; this also supplies unlimited night vision.
 
-Replace each five-byte call with NOPs. Their return values are unused; the
+The original implementation replaced each five-byte call with NOPs. Their return values are unused; the
 subsequent torch update and night-vision update remain. This does not patch
 shared battery logic or unrelated NPC equipment, and it preserves manual
 charging. Both contexts are unique in the reconstructed image and cover the
@@ -76,5 +82,5 @@ night vision, save/load, normal drain after disabling, and NPC behavior.
 `append_survival_patches(std::vector<CodePatchDefinition>&)` appends three
 patches for `god_mode` and `unlimited_flashlight`. Include its header after
 `CodePatchDefinition` is declared, outside any namespace, and invoke it while
-assembling the profile. The two flashlight writes form one feature transaction.
+assembling the profile. The two flashlight sites now share one published control bit.
 All context bytes and originals must pass existing verification before enabling.

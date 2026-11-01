@@ -19,10 +19,10 @@ public:
     // of already queued events. No wait or logger writes. Left/Right page only
     // within the console; the runtime keeps all global feature hotkeys.
     void refresh() noexcept;
-    // Outside the game, require matching key-down evidence from this refresh's
-    // console input batch. Never grants persistent eligibility to a host HWND.
-    bool hotkey_pressed(unsigned binding, bool async_rising, bool game_foreground) const noexcept;
-    void navigate(Navigation direction) noexcept;
+    // Match an async edge with console evidence during the same physical hold.
+    // Call once per binding each input poll, including releases. Presentation
+    // updates do not consume input. Game foreground preserves async behavior.
+    bool hotkey_pressed(unsigned binding, bool down, bool async_rising, bool game_foreground) noexcept;
     bool dashboard_active() const noexcept;
     // Persistent diagnostic, nullptr if healthy. Caller may log it once.
     const char* error() const noexcept;

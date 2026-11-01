@@ -241,9 +241,9 @@ int wmain(int argc, wchar_t** argv) {
     metro::ui::Model model;
     std::unique_ptr<metro::ui::WindowsConsole> console;
     const char* console_error = nullptr;
-    auto refresh = [&]() {
+    auto refresh = [&](bool poll_input = true) {
         if (!console) return;
-        console->refresh();
+        if (poll_input) console->refresh();
         if (const auto error = console->error(); error && error != console_error) {
             console_error = error;
             log(std::string("UI: ") + error);
@@ -254,7 +254,7 @@ int wmain(int argc, wchar_t** argv) {
             model.lifecycle = lifecycle;
             model.status = status;
             if (console) console->update(model);
-            refresh();
+            refresh(false);
         } catch (...) { /* Presentation must never interrupt game cleanup. */ }
     };
     try {
@@ -474,14 +474,15 @@ int wmain(int argc, wchar_t** argv) {
                         log("Game exited. Trainer finished."); return 0;
                     }
                     refresh();
-                    // Snapshot every eligible edge before sync()/show() can
-                    // refresh again while applying an earlier binding.
+                    // Snapshot all eligible bindings before applying toggles.
+                    // Presentation updates never consume console input.
                     std::vector<std::string> pressed;
                     DWORD foreground_pid = 0;
                     GetWindowThreadProcessId(GetForegroundWindow(), &foreground_pid);
                     for (const auto& binding : config.hotkeys) {
-                        const bool rising = latches[binding.first].update(binding_down(binding.second));
-                        if (console->hotkey_pressed(binding.second, rising, foreground_pid == pids.front()))
+                        const bool down = binding_down(binding.second);
+                        const bool rising = latches[binding.first].update(down);
+                        if (console->hotkey_pressed(binding.second, down, rising, foreground_pid == pids.front()))
                             pressed.push_back(binding.first);
                     }
                     for (const auto& name : pressed) {

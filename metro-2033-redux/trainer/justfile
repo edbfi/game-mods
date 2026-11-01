@@ -33,6 +33,10 @@ build:
 test-windows:
     ./tools/test-windows.sh
 
+# Run console and dummy memory tests without trainer attachment.
+test-windows-safe:
+    ./tools/test-windows.sh --no-attach
+
 # Build and zip the trainer as dist/metro-2033-redux-trainer-<version>.zip.
 package version: build
     ./tools/package.sh {{quote(version)}}

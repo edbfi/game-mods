@@ -1,5 +1,6 @@
 #pragma once
 #include "metro/core.hpp"
+#include "metro/control_layout.hpp"
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
@@ -60,7 +61,7 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         std::uintptr_t cave, std::uintptr_t controls,
         const std::vector<NoReloadClass>& classes,
         const NoReloadSite& site = verified_no_reload_sites().front()) {
-    if (classes.empty() || classes.size() > 24 || controls % 4)
+    if (classes.empty() || classes.size() > no_reload_class_count || controls % 4)
         throw std::runtime_error("Invalid no-reload control layout");
     std::vector<std::uint8_t> code;
     auto bytes=[&](std::initializer_list<std::uint8_t> b){code.insert(code.end(),b);};
@@ -77,7 +78,7 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         bytes({offset_low,offset_high,0x00,0x00});};
     bytes({0x9c,0x50,0x51,0x52,0x41,0x50}); // flags, rax, rcx, rdx, r8
     bytes({0x48,0xb8});u64(controls);
-    bytes({0x44,0x8b,0x00,0x41,0xf7,0xc0});u32(0x7fffff80); // snapshot once, disabled fast path
+    bytes({0x44,0x8b,0x00,0x41,0xf7,0xc0});u32(no_reload_control_bits); // snapshot once, disabled fast path
     normal.push_back(branch(0x84));
     load_receiver(0x18,0x01);
     bytes({0x48,0x85,0xc0});
@@ -96,7 +97,7 @@ inline NoReloadImage make_no_reload_image(std::uintptr_t base,
         for(auto id:classes[i].class_id_rvas){bytes({0x48,0xb9});u64(base+id);bytes({0x3b,0x01});matches.push_back(branch(0x84));}
         bytes({0xe9});auto next=code.size();u32(0);
         for(auto p:matches)fix(p,code.size());
-        bytes({0x41,0xf7,0xc0});u32(std::uint32_t{1} << (7+i));selected.push_back(branch(0x85));
+        bytes({0x41,0xf7,0xc0});u32(std::uint32_t{1} << (no_reload_bit_offset+i));selected.push_back(branch(0x85));
         fix(next,code.size());
     }
     auto ordinary=code.size();

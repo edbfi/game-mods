@@ -59,46 +59,109 @@ int main() {
             DWORD available = 0;
             check(GetNumberOfConsoleInputEvents(in,&available) && available == 0,"UI consumes queued input");
             const auto chord = metro::parse_hotkey("CTRL+1");
-            auto queue = [&](WORD type, bool down, DWORD modifiers = LEFT_CTRL_PRESSED) {
+            const auto second = metro::parse_hotkey("CTRL+2");
+            auto queue = [&](WORD type, bool down, DWORD modifiers = LEFT_CTRL_PRESSED, WORD vk = '1') {
                 INPUT_RECORD record{};
                 record.EventType = type;
                 if (type == KEY_EVENT) {
-                    record.Event.KeyEvent.wVirtualKeyCode = '1';
+                    record.Event.KeyEvent.wVirtualKeyCode = vk;
+                    record.Event.KeyEvent.wVirtualScanCode = static_cast<WORD>(MapVirtualKeyW(vk,MAPVK_VK_TO_VSC));
+                    record.Event.KeyEvent.uChar.UnicodeChar = static_cast<wchar_t>(vk);
                     record.Event.KeyEvent.bKeyDown = down;
                     record.Event.KeyEvent.dwControlKeyState = modifiers;
                     record.Event.KeyEvent.wRepeatCount = 1;
                 } else record.Event.FocusEvent.bSetFocus = down;
                 check(WriteConsoleInputW(in,&record,1,&done) && done == 1,"queue shortcut evidence");
             };
-            check(!console.hotkey_pressed(chord,true,false),"unrelated background edge rejected");
-            check(console.hotkey_pressed(chord,true,true),"game foreground retains async hotkeys without console records");
-            queue(FOCUS_EVENT,true);
-            console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"focus gain alone never authorizes terminal host");
+            auto release = [&]() {
+                console.hotkey_pressed(chord,false,false,false);
+                console.hotkey_pressed(second,false,false,false);
+            };
+            check(!console.hotkey_pressed(chord,true,true,false),"unrelated background edge waits for exact evidence");
+            // Several empty polls must not eat a pending edge during a hold.
+            for (int i=0; i<3; ++i) {
+                console.refresh();
+                check(!console.hotkey_pressed(chord,true,false,false),"delayed record still pending");
+            }
             queue(KEY_EVENT,true);
             console.refresh();
-            check(console.hotkey_pressed(chord,true,false),"trainer terminal record authorizes exact chord without host HWND");
-            check(!console.hotkey_pressed(chord,false,false),"held async key never repeats");
-            check(!console.hotkey_pressed(metro::parse_hotkey("ALT+1"),true,false),"modifiers match exactly");
-            check(!console.hotkey_pressed(0,true,true),"unbound shortcut stays disabled");
+            check(console.hotkey_pressed(chord,true,false,false),"delayed record meets earlier edge");
+            queue(KEY_EVENT,true); // autorepeat
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"another tab in same host cannot reuse earlier evidence");
+            check(!console.hotkey_pressed(chord,true,false,false),"repeat record never duplicates toggle");
+            release();
             queue(KEY_EVENT,true);
-            queue(FOCUS_EVENT,false);
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"queued focus transition cancels earlier evidence");
+            check(!console.hotkey_pressed(chord,true,false,false),"record before edge waits");
+            console.refresh();
+            check(console.hotkey_pressed(chord,true,true,false),"record survives until later edge in same hold");
+            release();
+            check(console.hotkey_pressed(chord,true,true,true),"game retains async path without console records");
+            check(!console.hotkey_pressed(chord,true,false,true),"game hold never repeats");
+            release();
+            check(!console.hotkey_pressed(0,true,true,true),"unbound shortcut stays disabled");
+            // Both edges are pending; presentation while handling the first
+            // binding must leave the second binding's queued record untouched.
+            check(!console.hotkey_pressed(chord,true,true,false),"first edge pending");
+            check(!console.hotkey_pressed(second,true,true,false),"second edge pending");
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(console.hotkey_pressed(chord,true,false,false),"first binding fires");
+            queue(KEY_EVENT,true,LEFT_CTRL_PRESSED,'2');
+            console.update(model);
+            check(GetNumberOfConsoleInputEvents(in,&available) && available == 1,"presentation does not drain second binding");
+            console.refresh();
+            check(console.hotkey_pressed(second,true,false,false),"second binding survives presentation between polls");
+            check(!console.hotkey_pressed(chord,true,false,false),"first binding remains consumed");
+            release();
+            queue(KEY_EVENT,true);
+            queue(KEY_EVENT,true,LEFT_CTRL_PRESSED,'2');
+            console.refresh();
+            check(console.hotkey_pressed(chord,true,true,false) && console.hotkey_pressed(second,true,true,false),"simultaneous bindings each fire once");
+            console.update(model);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,true,false,false) && !console.hotkey_pressed(second,true,false,false),"simultaneous holds never repeat");
+            release();
+            queue(KEY_EVENT,true,0,'A');
+            queue(KEY_EVENT,false,0,'A');
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(console.hotkey_pressed(chord,true,true,false),"unrelated typing does not block a subsequent fresh chord");
+            release();
+            for (const auto focus : {false,true}) {
+                console.hotkey_pressed(chord,true,true,false);
+                queue(KEY_EVENT,true);
+                queue(FOCUS_EVENT,focus);
+                console.refresh();
+                check(!console.hotkey_pressed(chord,true,false,false),"focus transition cancels pending edge");
+                queue(KEY_EVENT,true);
+                console.refresh();
+                check(!console.hotkey_pressed(chord,true,false,false),"held chord cannot reactivate after focus transition");
+                release();
+            }
+            console.hotkey_pressed(chord,true,true,false);
             queue(KEY_EVENT,true);
             queue(KEY_EVENT,false);
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"queued release cancels earlier chord");
+            check(!console.hotkey_pressed(chord,true,false,false),"queued release cancels earlier edge and record");
+            release();
+            console.hotkey_pressed(chord,true,true,false);
+            console.hotkey_pressed(chord,false,false,false);
+            queue(KEY_EVENT,true);
+            console.refresh();
+            check(!console.hotkey_pressed(chord,false,false,false),"late record after physical release cannot fire");
+            console.hotkey_pressed(chord,true,true,false);
             queue(KEY_EVENT,true,LEFT_CTRL_PRESSED | SHIFT_PRESSED);
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"extra modifier rejects chord");
+            check(!console.hotkey_pressed(chord,true,false,false),"modifier change cancels pending edge");
+            release();
             queue(KEY_EVENT,true);
             for (unsigned i=0; i<64; ++i) queue(FOCUS_EVENT,false);
             console.refresh();
-            check(!console.hotkey_pressed(chord,true,false),"partial batch cannot hide queued loss of focus");
+            check(!console.hotkey_pressed(chord,true,true,false),"partial batch cannot hide queued focus loss");
             console.refresh();
+            check(!console.hotkey_pressed(chord,true,false,false),"drained focus loss cannot revive pending edge");
+            release();
             model.error = "Restoration incomplete. Close the game before restarting trainer.";
             console.update(model);
             console.refresh();
@@ -106,14 +169,27 @@ int main() {
             char diagnostic[100]{};
             check(ReadConsoleOutputCharacterA(out,diagnostic,100,{0,27},&done) != 0,"read recovery action");
             check(std::string(diagnostic,100).find("Close the game") != std::string::npos,"persistent recovery action visible");
-            // A small window uses complete snapshots; expanding restores paging.
+            // Small interactive output emits changed rows; expansion restores paging.
             SMALL_RECT small{0,0,69,19};
             check(SetConsoleWindowInfo(out,TRUE,&small) != 0,"shrink viewport");
             console.refresh();
             check(!console.dashboard_active(),"small viewport fallback");
+            check(SetConsoleScreenBufferSize(out,{120,200}),"leave space to measure compact output");
+            CONSOLE_SCREEN_BUFFER_INFO small_before{}, small_after{};
+            check(GetConsoleScreenBufferInfo(out,&small_before),"read narrow output position");
+            console.refresh();
+            console.update(model);
+            check(GetConsoleScreenBufferInfo(out,&small_after)
+                && small_before.dwCursorPosition.Y == small_after.dwCursorPosition.Y
+                && small_before.dwCursorPosition.X == small_after.dwCursorPosition.X,"unchanged narrow output writes nothing");
+            model.status = "Narrow status changed.";
+            console.update(model);
+            check(GetConsoleScreenBufferInfo(out,&small_after)
+                && small_after.dwCursorPosition.Y == small_before.dwCursorPosition.Y+1,"narrow status change emits one line, not a snapshot");
+            release();
             queue(KEY_EVENT,true);
             console.refresh();
-            check(console.hotkey_pressed(chord,true,false),"console hotkeys survive plain small viewport");
+            check(console.hotkey_pressed(chord,true,true,false),"console hotkeys survive plain small viewport");
             check(SetConsoleWindowInfo(out,TRUE,&region) != 0,"expand viewport");
             console.refresh();
             check(console.dashboard_active() && !console.error(),"resize returns to dashboard");
@@ -123,6 +199,28 @@ int main() {
         check(GetConsoleMode(in,&restored) && restored == mode,"input mode restored");
         check(GetConsoleCursorInfo(out,&restored_cursor) && restored_cursor.bVisible == cursor.bVisible && restored_cursor.dwSize == cursor.dwSize,"cursor restored");
         check(GetWindowLongPtrW(GetConsoleWindow(),GWL_STYLE) == style,"system menu restored");
+        CONSOLE_SCREEN_BUFFER_INFO final_info{};
+        check(GetConsoleScreenBufferInfo(out,&final_info) && final_info.dwCursorPosition.X == 0
+            && final_info.dwCursorPosition.Y == 28,"next shell prompt starts below dashboard content");
+        DWORD output_mode = 0;
+        check(GetConsoleMode(out,&output_mode),"read output mode");
+        for (const auto vt : {false,true}) {
+            check(SetConsoleMode(out,vt ? output_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                : output_mode & ~ENABLE_VIRTUAL_TERMINAL_PROCESSING),"set classic/VT output");
+            {
+                metro::ui::WindowsConsole console;
+                metro::ui::Model model;
+                console.update(model);
+                check(console.dashboard_active(),"classic/VT dashboard draws");
+            }
+            check(GetConsoleScreenBufferInfo(out,&final_info) && final_info.dwCursorPosition.X == 0
+                && final_info.dwCursorPosition.Y == final_info.srWindow.Top+28,"classic/VT prompt below final status");
+            char tail[100]{};
+            DWORD read = 0;
+            check(ReadConsoleOutputCharacterA(out,tail,100,final_info.dwCursorPosition,&read) && read == 100
+                && std::string(tail,100) == std::string(100,' '),"classic/VT prompt row has no dashboard leftovers");
+        }
+        check(SetConsoleMode(out,output_mode),"restore test output mode");
         CloseHandle(in); CloseHandle(out);
         FreeConsole();
         std::cout << "Windows console checks passed\n";

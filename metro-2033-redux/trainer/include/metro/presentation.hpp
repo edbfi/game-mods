@@ -8,7 +8,6 @@
 namespace metro::ui {
 enum class Lifecycle { Waiting, Preparing, Installing, Attached, Restoring, Stopped, Error };
 enum class Tone { Normal, Amber, Muted, Error };
-enum class Navigation { Previous, Next };
 struct Model {
     Config config;
     // Runtime selection and successfully applied state, not requested INI values.

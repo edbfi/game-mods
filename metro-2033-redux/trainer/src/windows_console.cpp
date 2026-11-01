@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <optional>
 #include <set>
+#include <map>
 #include <utility>
 
 namespace metro::ui {
@@ -28,6 +29,23 @@ struct WindowsConsole::Impl {
     SMALL_RECT viewport{};
     std::size_t page = 0;
     std::set<unsigned> pressed;
+    struct Hold { bool pending = false, fired = false, blocked = false; };
+    std::map<unsigned, Hold> holds;
+    bool cancel_hold = false, input_complete = true;
+    std::optional<SHORT> dashboard_bottom;
+
+    void finish_dashboard() noexcept {
+        if (!dashboard_bottom) return;
+        CONSOLE_SCREEN_BUFFER_INFO now{};
+        if (GetConsoleScreenBufferInfo(out,&now)) {
+            const auto bottom = std::min(*dashboard_bottom,static_cast<SHORT>(now.dwSize.Y-1));
+            SetConsoleCursorPosition(out,{0,bottom});
+            DWORD written = 0;
+            // Advance/scroll even when the dashboard occupied the last buffer row.
+            WriteConsoleA(out,"\r\n",2,&written,nullptr);
+        }
+        dashboard_bottom.reset();
+    }
 
     explicit Impl(bool enabled) : allow(enabled) {
         output_saved = GetConsoleMode(out,&output_mode) != 0;
@@ -45,7 +63,7 @@ struct WindowsConsole::Impl {
             // the exact style on exit. This cannot control a ConPTY host's menu
             // or shortcut interception: GetConsoleWindow is hidden there.
             window_style = window ? GetWindowLongPtrW(window,GWL_STYLE) : 0;
-            if (window_style & WS_SYSMENU) {
+            if (allow && (window_style & WS_SYSMENU)) {
                 SetLastError(0);
                 const auto old = SetWindowLongPtrW(window,GWL_STYLE,window_style & ~WS_SYSMENU);
                 style_saved = old != 0 || GetLastError() == 0;
@@ -59,13 +77,7 @@ struct WindowsConsole::Impl {
         if (output_saved) SetConsoleMode(out,output_mode);
         if (info_saved) {
             SetConsoleTextAttribute(out,saved.wAttributes);
-            CONSOLE_SCREEN_BUFFER_INFO now{};
-            if (GetConsoleScreenBufferInfo(out,&now)) {
-                auto position = saved.dwCursorPosition;
-                position.X = std::min(position.X,static_cast<SHORT>(now.dwSize.X-1));
-                position.Y = std::min(position.Y,static_cast<SHORT>(now.dwSize.Y-1));
-                SetConsoleCursorPosition(out,position);
-            }
+            finish_dashboard();
         }
         if (cursor_saved) SetConsoleCursorInfo(out,&cursor);
     }
@@ -80,6 +92,7 @@ struct WindowsConsole::Impl {
     }
     void fail(const char* reason) noexcept {
         pressed.clear();
+        holds.clear();
         failure = reason;
         allow = active = false;
         if (cursor_saved && cursor_hidden) SetConsoleCursorInfo(out,&cursor);
@@ -96,17 +109,25 @@ struct WindowsConsole::Impl {
         const bool now_active = allow && console && width >= 72 && height >= 24;
         const bool moved = console && (viewport.Left != info.srWindow.Left || viewport.Top != info.srWindow.Top
             || viewport.Right != info.srWindow.Right || viewport.Bottom != info.srWindow.Bottom);
-        if (!dirty && !moved && active == now_active) return;
-        const bool invalidate = moved || active != now_active;
+        if (!dirty && !(moved && now_active) && active == now_active) return;
+        const bool invalidate = (moved && now_active) || active != now_active;
         if (console) viewport = info.srWindow;
         active = now_active;
-        auto next = render(*model,width,height,page,active);
+        // Interactive plain output keeps stable logical rows so a toggle emits
+        // only changed state/status lines. The console itself wraps long lines.
+        auto next = render(*model,console && !active ? 160 : width,height,page,active);
         page = next.page;
         if (!active) {
             if (cursor_saved && cursor_hidden) SetConsoleCursorInfo(out,&cursor);
             cursor_hidden = false;
-            const auto text = plain_text(next);
-            if (text != previous_plain) {
+            finish_dashboard();
+            std::string text;
+            for (std::size_t i=0; i<next.rows.size(); ++i) {
+                if (!console || invalidate || i>=previous.rows.size() || !(previous.rows[i] == next.rows[i]))
+                    text += next.rows[i].text + '\n';
+            }
+            if (!console) text = plain_text(next);
+            if (!text.empty() && (console || text != previous_plain)) {
                 DWORD written = 0;
                 if (!WriteFile(out,text.data(),static_cast<DWORD>(text.size()),&written,nullptr) || written != text.size()) {
                     failure = "Console output failed; inspect the trainer log.";
@@ -115,7 +136,7 @@ struct WindowsConsole::Impl {
                 }
                 previous_plain = text;
             }
-            previous = {};
+            previous = std::move(next);
             dirty = false;
             return;
         }
@@ -126,6 +147,9 @@ struct WindowsConsole::Impl {
             if (!SetConsoleCursorInfo(out,&hidden)) { fail("Console cursor update failed; using plain output."); return; }
             cursor_hidden = true;
         }
+        auto content_rows = next.rows.size();
+        while (content_rows && next.rows[content_rows-1].text.empty()) --content_rows;
+        dashboard_bottom = static_cast<SHORT>(viewport.Top + (content_rows ? content_rows-1 : 0));
         for (const auto& batch : batches) {
             const auto batch_width = std::min<std::size_t>(std::max(previous.width,next.width),width);
             if (batch.first >= height) continue;
@@ -150,15 +174,12 @@ struct WindowsConsole::Impl {
         dirty = false;
     }
     void navigation() {
-        pressed.clear();
+        cancel_hold = false;
+        input_complete = true;
         if (!input_saved) return;
-        // Console key records are delivered only to the focused console,
-        // including Windows Terminal/ConPTY. Runtime global hotkeys continue
-        // using their independent asynchronous rising-edge latches. A delivered
-        // chord authorizes only that chord in this refresh, never future global
-        // input. FOCUS_EVENT's field is reserved by Win32, so focus gain cannot
-        // establish trustworthy tab/window eligibility.
-        // This class must be the sole console input-record consumer.
+        // This class is the sole input consumer. Retain chord evidence until
+        // release so async state and delayed ConPTY records can meet either way.
+        // Focus records only cancel; they never authorize a terminal host.
         DWORD available = 0;
         if (!GetNumberOfConsoleInputEvents(in,&available)) {
             fail("Console input failed; using plain output."); return;
@@ -175,12 +196,27 @@ struct WindowsConsole::Impl {
                 up = down = false;
                 // Reserved event: conservative cancellation, never authorization.
                 pressed.clear();
+                cancel_hold = true;
+                for (auto& hold : holds) hold.second = {false,false,true};
             }
             if (record.EventType != KEY_EVENT) continue;
             const auto& key = record.Event.KeyEvent;
             const unsigned modifiers = ((key.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) ? 0x100 : 0)
                 | ((key.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) ? 0x200 : 0)
                 | ((key.dwControlKeyState & SHIFT_PRESSED) ? 0x400 : 0);
+            // Cancel existing holds on modifier changes; unrelated typing must
+            // not pre-block a binding that has not started a hold yet.
+            for (auto& hold : holds) {
+                const bool tracking = hold.second.pending || hold.second.fired
+                    || hold.second.blocked || pressed.count(hold.first);
+                if (tracking && ((hold.first & 0x700) != modifiers ||
+                    (!key.bKeyDown && (hold.first & 0xff) == key.wVirtualKeyCode)))
+                    hold.second = {false,false,true};
+            }
+            for (auto it=pressed.begin(); it!=pressed.end();) {
+                if ((*it & 0x700) != modifiers) it = pressed.erase(it);
+                else ++it;
+            }
             if (key.bKeyDown) pressed.insert(key.wVirtualKeyCode | modifiers);
             else {
                 for (auto it = pressed.begin(); it != pressed.end();) {
@@ -202,7 +238,11 @@ struct WindowsConsole::Impl {
         }
         // A later loss/key-up may still be queued. Do not authorize from a
         // partial batch; subsequent refreshes drain the backlog without waiting.
-        if (!GetNumberOfConsoleInputEvents(in,&available) || available) pressed.clear();
+        input_complete = GetNumberOfConsoleInputEvents(in,&available) && !available;
+        if (!input_complete) {
+            pressed.clear();
+            for (auto& hold : holds) hold.second = {false,false,true};
+        }
     }
 };
 WindowsConsole::WindowsConsole(bool allow) noexcept {
@@ -219,15 +259,31 @@ void WindowsConsole::refresh() noexcept {
     try { impl_->navigation(); impl_->draw(); }
     catch (...) { impl_->fail("Dashboard unavailable; inspect the trainer log."); }
 }
-bool WindowsConsole::hotkey_pressed(unsigned binding, bool async_rising, bool game_foreground) const noexcept {
-    return binding && async_rising && (game_foreground || (impl_ && impl_->pressed.count(binding)));
-}
-void WindowsConsole::navigate(Navigation direction) noexcept {
-    if (!impl_ || !impl_->active) return;
-    if (direction == Navigation::Previous && impl_->page) --impl_->page;
-    if (direction == Navigation::Next && impl_->page+1<impl_->previous.pages) ++impl_->page;
-    impl_->dirty = true;
-    refresh();
+bool WindowsConsole::hotkey_pressed(unsigned binding, bool down, bool async_rising, bool game_foreground) noexcept {
+    if (!binding || !impl_) return binding && async_rising && game_foreground;
+    try {
+        auto& hold = impl_->holds[binding];
+        if (!down) {
+            hold = {};
+            impl_->pressed.erase(binding);
+            return false;
+        }
+        if (game_foreground) {
+            hold.pending = false;
+            hold.fired = hold.fired || async_rising;
+            return async_rising;
+        }
+        if (impl_->cancel_hold || !impl_->input_complete) hold.blocked = true;
+        if (async_rising && !hold.blocked) hold.pending = true;
+        if (!hold.pending || hold.fired || hold.blocked || !impl_->pressed.count(binding)) return false;
+        hold.pending = false;
+        hold.fired = true;
+        impl_->pressed.erase(binding);
+        return true;
+    } catch (...) {
+        impl_->fail("Console hotkey tracking failed; inspect the trainer log.");
+        return async_rising && game_foreground;
+    }
 }
 bool WindowsConsole::dashboard_active() const noexcept { return impl_ && impl_->active; }
 const char* WindowsConsole::error() const noexcept {
