@@ -15,5 +15,11 @@ mkdir -p build
 "$ZIG_BIN" c++ -target x86_64-windows-gnu -std=c++17 -O2 -static \
     -Wall -Wextra -Werror -Iinclude src/core.cpp tests/windows_backend_tests.cpp \
     -municode -o build/windows-backend-tests.exe
-# WSL reaches this shared checkout; only the dummy executable is launched.
+"$ZIG_BIN" c++ -target x86_64-windows-gnu -std=c++17 -O2 -static \
+    -Wall -Wextra -Werror tests/windows_attach_tests.cpp \
+    -municode -o build/windows-attach-tests.exe
+ZIG_BIN="$ZIG_BIN" ./tools/build-windows.sh
+# WSL reaches this shared checkout. The attach test runs the trainer only against copies of the
+# dummy executable named metro.exe, in read-only --check and --stop modes.
 wsl.exe --cd "$PWD" --exec ./build/windows-backend-tests.exe
+wsl.exe --cd "$PWD" --exec ./build/windows-attach-tests.exe

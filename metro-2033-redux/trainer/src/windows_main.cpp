@@ -26,7 +26,6 @@
 
 namespace {
 namespace fs = std::filesystem;
-const fs::path game_path = LR"(D:\SteamLibrary\steamapps\common\Metro 2033 Redux\metro.exe)";
 volatile LONG stopping = 0;
 BOOL WINAPI stop_handler(DWORD) { InterlockedExchange(&stopping, 1); return TRUE; }
 struct Handle {
@@ -158,13 +157,14 @@ public:
 private:
     HANDLE process_;
 };
-std::uintptr_t validate_process(DWORD pid, HANDLE process, const Image& expected,
-                                const std::vector<std::uint8_t>& file) {
+std::wstring process_path(HANDLE process) {
     std::wstring path(32768, L'\0'); DWORD length = static_cast<DWORD>(path.size());
-    require(QueryFullProcessImageNameW(process, 0, path.data(), &length), "Cannot query process path.");
+    require(QueryFullProcessImageNameW(process, 0, path.data(), &length), "Cannot query game path.");
     path.resize(length);
-    require(_wcsicmp(fs::weakly_canonical(path).c_str(), fs::weakly_canonical(game_path).c_str()) == 0,
-            "metro.exe runs from a different installation; refusing to attach.");
+    return path;
+}
+std::uintptr_t validate_process(DWORD pid, HANDLE process, const std::wstring& path, const Image& expected,
+                                const std::vector<std::uint8_t>& file) {
     Handle modules(CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid));
     require(modules.value != INVALID_HANDLE_VALUE, "Cannot enumerate game modules.");
     MODULEENTRY32W module{}; module.dwSize = sizeof module;
@@ -235,13 +235,6 @@ int wmain(int argc, wchar_t** argv) {
         if (stop) {
             const auto pids = find_processes();
             require(pids.size() == 1, "--stop requires exactly one running metro.exe.");
-            Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pids.front()));
-            require(process.value != nullptr, "Cannot query game process.");
-            std::wstring path(32768, L'\0'); DWORD length = static_cast<DWORD>(path.size());
-            require(QueryFullProcessImageNameW(process.value, 0, path.data(), &length), "Cannot query game path.");
-            path.resize(length);
-            require(_wcsicmp(fs::weakly_canonical(path).c_str(), fs::weakly_canonical(game_path).c_str()) == 0,
-                    "Game process path mismatch.");
             const auto name = L"Local\\MetroReduxTrainerStop-" + std::to_wstring(pids.front());
             Handle event(OpenEventW(EVENT_MODIFY_STATE, FALSE, name.c_str()));
             require(event.value != nullptr && SetEvent(event.value), "No active trainer stop event is available.");
@@ -260,30 +253,35 @@ int wmain(int argc, wchar_t** argv) {
         require(static_cast<bool>(settings), "Missing metro-trainer.ini next to trainer.");
         std::ostringstream config_text; config_text << settings.rdbuf();
         const auto config = metro::parse_config(config_text.str());
-        Handle disk(CreateFileW(game_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-        require(disk.value != INVALID_HANDLE_VALUE, "Cannot open configured Metro executable.");
-        const auto bytes = read_file(disk.value);
-        const auto digest = sha256(bytes);
-        log("Game SHA-256: " + digest);
-        require(digest == metro::supported_sha256, "Unsupported executable build; no memory was changed.");
-        const auto image = parse_image(bytes);
         SetConsoleCtrlHandler(stop_handler, TRUE);
-        log(check ? "Read-only check: verifying any running game." : "Waiting for Metro 2033 Redux. Ctrl+C exits.");
+        log(check ? "Read-only check: verifying the running game." : "Waiting for Metro 2033 Redux. Ctrl+C exits.");
         do {
             const auto pids = find_processes();
             require(pids.size() <= 1, "Multiple metro.exe processes found; close duplicates.");
             if (pids.empty()) {
-                if (check) { log("Supported on-disk build verified. Game is not running; loaded identity was not checked."); return 0; }
+                require(!check, "Game is not running; start it and run --check again.");
                 Sleep(250); continue;
             }
             Handle process(OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | SYNCHRONIZE |
                 (check ? 0 : PROCESS_VM_WRITE | PROCESS_VM_OPERATION), FALSE, pids.front()));
             require(process.value != nullptr, "Cannot open game process with required access.");
+            // The open handle pins this process, so its path and the file read below belong to it.
+            const auto path = process_path(process.value);
+            log("Game: " + fs::path(path).u8string());
+            Handle disk(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+            require(disk.value != INVALID_HANDLE_VALUE, "Cannot open the game executable.");
+            const auto bytes = read_file(disk.value);
+            const auto digest = sha256(bytes);
+            log("Game SHA-256: " + digest);
+            require(digest == metro::supported_sha256, "Unsupported executable build; no memory was changed.");
+            // The file only selects the expected headers; the runtime .text hash is a compiled-in constant.
+            const auto image = parse_image(bytes);
             std::uintptr_t base = 0;
             const auto startup_deadline = GetTickCount64() + 60000;
             bool announced = false;
             for (;;) {
-                try { base = validate_process(pids.front(), process.value, image, bytes); break; }
+                try { base = validate_process(pids.front(), process.value, path, image, bytes); break; }
                 catch (const std::exception&) {
                     if (check || GetTickCount64() >= startup_deadline) throw;
                     require(WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0,
