@@ -120,7 +120,7 @@ consumption at `0x2b6727` (15 bytes) and `0x2b68f4` (12 bytes) uses RBX.
 Pressure is a float at weapon +`0xc00`; owner and configuration pointers are
 at +`0x118` and +`0x1b8`. Normal pressure is config +`0x1320`.
 The player identity chain starts at global RVA `0xfbd820`, then +`0x38`,
-then +`0xa0`. Helsing class global RVA `0xf5d0e8` is bound to the existing
+then +`0xa0`. Hellsing class global RVA `0xf5d0e8` is bound to the existing
 no-reload class table rather than duplicated in the emitter.
 
 The reviewed contexts come from static inspection of captured `.text` (RVA

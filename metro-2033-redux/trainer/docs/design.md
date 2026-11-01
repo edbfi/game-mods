@@ -73,9 +73,13 @@ memory, changes protections, or flushes instruction caches.
 
 Each ordinary hook snapshots the aligned DWORD once and restores gate scratch
 registers and flags before its path. Bits 0–6 select ordinary features; bits 7–30
-select the 24 weapon classes. Global no-reload expands to all class bits. The
-existing four no-reload hooks retain their class/owner checks and disabled fast
-path. No injected worker or heartbeat is needed. Prepared code pages are RX.
+select the 24 weapon classes. Global no-reload expands to all class bits. Bit 31
+is the derived pressure gate for unlimited ammo, global no reload or Hellsing no
+reload, subject to `preserve_weapon_pressure`. The 17 hooks comprise ten ordinary,
+four no-reload and three pressure hooks. The no-reload hooks retain their
+class/owner checks and disabled fast path; pressure hooks also require the player
+and Hellsing class. No injected worker or heartbeat is needed. Prepared code pages
+are RX.
 
 Ordinary direct calls transfer with the original continuation pushed on the stack,
 then jump to the original callee (or throwable action), preserving original shadow
@@ -119,7 +123,3 @@ is inline, so the implementation dynamically resolves its documented backing
 MapViewOfFileNuma2 API. Unsupported systems fail before entry installation;
 there is no weaker publication fallback. The declared pointer signature avoids
 requiring newer MinGW header declarations under the pinned Zig toolchain.
-
-The 17 hooks comprise 14 existing hooks plus three pressure hooks. Bit 31 is the
-derived pressure gate for unlimited ammo, global no reload or Helsing no reload,
-subject to `preserve_weapon_pressure`.
