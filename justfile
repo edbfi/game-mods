@@ -24,3 +24,12 @@ each recipe:
         dir=${file%/justfile}; echo "==> $dir: {{recipe}}"; \
         just --justfile "$file" --working-directory "$dir" {{recipe}}; \
     done
+
+# Pins are bumped by hand. Installs into the main checkout, which scripts/rea-mcp.sh uses from every worktree.
+# Install the pinned REA (needs npm; Ghidra and OpenJDK 25 from Homebrew are optional), then check it.
+setup-rea:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root=$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
+    npm ci --prefix "$root/.rea" --no-audit --no-fund
+    "$root/.rea/node_modules/node/bin/node" "$root/.rea/node_modules/rea-agents/scripts/rea.mjs" doctor
