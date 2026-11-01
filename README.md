@@ -2,10 +2,10 @@
 
 Mods for games I play. One folder per game, one subfolder per mod.
 
-| Game | Mod | Kind | Status | Release | Nightly |
-| --- | --- | --- | --- | --- | --- |
-| Metro 2033 Redux | [trainer](metro-2033-redux/trainer/) | INI-configured Windows trainer | Experimental | [releases](https://github.com/edbfi/game-mods/releases?q=metro-2033-redux%2Ftrainer&expanded=true) | [download](https://nightly.link/edbfi/game-mods/workflows/nightly/main/metro-2033-redux-trainer-nightly.zip) |
-| Dawn of War – Definitive Edition | [munitorum-logistics](dawn-of-war-de/munitorum-logistics/) | Always-on wincondition script | Playable | [releases](https://github.com/edbfi/game-mods/releases?q=dawn-of-war-de%2Fmunitorum-logistics&expanded=true) | [download](https://nightly.link/edbfi/game-mods/workflows/nightly/main/dawn-of-war-de-munitorum-logistics-nightly.zip) |
+| Game | Mod | Kind | Status | Release | Nightly | Nightly scan |
+| --- | --- | --- | --- | --- | --- | --- |
+| Metro 2033 Redux | [trainer](metro-2033-redux/trainer/) | INI-configured Windows trainer | Experimental | [releases](https://github.com/edbfi/game-mods/releases?q=metro-2033-redux%2Ftrainer&expanded=true) | [download](https://nightly.link/edbfi/game-mods/workflows/nightly/main/metro-2033-redux-trainer-nightly.zip) | [VirusTotal][vt-metro-2033-redux-trainer] |
+| Dawn of War – Definitive Edition | [munitorum-logistics](dawn-of-war-de/munitorum-logistics/) | Always-on wincondition script | Playable | [releases](https://github.com/edbfi/game-mods/releases?q=dawn-of-war-de%2Fmunitorum-logistics&expanded=true) | [download](https://nightly.link/edbfi/game-mods/workflows/nightly/main/dawn-of-war-de-munitorum-logistics-nightly.zip) | [VirusTotal][vt-dawn-of-war-de-munitorum-logistics] |
 
 ## Download
 
@@ -16,8 +16,14 @@ Nightly downloads go through [nightly.link](https://nightly.link). If it fails, 
 [latest successful nightly run](https://github.com/edbfi/game-mods/actions/workflows/nightly.yml?query=branch%3Amain+is%3Asuccess)
 and download the mod under **Artifacts** (this needs a GitHub sign-in).
 
-Every download is submitted to VirusTotal: a release's report links are in its notes, a nightly's in its run's
-summary. A memory-patching trainer can still trip heuristic detections.
+Every download is submitted to VirusTotal: a release's report links are in its notes, a nightly's in the table
+above and in its run's summary. A memory-patching trainer can still trip heuristic detections.
+
+<!-- The nightly workflow rewrites the links between these markers after each scan. -->
+<!-- nightly-virustotal:start -->
+[vt-dawn-of-war-de-munitorum-logistics]: https://www.virustotal.com/gui/file/fd6b4352903de9ed29fb36a006741b93c86d30231810e0436414f4b2540ff850/detection
+[vt-metro-2033-redux-trainer]: https://www.virustotal.com/gui/file/23a6bf4babc48404ffd856bd22fc13e6b5907e70758c7d72173f5c1e076cd984/detection
+<!-- nightly-virustotal:end -->
 
 ## Develop
 
