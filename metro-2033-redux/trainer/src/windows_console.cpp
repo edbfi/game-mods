@@ -73,7 +73,7 @@ struct WindowsConsole::Impl {
             // the exact style on exit. This cannot control a ConPTY host's menu
             // or shortcut interception: GetConsoleWindow is hidden there.
             window_style = window ? GetWindowLongPtrW(window,GWL_STYLE) : 0;
-            if (allow && (window_style & WS_SYSMENU)) {
+            if (window_style & WS_SYSMENU) {
                 SetLastError(0);
                 const auto old = SetWindowLongPtrW(window,GWL_STYLE,window_style & ~WS_SYSMENU);
                 style_saved = old != 0 || GetLastError() == 0;

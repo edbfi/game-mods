@@ -19,8 +19,8 @@ released before async polling remains unsupported there, because accepting its
 records alone would also accept indistinguishable stale/background pairs.
 Releases, modifier changes, focus records and incomplete input batches cancel
 pending holds. Presentation updates do not consume input. Mouse input is disabled
-during console ownership;
-all original input flags are restored on exit. A failed input reader is disabled
+during console ownership; all original input flags are restored on exit.
+A failed input reader is disabled
 permanently for the session, preserving game async hotkeys and plain output.
 No terminal process or host window is whitelisted.
 Focus records only cancel: Microsoft documents [FOCUS_EVENT_RECORD](https://learn.microsoft.com/en-us/windows/console/focus-event-record-str)
