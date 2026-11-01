@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Release automation, after EasyHDR's release.yml. Publish a GitHub release tagged
 # <game>/<mod>/v<semver>, e.g. metro-2033-redux/trainer/v0.1.0. Then:
-#   verify   (unprivileged) the tag names a mod at the released commit, which is on main;
+#   verify   (unprivileged) the tag names a mod at the released commit, which is on main
+#            and passed CI there;
 #   build    (unprivileged) packages the mod with scripts/package-mod.sh, which checks the zip;
 #   publish  (privileged: VT_API_KEY, contents: write; shell only, no actions) takes the
 #            zip in, submits it to VirusTotal and attaches it and the report links.
@@ -18,8 +19,9 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions: { contents: read }
+    # Room to wait for a just-merged commit's CI run.
+    timeout-minutes: 25
+    permissions: { contents: read, actions: read }
     outputs:
       game: ${{ steps.tag.outputs.game }}
       mod: ${{ steps.tag.outputs.mod }}
@@ -52,6 +54,28 @@ jobs:
             { echo "::error::No mod at $game/$mod in $GITHUB_SHA"; exit 1; }
           { echo "game=$game"; echo "mod=$mod"; echo "version=$version"; } >> "$GITHUB_OUTPUT"
           echo "$TAG ($GITHUB_SHA) is on main"
+      - name: Require successful CI on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Any non-PR CI run of this commit on main counts. A just-merged commit's run may still be going.
+          for ((poll = 1; ; poll++)); do
+            runs="$(gh run list --workflow ci.yml --branch main --commit "$GITHUB_SHA" --limit 100 \
+              --json event,status,conclusion \
+              --jq '[.[] | select(.event == "push" or .event == "schedule" or .event == "workflow_dispatch")]')"
+            if jq -e 'any(.[]; .status == "completed" and .conclusion == "success")' <<<"$runs" >/dev/null; then
+              echo "CI passed on $GITHUB_SHA"; break
+            fi
+            if jq -e 'length > 0 and all(.[]; .status == "completed")' <<<"$runs" >/dev/null; then
+              echo "::error::CI failed on $GITHUB_SHA; re-run it, then re-run all jobs"; exit 1
+            fi
+            if ((poll == 40)); then
+              echo "::error::No finished CI run on main for $GITHUB_SHA after 20 minutes; re-run all jobs once it passes"; exit 1
+            fi
+            sleep 30
+          done
 
   build:
     needs: verify
