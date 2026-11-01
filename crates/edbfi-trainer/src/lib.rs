@@ -3,3 +3,11 @@
 //!
 //! All Win32 `unsafe` will live in a single `win32` module; everything else stays safe code.
 #![deny(unsafe_code)]
+
+pub mod addr;
+pub mod aob;
+pub mod chord;
+pub mod control;
+pub mod identity;
+pub mod pe;
+pub mod recovery;
