@@ -244,6 +244,17 @@ pub const fn parse<const N: usize>(text: &str) -> Result<[Token; N], AobError> {
     }
 }
 
+/// Fails a constant evaluation with a message naming the error; used by [`aob!`](crate::aob!).
+#[doc(hidden)]
+pub const fn __build_error(error: AobError) -> ! {
+    match error {
+        AobError::Empty => panic!("byte signature is empty"),
+        AobError::AllWildcards => panic!("byte signature has no concrete byte"),
+        AobError::BadToken { .. } => panic!("byte signature token is not two hex digits or ??"),
+        AobError::WrongLength { .. } => panic!("byte signature token count changed during parsing"),
+    }
+}
+
 /// A compile-time checked `Pattern<'static>`: `aob!("48 8B ?? 05")`.
 ///
 /// A malformed signature fails the build:
@@ -263,11 +274,11 @@ macro_rules! aob {
         const __EDBFI_AOB_TOKENS: [$crate::aob::Token; $crate::aob::token_count(__EDBFI_AOB_TEXT)] =
             match $crate::aob::parse(__EDBFI_AOB_TEXT) {
                 Ok(tokens) => tokens,
-                Err(_) => panic!("malformed byte signature"),
+                Err(error) => $crate::aob::__build_error(error),
             };
         match $crate::aob::Pattern::new(&__EDBFI_AOB_TOKENS) {
             Ok(pattern) => pattern,
-            Err(_) => panic!("malformed byte signature"),
+            Err(error) => $crate::aob::__build_error(error),
         }
     }};
 }
