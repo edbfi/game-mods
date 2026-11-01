@@ -420,7 +420,7 @@ int wmain(int argc, wchar_t** argv) {
             for (const auto& binding : config.hotkeys)
                 latches[binding.first].update(binding_down(binding.second));
             try {
-                log("Hotkeys ready. CTRL+SPACE toggles trainer by default; Ctrl+C restores original bytes.");
+                log("Hotkeys ready. ALT+SPACE toggles trainer by default; Ctrl+C restores original bytes.");
                 for (const auto& binding : config.hotkeys)
                     log("Binding " + binding.first + " = virtual key " + std::to_string(binding.second));
                 while (!InterlockedCompareExchange(&stopping, 0, 0)

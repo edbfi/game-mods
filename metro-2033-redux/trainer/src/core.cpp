@@ -60,7 +60,7 @@ bool Config::feature_enabled(const std::string& name) const {
 }
 Config parse_config(const std::string& text) {
     Config result;
-    result.hotkeys = {{"enabled",0x120},{"unlimited_ammo",0x170},{"unlimited_throwables",0x171},{"unlimited_medkits",0x172},{"unlimited_filters",0x173},{"indestructible_mask",0x174},{"no_reload",0x131},{"god_mode",0x132},{"unlimited_flashlight",0x133}};
+    result.hotkeys = {{"enabled",0x220},{"unlimited_ammo",0x270},{"unlimited_throwables",0x271},{"unlimited_medkits",0x272},{"unlimited_filters",0x273},{"indestructible_mask",0x274},{"no_reload",0x231},{"god_mode",0x232},{"unlimited_flashlight",0x233}};
     for (const auto& entry : verified_no_reload_classes()) {
         result.extra_features[entry.feature] = false;
         result.hotkeys[entry.feature] = 0;
