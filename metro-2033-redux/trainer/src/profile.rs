@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Metro 2033 Redux, Steam build: every reverse-engineered fact the trainer relies on.
 //!
-//! Hook sites keep the S1–S17 numbers of the analysis documents in `docs/`. RVAs are relative to the loaded
-//! `metro.exe`. Byte notation is the documents' own, so each line can be compared with its source.
+//! Hook sites are numbered S1–S17; each one's comment names the analysis in `docs/` behind it. RVAs are
+//! relative to the loaded `metro.exe`. Byte notation is the documents' own, so each line can be compared with
+//! its source.
 #![forbid(unsafe_code)]
 
 use edbfi_trainer::addr::Rva;

@@ -4,8 +4,9 @@
 //! A profile declares the build's identity, the player and weapon layout, the cheats a user can select, the
 //! derived bits computed from options, the weapon classes, and every hook site with its original bytes and
 //! context signature. Every static field is public so a profile is a plain `const`; a mod ends its profile with
-//! `const _: () = PROFILE.check();` so a broken invariant fails the build. At run time [`ValidProfile`] wraps a checked profile and is the only
-//! source of the [`ToggleId`], [`OptionId`] and [`ClassId`] values that index it.
+//! `const _: () = PROFILE.check();` so a broken invariant fails the build. At run time [`ValidProfile`] wraps
+//! a checked profile and is the only source of the [`ToggleId`], [`OptionId`] and [`ClassId`] values that
+//! index it.
 //!
 //! [`HookKind`] is a closed vocabulary of reviewed hook shapes, not a patching language: extend it only when a
 //! reviewed new site needs a shape it cannot express.
@@ -357,7 +358,7 @@ pub const fn concat<const A: usize, const B: usize, const N: usize>(
     out
 }
 
-/// A hook site's ledger number, shown in checks and logs as `S<n>`.
+/// A hook site's number within its profile, shown in checks and logs as `S<n>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SiteId(pub u8);
 
@@ -370,7 +371,7 @@ impl fmt::Display for SiteId {
 /// Where a hook goes, what it replaces and what it does.
 #[derive(Clone, Copy, Debug)]
 pub struct Site {
-    /// The ledger number.
+    /// The site's number.
     pub id: SiteId,
     /// Where the hook's jump is written.
     pub rva: Rva,

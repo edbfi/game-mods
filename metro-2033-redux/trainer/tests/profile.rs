@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The Metro profile against the facts ledger, restated here independently of the profile's own tables.
+//! The Metro profile against the reverse-engineered facts, restated independently of the profile's own tables.
 #![expect(
     clippy::unwrap_used,
     reason = "helpers shared by tests; a missing key is a test failure"
@@ -30,7 +30,7 @@ const CHEATS: [(&str, Option<u8>, &str); 8] = [
     ("unlimited_flashlight", Some(6), "Alt+3"),
 ];
 
-/// F14: the classes in control-word order and their interned-id globals.
+/// The weapon classes in control-word order and their interned-id globals.
 const CLASSES: [(&str, &[u32]); 24] = [
     ("ak74", &[0xf5d090]),
     ("aksu", &[0xf5d094]),
@@ -65,7 +65,7 @@ fn profile_is_valid() {
 }
 
 #[test]
-fn identity_matches_f1_f2() {
+fn identity_matches_the_steam_build() {
     assert_eq!(
         (METRO.game.name, METRO.game.exe),
         ("Metro 2033 Redux", "metro.exe")
@@ -87,7 +87,7 @@ fn identity_matches_f1_f2() {
 }
 
 #[test]
-fn player_layout_matches_f12_f13() {
+fn player_and_weapon_layout() {
     let p = METRO.player;
     assert_eq!(p.manager, Rva::new(0xfbd820));
     assert_eq!((p.player, p.owner), (0x38, 0xa0));
@@ -104,7 +104,7 @@ fn player_layout_matches_f12_f13() {
 }
 
 #[test]
-fn classes_match_f14_in_bit_order() {
+fn classes_and_ids_in_bit_order() {
     assert_eq!(METRO.classes.len(), CLASSES.len());
     for (index, (class, (key, ids))) in METRO.classes.iter().zip(CLASSES).enumerate() {
         assert_eq!(class.key, key);
@@ -136,7 +136,7 @@ fn only_corroborated_weapon_names_are_display_names() {
 }
 
 #[test]
-fn toggles_match_f17_and_the_default_bindings() {
+fn toggle_bits_and_default_bindings() {
     let valid = valid();
     let toggles = valid.toggles().collect::<Vec<_>>();
     for ((_, toggle), (key, bit, binding)) in toggles.iter().zip(CHEATS) {
@@ -200,9 +200,9 @@ fn defaults_select_nothing_and_keep_pressure() {
     assert_eq!(valid.effective(&desired).bits().word(), 0);
 }
 
-/// The sites as the ledger lists them: number, hook RVA, original length, context RVA and shape.
+/// Every site: number, hook RVA, original length, context RVA and shape.
 #[test]
-fn sites_match_the_ledger() {
+fn sites_match_the_analysis() {
     let gate = |bit: u8, effect| HookKind::Gate {
         bit: ControlBit::new(bit),
         effect,
@@ -307,7 +307,9 @@ fn sites_match_the_ledger() {
     assert_eq!(returning, [12], "only S12 is returned into");
 }
 
-/// F18, written from the ledger: the selection of each named toggle, by key.
+/// The effective mask rule, written out by toggle key: paused is 0; otherwise each cheat's bit, each class
+/// bit under global or its own no reload, and bit 31 when pressure is kept and ammo, no reload or Hellsing is
+/// selected.
 fn oracle(desired: &Desired, valid: &ValidProfile<'_>) -> u32 {
     let on = |key: &str| desired.selection.contains(valid.toggle_id(key).unwrap());
     if desired.master == Master::Paused {
@@ -341,7 +343,7 @@ fn desired(valid: &ValidProfile<'_>, selected: u32, keep: bool, master: Master) 
 }
 
 #[test]
-fn effective_mask_matches_f18_for_cheats_and_the_pressure_triggers() {
+fn effective_mask_for_cheats_and_the_pressure_triggers() {
     let valid = valid();
     let helsing = valid.toggle_id("helsing").unwrap().index();
     let ak74 = valid.toggle_id("ak74").unwrap().index();
@@ -374,7 +376,7 @@ fn a_shadowed_class_changes_nothing() {
 
 proptest! {
     #[test]
-    fn effective_mask_matches_f18(selected in any::<u32>(), keep in any::<bool>(), paused in any::<bool>()) {
+    fn effective_mask_for_any_selection(selected in any::<u32>(), keep in any::<bool>(), paused in any::<bool>()) {
         let valid = valid();
         let master = if paused { Master::Paused } else { Master::Active };
         let desired = desired(&valid, selected, keep, master);
@@ -382,8 +384,8 @@ proptest! {
     }
 }
 
-/// F9/F10 against the owner's capture of the unpacked `.text` (never committed): every context matches exactly
-/// once, at its reviewed RVA. Run with `EDBFI_TEXT_CAPTURE=<file> cargo test -- --ignored`.
+/// Signatures against the owner's capture of the unpacked `.text` (never committed): every context matches
+/// exactly once, at its reviewed RVA. Run with `EDBFI_TEXT_CAPTURE=<file> cargo test -- --ignored`.
 #[test]
 #[ignore = "needs a local capture of the unpacked .text in EDBFI_TEXT_CAPTURE"]
 fn contexts_match_once_in_a_text_capture() {
