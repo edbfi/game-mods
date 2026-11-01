@@ -9,7 +9,8 @@
 #          zips, the bytes users download, and submits them to VirusTotal;
 #   readme (privileged: NIGHTLY_DEPLOY_KEY; shell only, no actions) points the README's
 #          VirusTotal links at those zips and pushes straight to main, as homebrew-taps'
-#          updater does. A newer push cancels this run first, so main gets only the newest links.
+#          updater does: a deploy key bypasses main's ruleset, which GITHUB_TOKEN can't.
+#          A newer push cancels this run first, so main gets only the newest links.
 name: Nightly
 on:
   # The readme job's own commits change only README.md, which no build reads.
