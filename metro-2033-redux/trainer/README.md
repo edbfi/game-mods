@@ -44,7 +44,14 @@ mask, or refill an exhausted filter.
 
 Feature values are `true` or `false`. Keys and hotkey names are case-sensitive.
 INI edits take effect on the next trainer launch; hotkeys toggle the current
-session immediately. The dashboard shows selected and applied state separately;
+session immediately.
+
+`[trainer] preserve_weapon_pressure=true` (the default) maintains normal Hellsing
+pressure while unlimited ammo or Hellsing no reload is active, including global
+no reload. Set it to `false` to retain manual pumping with those cheats enabled.
+This does not grant maximum overpressure or affect other weapons.
+
+The dashboard shows selected and applied state separately;
 `GLOBAL` means covered by all-weapons no reload, and `PAUSED` retains selections.
 Use Left/Right with the console focused to page through the 24 weapon classes.
 The dashboard needs at least 72 columns and 24 rows. Smaller consoles print all
@@ -127,7 +134,8 @@ the game's internal weapon classes (`ak74`, `revolver`, `uboynicheg`, `duplet`,
 `tihar`, `helsing`, etc.). Some classes exist in the engine but may not be
 available in your campaign. The setting does not grant a weapon or load an
 empty magazine; load ammunition once before enabling it. Air-pressure and
-weapon-charge mechanics are separate from loaded ammunition.
+weapon-charge mechanics are separate from loaded ammunition. Hellsing pressure
+is preserved separately when the pressure option above is enabled.
 
 Unlimited flashlight also prevents night-vision drain because both use the same
 battery. Recharge an already empty or dim battery once. God mode uses the
@@ -139,7 +147,7 @@ paths still require gameplay validation.
 Run these from this folder with [just](https://github.com/casey/just); `just` lists them.
 
 - `just test` builds and runs the portable core and patch-profile tests, then
-  executes the generated no-reload hooks against synthetic objects (x86-64 Linux/WSL).
+  executes the generated no-reload and pressure hooks against synthetic objects (x86-64 Linux/WSL).
   It needs a C++17 compiler; override it with `CXX`, `CPPFLAGS` and `CXXFLAGS`.
 - `just build` cross-builds `build/metro-trainer.exe` with Zig **0.17.0** from
   [the official distribution](https://ziglang.org/download/) (verify the archive

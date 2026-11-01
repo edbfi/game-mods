@@ -1,4 +1,5 @@
 #include "metro/core.hpp"
+#include "metro/controls.hpp"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -115,5 +116,15 @@ int main() {
     check(empty.transition(recovery_memory, changed_mask, error));
     check(recovery_memory.bytes[0] == 6);
     check(empty.transition(recovery_memory, {}, error) && !empty.active() && recovery_memory.bytes == original);
+    check(metro::parse_config("[trainer]\npreserve_weapon_pressure=true\n").preserve_weapon_pressure);
+    check(!metro::parse_config("[trainer]\npreserve_weapon_pressure=false\n").preserve_weapon_pressure);
+    rejects([] { metro::parse_config("[trainer]\npreserve_weapon_pressure=invalid\n"); });
+    for (bool master : {false, true})
+        for (bool preserve : {false, true})
+            for (const auto* feature : {"unlimited_ammo", "no_reload", "no_reload_helsing", "no_reload_tihar"}) {
+                const auto mask = metro::effective_controls(master, {{feature, true}}, preserve);
+                check(bool(mask & metro::pressure_control_bit) ==
+                    (master && preserve && std::string(feature) != "no_reload_tihar"));
+            }
     std::cout << "Core tests passed\n";
 }

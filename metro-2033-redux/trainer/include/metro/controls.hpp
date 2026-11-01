@@ -6,7 +6,7 @@
 #include <string>
 
 namespace metro {
-inline std::uint32_t effective_controls(bool master, const std::map<std::string, bool>& selected) {
+inline std::uint32_t effective_controls(bool master, const std::map<std::string, bool>& selected, bool preserve_weapon_pressure = true) {
     if (!master) return 0;
     const auto enabled = [&](const char* key) {
         const auto it = selected.find(key);
@@ -20,6 +20,8 @@ inline std::uint32_t effective_controls(bool master, const std::map<std::string,
     for (unsigned i = 0; i < classes.size(); ++i)
         if (enabled("no_reload") || enabled(classes[i].feature))
             mask |= std::uint32_t{1} << (no_reload_bit_offset + i);
+    if (preserve_weapon_pressure && (enabled("unlimited_ammo") || enabled("no_reload") || enabled("no_reload_helsing")))
+        mask |= pressure_control_bit;
     return mask;
 }
 }

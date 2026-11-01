@@ -65,7 +65,7 @@ even though the trainer never opens a save file.
 The INI defines initial selections and keybinds. The master defaults active after
 successful installation; an explicit `enabled=false` starts paused. Feature
 defaults remain unchanged. Controls stay zero throughout preparation/installation.
-Master pause remembers selections and publishes zero. All fourteen entries stay
+Master pause remembers selections and publishes zero. All seventeen entries stay
 installed. Every toggle uses one local InterlockedExchange on a pagefile-backed
 section mapped RW in both processes. An unchanged effective mask performs no
 publication. No toggle takes thread snapshots, suspends threads, writes executable
@@ -73,9 +73,13 @@ memory, changes protections, or flushes instruction caches.
 
 Each ordinary hook snapshots the aligned DWORD once and restores gate scratch
 registers and flags before its path. Bits 0–6 select ordinary features; bits 7–30
-select the 24 weapon classes. Global no-reload expands to all class bits. The
-existing four no-reload hooks retain their class/owner checks and disabled fast
-path. No injected worker or heartbeat is needed. Prepared code pages are RX.
+select the 24 weapon classes. Global no-reload expands to all class bits. Bit 31
+is the derived pressure gate for unlimited ammo, global no reload or Hellsing no
+reload, subject to `preserve_weapon_pressure`. The 17 hooks comprise ten ordinary,
+four no-reload and three pressure hooks. The no-reload hooks retain their
+class/owner checks and disabled fast path; pressure hooks also require the player
+and Hellsing class. No injected worker or heartbeat is needed. Prepared code pages
+are RX.
 
 Ordinary direct calls transfer with the original continuation pushed on the stack,
 then jump to the original callee (or throwable action), preserving original shadow
@@ -91,7 +95,7 @@ Installation and graceful detach remain guarded transactions. Detach publishes z
 before restoring owned entry bytes and preserves foreign bytes on failure. Caves
 and remote controls survive detach because existing no-reload setter calls can
 return into caves. Windows frees them at game exit; local views and handles close
-on trainer shutdown. Each attachment retains 56 KiB of code plus the shared control
+on trainer shutdown. Each attachment retains 68 KiB of code plus the shared control
 view (mapping granularity may reserve more). Forced termination needs a game restart.
 
 No gameplay frame-time measurement establishes that stutter is resolved.

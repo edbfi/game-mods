@@ -7,8 +7,8 @@ export CXXFLAGS := env("CXXFLAGS", "-std=c++17 -O2 -Wall -Wextra -Wpedantic -Wer
 default:
     @just --list
 
-# Build and run the portable core, patch-profile and hook tests.
-test: test-hooks
+# Build and run the portable core, patch-profile, no-reload and pressure hook tests.
+test: test-hooks test-pressure
     mkdir -p build
     $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/core_tests.cpp -o build/core_tests
     $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/profile_tests.cpp -o build/profile_tests
@@ -44,3 +44,9 @@ package version: build
 # Remove generated build outputs.
 clean:
     rm -rf build dist
+
+# Execute synthetic pressure hook regressions.
+test-pressure:
+    mkdir -p build
+    $CXX $CPPFLAGS $CXXFLAGS tools/verify-pressure.cpp -o build/verify-pressure
+    ./build/verify-pressure

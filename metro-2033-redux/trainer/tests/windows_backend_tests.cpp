@@ -42,7 +42,7 @@ int wmain(int argc, wchar_t**) {
         const auto target = static_cast<std::uintptr_t>(std::stoull(address, nullptr, 16));
         // Exercise the actual cave allocator against this disposable child.
         metro::NoReloadRuntime reload(child.hProcess, target-metro::no_reload_hook_rva, metro::verified_no_reload_classes());
-        if (reload.hooks().size() != 14 || reload.code_ranges().size() != 14 || reload.current_controls() != 0)
+        if (reload.hooks().size() != 17 || reload.code_ranges().size() != 17 || reload.current_controls() != 0)
             throw std::runtime_error("Incomplete or initially enabled persistent hook set");
         for (const auto& cave : reload.code_ranges()) {
             MEMORY_BASIC_INFORMATION cave_info{};

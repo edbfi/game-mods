@@ -18,7 +18,7 @@ The example INI starts with every feature disabled.
 | Unlimited ammunition | PARTIAL | Works in shooting-range challenges (owner report). Currency isolation not established. |
 | Unlimited throwables, medkits, filters; indestructible mask | PENDING | Per-feature gameplay acceptance below. |
 | Global and individual no reload | PENDING | Per-weapon and transition checks. |
-| Hellsing no reload and unlimited ammunition | PENDING | Own fire and reload paths patched; static analysis and synthetic execution only. |
+| Hellsing no reload, unlimited ammunition and pressure preservation | PENDING | See [pressure acceptance](#pressure-acceptance-pending) for the remaining live checks. |
 | God mode | PENDING | Scripted kills, suffocation, falls and transitions. |
 | Unlimited flashlight | PENDING | Flashlight and night-vision drain. |
 | Feature and currency isolation | PENDING | No completed gameplay comparison. |
@@ -63,9 +63,19 @@ Unlimited currency remains reserved; its `true` value is rejected.
 
 None of these launch the game or establish runtime feature behaviour.
 
-- `just test` builds and runs the portable core and profile tests, then `just test-hooks`.
+- `just test` runs `just test-hooks` and `just test-pressure`, then builds and runs the portable core, profile and presentation tests.
 - `just test-hooks` (x86-64 Linux/WSL) executes generated no-reload and ordinary gates against synthetic objects, checking disabled/enabled paths, registers, flags, SIMD results, and original call return continuations.
+- `just test-pressure` (x86-64 Linux/WSL) executes pressure hooks against synthetic objects and compares register, flag, SIMD, MXCSR and stack state with native instructions. Isolated processes check floating-point exception behavior.
 - `./build/profile_tests <capture>` also checks unique signatures against a local capture of the game's loaded
   `.text`. The capture is game code: keep it out of the repo and releases.
 - `just test-windows` (WSL with `wsl.exe` interop and Zig 0.17.0) compiles `build/windows-backend-tests.exe`,
   which patches and restores a page in its own dummy child process. No game process is opened.
+
+## Pressure acceptance (PENDING)
+
+Synthetic pressure tests exercise emitted code and register preservation.
+Live acceptance remains pending: with Hellsing, test unlimited ammo, global
+no reload and Hellsing no reload independently; each must preserve normal pressure.
+Enable each trigger with pressure already depleted and verify recovery.
+With `preserve_weapon_pressure=false`, verify manual pumping remains necessary.
+Verify NPCs and other weapons retain native pressure behavior in every case.

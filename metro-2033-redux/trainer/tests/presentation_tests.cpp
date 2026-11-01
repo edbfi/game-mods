@@ -25,6 +25,13 @@ int main() {
     check(effective_label(applied,"unlimited_ammo") == "ON","acknowledged ordinary control");
     check(effective_label(applied,"no_reload_ak74") == "GLOBAL","acknowledged global control");
     contains(plain_text(render(applied,100,30)),"ACTIVE");
+    for (const auto* feature : {"unlimited_ammo", "no_reload", "no_reload_helsing"}) {
+        const std::map<std::string, bool> pressure_opt_out{{feature, true}};
+        acknowledge(applied, true, pressure_opt_out,
+                    metro::effective_controls(true, pressure_opt_out, false));
+        check(effective_label(applied, feature) == "ON",
+              "pressure opt-out does not hide an applied ammo control");
+    }
     acknowledge(applied,false,selection,0);
     check(applied.selected == selection,"pause retains selection");
     check(effective_label(applied,"no_reload_ak74") == "PAUSED","pause clears acknowledged controls");
