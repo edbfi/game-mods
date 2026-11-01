@@ -379,6 +379,11 @@ int wmain(int argc, wchar_t** argv) {
                 require(hook.address >= base && hook.address-base < image.nt.OptionalHeader.SizeOfImage
                     && hook.original.size() <= image.nt.OptionalHeader.SizeOfImage-(hook.address-base),
                     "Pressure hook exceeds image bounds.");
+                const auto context = metro::parse_pattern(site.context);
+                require(context.size() >= 16, "Pressure context too short.");
+                const auto matches = metro::scan_pattern(runtime_text, context);
+                require(matches.size() == 1 && matches.front() + text_section->VirtualAddress == site.context_rva,
+                    "Pressure context does not match its unique reviewed location.");
                 std::vector<std::uint8_t> original(hook.original.size());
                 require(readonly.read(hook.address, original) && original == hook.original,
                     "Pressure original bytes differ from reviewed profile.");

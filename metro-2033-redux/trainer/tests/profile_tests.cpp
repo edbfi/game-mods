@@ -1,6 +1,7 @@
 #include "metro/core.hpp"
 #include "metro/build_profile.hpp"
 #include "metro/no_reload.hpp"
+#include "metro/pressure.hpp"
 #include "metro/controls.hpp"
 #include "metro/conditional_hooks.hpp"
 #include <algorithm>
@@ -66,6 +67,11 @@ int main(int argc, char** argv) {
             replacement[0] = 0xe9; // The final rel32 depends on the runtime allocation.
             definitions.push_back({"no_reload", site.rva, site.original,
                                    site.rva, site.context, replacement});
+        }
+        for (const auto& site : metro::verified_pressure_sites()) {
+            const auto hook = metro::make_pressure_image(0x140000000, 0x141000000, 0x142000000, site.site).hook;
+            definitions.push_back({site.name, static_cast<std::uint32_t>(hook.address - 0x140000000), hook.original,
+                site.context_rva, site.context, hook.replacement});
         }
         std::vector<metro::Patch> patches;
         std::vector<std::uint8_t> text;

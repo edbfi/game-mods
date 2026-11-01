@@ -69,3 +69,12 @@ None of these launch the game or establish runtime feature behaviour.
   `.text`. The capture is game code: keep it out of the repo and releases.
 - `just test-windows` (WSL with `wsl.exe` interop and Zig 0.17.0) compiles `build/windows-backend-tests.exe`,
   which patches and restores a page in its own dummy child process. No game process is opened.
+
+## Pressure acceptance (PENDING)
+
+Synthetic pressure tests exercise emitted code and register preservation.
+Live acceptance remains pending: with Hellsing, test unlimited ammo, global
+no reload and Helsing no reload independently; each must preserve normal pressure.
+Enable each trigger with pressure already depleted and verify recovery.
+With `preserve_weapon_pressure=false`, verify manual pumping remains necessary.
+Verify NPCs and other weapons retain native pressure behavior in every case.
