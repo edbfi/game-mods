@@ -25,7 +25,7 @@ test-hooks:
 build:
     ./tools/build-windows.sh
 
-# Run Windows memory-backend tests against a disposable process (WSL only).
+# Run Windows memory-backend and trainer attach tests against disposable processes (WSL only).
 test-windows:
     ./tools/test-windows.sh
 

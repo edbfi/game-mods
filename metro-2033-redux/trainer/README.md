@@ -1,8 +1,6 @@
 # Metro 2033 Redux INI trainer
 
-Windows x64 trainer for this Steam installation:
-
-`D:\SteamLibrary\steamapps\common\Metro 2033 Redux`
+Windows x64 trainer for the Steam build of Metro 2033 Redux, from any install folder.
 
 Configure features before starting the companion executable. It waits for the
 game and applies reversible memory patches; no overlay, game-file replacement,
@@ -47,10 +45,11 @@ INI edits take effect on the next trainer launch; hotkeys toggle the current
 session immediately. The log is written beside the executable.
 Do not force-close the trainer while the game is running; if that happens,
 restart the game before another trainer run. It refuses to attach to unknown
-builds, a different installation, or code modified by conflicting mods.
+builds or code modified by conflicting mods.
 
 `metro-trainer.exe --check` performs read-only identity and signature validation
-against an already running game. It does not activate features.
+against an already running game, and fails if the game is not running. It does
+not activate features.
 
 `metro-trainer.exe --stop` asks the active trainer to restore its patches and
 exit. Check the log for `Original bytes restored` before starting another instance.

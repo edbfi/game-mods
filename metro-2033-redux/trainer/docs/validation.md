@@ -10,6 +10,8 @@ The example INI starts with every feature disabled.
 | Portable core tests (`just test`) | PASS | Configuration parsing, signature scanning, patch transactions, rollback and restoration failure paths. |
 | Generated no-reload hooks (`just test-hooks`) | PASS | Every registered class and alias, individual selection, original decrement, NPC exclusion, null pointers, unknown classes, rel32 range rejection. Synthetic objects only. |
 | Windows memory backend (`just test-windows`) | PASS | Nearby cave allocation, RX code and RW controls, repeated transitions, protection restoration, thread resume counts, foreign bytes preserved. Dummy process only. |
+| Trainer attach (`just test-windows`) | PASS | `--check` and `--stop` against fake `metro.exe` copies outside any Steam folder: no game, unsupported build, duplicate processes, no active trainer. Dummy processes only. |
+| Attach from any install folder | PENDING | Path-independent attach is tested with fake processes only; the supported game has not been attached from another folder. |
 | Code-region signatures | PASS | All signatures match once in a captured `.text` of the supported build. |
 | Live apply/restore lifecycle | PASS | 2026-10-31: all eight feature groups activated, a graceful stop restored the original regions, and a fresh whole-code hash and profile check passed. Attachment and restoration only. |
 | Initial gameplay check | PASS | The owner confirmed the features and the toggle sounds behave as expected while firing and toggling. Not exhaustive. |

@@ -1,8 +1,9 @@
 # Trainer design
 
 The mod is a Windows x64 console companion. It reads an INI once, waits for the
-specified Steam installation, and changes only the running process. It does not
-replace a game DLL, modify `metro.exe`, unpack the installed files, or edit saves.
+Steam build of Metro 2033 Redux in any install folder, and changes only the
+running process. It does not replace a game DLL, modify `metro.exe`, unpack the
+installed files, or edit saves.
 The console reports status. Configurable hotkeys toggle features during play;
 there is no overlay. Quiet generated WAV chimes indicate successful changes.
 
