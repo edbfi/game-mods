@@ -1,0 +1,18 @@
+# Build output
+build/
+dist/
+
+# Credentials and machine-local overrides
+.env
+.env.*
+
+# Logs, editor and OS state
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+/.idea/
+/.vscode/
