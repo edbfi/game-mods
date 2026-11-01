@@ -18,7 +18,7 @@ AutoReinforce_LocalIndex = nil
 AutoReinforce_PlayerId = nil
 AutoReinforce_LastRequisition = nil
 AutoReinforce_ReportedCommands = false
-AutoReinforce_DebugEnabled = true
+AutoReinforce_DebugEnabled = false
 AutoReinforce_NextDebug = 0
 AutoReinforce_DebugSquadCount = -1
 
