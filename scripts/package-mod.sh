@@ -34,17 +34,21 @@ import stat, sys, zipfile
 infos = zipfile.ZipFile(sys.argv[1]).infolist()
 if not any(not info.is_dir() for info in infos):
     sys.exit("::error::The zip holds no files")
-seen = set()
+# Windows and Vortex unzip case-insensitively: no path may name two things, ignoring case.
+files, folders, listed = set(), set(), set()
 for info in infos:
     name = info.filename
     path = name.removesuffix("/") if info.is_dir() else name
     parts = path.split("/")
-    if "\\" in name or ":" in parts[0] or any(part in ("", ".", "..") for part in parts):
+    if "\\" in name or ":" in name or any(part in ("", ".", "..") for part in parts):
         sys.exit(f"::error::Unsafe zip entry {name!r}")
-    # Windows and Vortex unzip case-insensitively, so case-only twins overwrite each other.
-    if path.lower() in seen:
-        sys.exit(f"::error::Zip entry {name!r} is a duplicate")
-    seen.add(path.lower())
+    low = path.lower()
+    parents = {"/".join(parts[:i]).lower() for i in range(1, len(parts))}
+    clash = low in files or bool(parents & files) or low in (listed if info.is_dir() else folders)
+    (listed if info.is_dir() else files).add(low)
+    folders |= parents | ({low} if info.is_dir() else set())
+    if clash:
+        sys.exit(f"::error::Zip entry {name!r} clashes with another entry")
     kind = stat.S_IFMT(info.external_attr >> 16)
     if kind not in (0, stat.S_IFDIR if info.is_dir() else stat.S_IFREG):
         sys.exit(f"::error::Zip entry {name!r} is not a regular file or folder")
