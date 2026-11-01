@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Nightly builds of every mod, on each push to main and weekly, so one stays within the 90-day
+# artifact retention (immortality.yml keeps the schedule enabled). nightly.link serves the
+# most recently updated successful push or schedule run on main: re-run only the newest run.
+#   mods   (unprivileged) lists every <game>/<mod>/justfile;
+#   build  (unprivileged) tests and packages each mod and uploads the zip's files as the
+#          artifact <game>-<mod>-nightly, which GitHub zips once;
+#   scan   (privileged: VT_API_KEY; shell only, no actions) takes in exactly those artifact
+#          zips, the bytes users download, and submits them to VirusTotal.
+name: Nightly
+on:
+  push: { branches: [main] }
+  schedule: [{ cron: "29 4 * * 1" }]
+permissions: {}
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mods:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    outputs:
+      mods: ${{ steps.list.outputs.mods }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: list
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(*/*/justfile)
+          mods="$(printf '%s\n' "${files[@]%/justfile}" | jq -Rnc '[inputs | split("/") | {game: .[0], mod: .[1]}]')"
+          jq -e 'length > 0 and all(.[]; (.game + "/" + .mod) | test("^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$"))' \
+            <<<"$mods" >/dev/null || { echo "::error::Mods live in <game>/<mod> kebab-case folders: $mods"; exit 1; }
+          echo "mods=$mods" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: mods
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.mods.outputs.mods) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    env:
+      GAME: ${{ matrix.game }}
+      MOD: ${{ matrix.mod }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      # No build cache: these builds are published.
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with: { tool: just }
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with: { version: 0.17.0, use-cache: false }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+      - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" test
+      # Nightlies have no version of their own; the run number and commit name them.
+      - run: bash scripts/package-mod.sh "$GAME/$MOD" 0.0.0 "$RUNNER_TEMP/nightly"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.game }}-${{ matrix.mod }}-nightly
+          path: ${{ runner.temp }}/nightly/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
+
+  scan:
+    needs: [mods, build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { actions: read, contents: read }
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Take the artifact zips in
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODS: ${{ needs.mods.outputs.mods }}
+        run: |
+          set -euo pipefail
+          expected="$(jq -ce '[.[] | "\(.game)-\(.mod)-nightly"] | sort' <<<"$MODS")"
+          gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | {id, name, digest}' | jq -s . > "$RUNNER_TEMP/artifacts.json"
+          # Exactly one artifact per mod, each with a well-formed id, name and digest.
+          jq -e --argjson expected "$expected" '
+            ([.[].name] | sort) == $expected
+            and all(.[]; (.id | type == "number")
+              and (.name | test("^[a-z0-9]+(-[a-z0-9]+)*-nightly$"))
+              and (.digest | type == "string" and test("^sha256:[0-9a-f]{64}$")))
+          ' "$RUNNER_TEMP/artifacts.json" >/dev/null ||
+            { echo "::error::Expected artifacts $expected, got $(jq -c 'map({name, digest})' "$RUNNER_TEMP/artifacts.json")"; exit 1; }
+          dir="$(mktemp -d)"
+          : > "$RUNNER_TEMP/zips.txt"
+          while IFS=$'\t' read -r id name digest; do
+            zip="$dir/$name.zip"
+            # The raw artifact zip, never extracted here.
+            gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "$zip"
+            [[ "$(head -c 2 "$zip")" == PK ]] || { echo "::error::$name is not a zip"; exit 1; }
+            actual="sha256:$(sha256sum "$zip" | cut -d' ' -f1)"
+            [[ "$actual" == "$digest" ]] || { echo "::error::$name is $actual; GitHub recorded $digest"; exit 1; }
+            echo "$zip" >> "$RUNNER_TEMP/zips.txt"
+          done < <(jq -r '.[] | [.id, .name, .digest] | @tsv' "$RUNNER_TEMP/artifacts.json")
+          # The VirusTotal script comes from this run's commit, which the job guard keeps on main.
+          gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GH_REPO/contents/scripts/release-virustotal.sh?ref=$GITHUB_SHA" > "$RUNNER_TEMP/release-virustotal.sh"
+      - name: Submit to VirusTotal
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Nightly build of \`${GITHUB_SHA:0:7}\`, run $GITHUB_RUN_NUMBER"
+            echo
+            echo 'Download the artifacts below, or through the links in the README. VirusTotal scanned these exact zips.'
+            echo
+            echo '| File | SHA-256 | Analysis | Reports |'
+            echo '| --- | --- | --- | --- |'
+          } > "$RUNNER_TEMP/summary.md"
+          first=1
+          while read -r zip; do
+            # The script spaces its own requests; space the files too.
+            ((first)) || sleep 15
+            first=0
+            bash "$RUNNER_TEMP/release-virustotal.sh" scan "$zip" "$RUNNER_TEMP/virustotal.md"
+            grep '^| `' "$RUNNER_TEMP/virustotal.md" >> "$RUNNER_TEMP/summary.md"
+          done < "$RUNNER_TEMP/zips.txt"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"

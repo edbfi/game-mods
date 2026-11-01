@@ -2,7 +2,7 @@
 # Release automation, after EasyHDR's release.yml. Publish a GitHub release tagged
 # <game>/<mod>/v<semver>, e.g. metro-2033-redux/trainer/v0.1.0. Then:
 #   verify   (unprivileged) the tag names a mod at the released commit, which is on main;
-#   build    (unprivileged) runs the mod's `just package <version>` and checks the zip;
+#   build    (unprivileged) packages the mod with scripts/package-mod.sh, which checks the zip;
 #   publish  (privileged: VT_API_KEY, contents: write; shell only, no actions) takes the
 #            zip in, submits it to VirusTotal and attaches it and the report links.
 # A failed publish is retried with "Re-run failed jobs": it reuses the built artifact,
@@ -33,7 +33,7 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v([0-9]+\.[0-9]+\.[0-9]+)$'
+          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$'
           [[ "$TAG" =~ $re ]] || { echo "::error::Release tags look like <game>/<mod>/v1.2.3"; exit 1; }
           game="${BASH_REMATCH[1]}" mod="${BASH_REMATCH[3]}" version="${BASH_REMATCH[5]}"
           # The tag must still point at the event's commit.
@@ -75,29 +75,12 @@ jobs:
         with: { tool: just }
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with: { version: 0.17.0, use-cache: false }
-      - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" package "$VERSION"
       - id: check
         env:
           ARTIFACT: ${{ needs.verify.outputs.game }}-${{ needs.verify.outputs.mod }}-zip-${{ github.run_attempt }}
         run: |
-          set -euo pipefail
-          zip="$GAME/$MOD/dist/$GAME-$MOD-$VERSION.zip"
-          [[ -f "$zip" && ! -L "$zip" ]] || { echo "::error::$zip was not built"; exit 1; }
-          # Every entry stays inside the folder it is unzipped into.
-          python3 - "$zip" <<'PY'
-          import sys, zipfile
-          names = zipfile.ZipFile(sys.argv[1]).namelist()
-          if not names:
-              sys.exit("::error::The zip is empty")
-          for name in names:
-              parts = name.split("/")
-              if name.startswith("/") or "\\" in name or ".." in parts or ":" in parts[0]:
-                  sys.exit(f"::error::Unsafe zip entry {name!r}")
-          print(f"{len(names)} entries")
-          PY
-          sha="$(sha256sum "$zip" | cut -d' ' -f1)"
-          echo "$zip: $(stat -c %s "$zip") bytes, sha256 $sha"
-          { echo "artifact=$ARTIFACT"; echo "sha256=$sha"; echo "zip=$zip"; } >> "$GITHUB_OUTPUT"
+          bash scripts/package-mod.sh "$GAME/$MOD" "$VERSION"
+          echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.check.outputs.artifact }}
@@ -124,7 +107,7 @@ jobs:
           [[ "$ARTIFACT" =~ ^[a-z0-9-]+-zip-[0-9]+$ && "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
             { echo "::error::Malformed build outputs"; exit 1; }
           # The file name comes from the tag, never from the build.
-          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v([0-9]+\.[0-9]+\.[0-9]+)$'
+          re='^([a-z0-9]+(-[a-z0-9]+)*)/([a-z0-9]+(-[a-z0-9]+)*)/v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$'
           [[ "$TAG" =~ $re ]] || { echo "::error::Malformed tag"; exit 1; }
           name="${BASH_REMATCH[1]}-${BASH_REMATCH[3]}-${BASH_REMATCH[5]}.zip"
           # The tag must not have moved since verify.

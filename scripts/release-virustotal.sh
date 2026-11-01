@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# VirusTotal report for a release executable, run by the privileged `publish` job in
-# .github/workflows/release.yml. Needs only bash, coreutils, curl and jq.
+# VirusTotal report for a mod zip, run by the privileged jobs that publish one: `publish` in
+# .github/workflows/release.yml and `scan` in .github/workflows/nightly.yml. Needs only bash,
+# coreutils, curl and jq.
 #
 #   scan <file> <block.md>           submit <file> (VT_API_KEY) and write the report block
 #   notes <release.json> <block.md> <out>
