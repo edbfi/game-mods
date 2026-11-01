@@ -1,5 +1,11 @@
 # Consumables analysis for the supported Steam build
 
+The direct byte replacements below describe the original implementation
+and its behavioral evidence. Current installation uses persistent gates: selected
+medkits bypass the inventory-mask AND; selected throwables transfer to the action
+without the consumption wrapper. Disabled gates execute the original AND/call.
+The entry jumps remain installed during master pause.
+
 This records evidence for the independently controlled medkit and throwable patches. Addresses below use preferred image base `0x140000000`; profile entries use RVAs. Analysis applies only to executable SHA-256 `7c35095f27beab83b31914029eca0da07991bba8630ec12ba97eec43ffc60c38`.
 
 ## Runtime image
@@ -46,7 +52,7 @@ RVA 3307a5  41 c7 80 84 04 00 00 ff 00 00 00
                                 mov DWORD PTR [r8+0x484],0xff
 ```
 
-Replace only the seven-byte AND with seven NOPs. This preserves selected-index reset and the subsequent UI cleanup tailcall. Nonplayer mask writes remain unchanged. The 27-byte context starting at RVA `0x330795` occurs once in decoded `.text`.
+The original replacement used seven NOPs for the seven-byte AND. This preserves selected-index reset and the subsequent UI cleanup tailcall. Nonplayer mask writes remain unchanged. The 27-byte context starting at RVA `0x330795` occurs once in decoded `.text`.
 
 ## Throwing knives, grenades and incendiaries
 

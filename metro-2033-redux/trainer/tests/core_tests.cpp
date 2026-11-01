@@ -32,7 +32,8 @@ struct FakeMemory : metro::Memory {
 };
 }
 int main() {
-    check(!metro::parse_config("").enabled);
+    check(metro::parse_config("").enabled);
+    check(!metro::parse_config("[trainer]\nenabled=false\n").enabled);
     check(!metro::parse_config("").unlimited_filters && !metro::parse_config("").indestructible_mask);
     const auto gas = metro::parse_config("[features]\nunlimited_filters=true\nindestructible_mask=true\n");
     check(gas.unlimited_filters && gas.indestructible_mask && !gas.unlimited_ammo);

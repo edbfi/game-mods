@@ -1,5 +1,11 @@
 # Ammunition analysis
 
+The byte replacements below describe the original implementation and its
+behavioral evidence. Current installation uses persistent gated entry jumps.
+The unlimited-ammo predicate gate returns true only when selected. The Hellsing
+gate starts at `0x2b9a55`, retains the preceding load, and omits the subtraction
+only when selected. Disabled gates execute the original instructions.
+
 These are static observations from GNU objdump and Ghidra decompilation
 of the captured, reconstructed runtime image. They establish candidate code paths, not gameplay acceptance.
 No offsets from another game release were used. Addresses below use preferred
@@ -68,7 +74,7 @@ The Hellsing's reload-transfer slot `+0x12f0` (`0x1402b9940`) never calls the
 predicate, so the entry patch does not reach it. It looks up the arrow inventory item,
 takes `min(capacity - loaded, item count)` into the magazine through `+0x1350`, then
 subtracts that from the item and stores it through item setter `+0x1f8`.
-`unlimited_ammo` replaces that `sub ebx,edi` at `0x2b9a58` (`2B DF`) with two NOPs,
+The original `unlimited_ammo` replacement suppressed that `sub ebx,edi` at `0x2b9a58` (`2B DF`) with two NOPs,
 so the setter stores the unchanged count. Like the forced predicate, it applies to
 every owner. Unique signature, starting six bytes before the patch:
 `41 FF D1 49 8B 06 2B DF 8B D3 49 8B CE FF 90 F8 01 00 00`.

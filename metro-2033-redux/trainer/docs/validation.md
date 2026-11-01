@@ -22,7 +22,7 @@ The example INI starts with every feature disabled.
 | God mode | PENDING | Scripted kills, suffocation, falls and transitions. |
 | Unlimited flashlight | PENDING | Flashlight and night-vision drain. |
 | Feature and currency isolation | PENDING | No completed gameplay comparison. |
-| Stutter | NOT THE TRAINER | Stutter stayed the same with the trainer stopped and the original code restored. Cause undiagnosed. |
+| Stutter | UNRESOLVED | A prior observation reported similar stutter after stopping/restoring the trainer. This does not exclude toggle suspension overhead. The reported 80–100 ms includes retries; no raw timing logs or gameplay measurements establish freeze duration or a resolved cause. |
 
 ## Before applying patches
 
@@ -49,11 +49,12 @@ Test each feature separately before testing combinations.
 | Unlimited medkits | Using a medkit still consumes the normal action time and heals normally, while its inventory count stays unchanged. Check use while injured and attempted use at full health. |
 | Feature isolation | Disabled features retain baseline behavior. Enemy ammunition, enemy health, pickups, shop transactions, and unrelated inventory retain baseline behavior. |
 | Currency isolation | Military-grade ammunition used as currency is tracked separately from ordinary reserve ammunition. Spending, purchasing, and any weapon mode using that ammunition need explicit observation; unlimited ammunition must not silently claim unlimited currency. |
-| Restoration | Disabling/stopping restores trainer-owned bytes. Repeat use afterward behaves as baseline. If another writer changes a patch region, restoration reports failure and preserves foreign bytes. |
+| Restoration | Disabling selects original behavior; stopping restores trainer-owned entry bytes. Repeat use afterward behaves as baseline. If another writer changes a patch region, restoration reports failure and preserves foreign bytes. |
 | Global and individual no reload | Loaded ammunition remains constant only for selected player weapon types. Disable global no reload to exercise individual selections; switching weapons must select the correct class. Unselected/NPC weapons retain normal consumption. Check empty magazines, alternate ammunition, shotguns, pneumatic weapons and reload animations separately. |
 | God mode | Ordinary incoming damage does not reduce player health; enemies remain vulnerable. Check scripted kills, suffocation, falls and transitions separately. |
 | Unlimited flashlight | Existing battery charge stays constant with flashlight and/or night vision active. Manual charging and light controls still work; normal drain resumes when disabled. An empty battery needs charging once. |
-| Hotkeys and sounds | Each configured key toggles once per press while the game/trainer has focus. Held keys and background typing must not cause unintended changes. Master pause restores code and resume remembers selections. Successful effective changes play soft enable/disable tones; sounds=false mutes them. |
+| Hotkeys and sounds | Each configured key toggles once per press while the game/trainer has focus. Held keys and background typing must not cause unintended changes. Master pause publishes zero while hooks remain installed; resume remembers selections. Successful effective changes play soft enable/disable tones; sounds=false mutes them. |
+| Terminal routing (physical host check) | Configure a feature as Ctrl+1. Check one toggle per press in the trainer's Windows Terminal tab and in the game; switch to another tab in the same host, another terminal window, and an unrelated app and verify Ctrl+1 does not toggle. Repeat while holding the chord across focus changes. Check classic conhost too. Check Alt+Space separately: host interception may require a different `[hotkeys]` binding; hidden ConPTY HWND style checks do not validate passthrough. |
 | Lifecycle | Reattach after game restart resolves the new module base and validates the build again. Loading another checkpoint and switching weapons do not alter feature scope or crash the game. |
 
 Unlimited currency remains reserved; its `true` value is rejected.
@@ -63,7 +64,7 @@ Unlimited currency remains reserved; its `true` value is rejected.
 None of these launch the game or establish runtime feature behaviour.
 
 - `just test` builds and runs the portable core and profile tests, then `just test-hooks`.
-- `just test-hooks` (x86-64 Linux/WSL) executes the generated no-reload code against synthetic objects.
+- `just test-hooks` (x86-64 Linux/WSL) executes generated no-reload and ordinary gates against synthetic objects, checking disabled/enabled paths, registers, flags, SIMD results, and original call return continuations.
 - `./build/profile_tests <capture>` also checks unique signatures against a local capture of the game's loaded
   `.text`. The capture is game code: keep it out of the repo and releases.
 - `just test-windows` (WSL with `wsl.exe` interop and Zig 0.17.0) compiles `build/windows-backend-tests.exe`,

@@ -8,6 +8,9 @@
 #include "metro/build_profile.hpp"
 #include "metro/windows_patch.hpp"
 #include "metro/windows_no_reload.hpp"
+#include "metro/controls.hpp"
+#include "metro/windows_console.hpp"
+#include <chrono>
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -36,6 +39,7 @@ struct Handle {
     Handle& operator=(const Handle&) = delete;
 };
 std::ofstream logfile;
+bool plain_logging = true;
 void log(const std::string& text) {
     SYSTEMTIME t{}; GetLocalTime(&t);
     std::ostringstream line;
@@ -43,7 +47,7 @@ void log(const std::string& text) {
          << t.wMonth << '-' << std::setw(2) << t.wDay << ' ' << std::setw(2)
          << t.wHour << ':' << std::setw(2) << t.wMinute << ':' << std::setw(2)
          << t.wSecond << " " << text;
-    std::cout << line.str() << std::endl;
+    if (plain_logging) std::cout << line.str() << std::endl;
     if (logfile) { logfile << line.str() << '\n'; logfile.flush(); }
 }
 bool binding_down(unsigned binding) {
@@ -54,9 +58,8 @@ bool binding_down(unsigned binding) {
     return (binding & 0x700) == modifiers;
 }
 // Quiet sine chime with a smooth envelope; no system alert or square-wave Beep.
-void soft_sound(bool enabled) {
-    static std::vector<std::uint8_t> sound;
-    PlaySoundW(nullptr, nullptr, 0);
+std::vector<std::uint8_t> make_chime(bool enabled) {
+    std::vector<std::uint8_t> sound;
     constexpr unsigned rate = 22050, count = rate / 6;
     sound.assign(44 + count * 2, 0);
     auto put = [&](unsigned offset, unsigned value, unsigned length) {
@@ -73,7 +76,13 @@ void soft_sound(bool enabled) {
         const auto sample = static_cast<std::int16_t>(2300 * envelope * envelope * std::sin(6.283185307179586 * frequency * i / rate));
         put(44+i*2, static_cast<std::uint16_t>(sample), 2);
     }
-    PlaySoundW(reinterpret_cast<LPCWSTR>(sound.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    return sound;
+}
+const std::array<std::vector<std::uint8_t>, 2> chimes{{make_chime(false), make_chime(true)}};
+void soft_sound(bool enabled) {
+    PlaySoundW(nullptr, nullptr, 0);
+    PlaySoundW(reinterpret_cast<LPCWSTR>(chimes[enabled ? 1 : 0].data()), nullptr,
+        SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
 }
 void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
 std::vector<std::uint8_t> read_file(HANDLE file) {
@@ -229,6 +238,25 @@ std::uintptr_t validate_process(DWORD pid, HANDLE process, const std::wstring& p
 }
 }
 int wmain(int argc, wchar_t** argv) {
+    metro::ui::Model model;
+    std::unique_ptr<metro::ui::WindowsConsole> console;
+    const char* console_error = nullptr;
+    auto refresh = [&](bool poll_input = true) {
+        if (!console) return;
+        if (poll_input) console->refresh();
+        if (const auto error = console->error(); error && error != console_error) {
+            console_error = error;
+            log(std::string("UI: ") + error);
+        }
+    };
+    auto show = [&](metro::ui::Lifecycle lifecycle, const char* status) noexcept {
+        try {
+            model.lifecycle = lifecycle;
+            model.status = status;
+            if (console) console->update(model);
+            refresh(false);
+        } catch (...) { /* Presentation must never interrupt game cleanup. */ }
+    };
     try {
         bool check = false;
         bool stop = argc == 2 && std::wstring(argv[1]) == L"--stop";
@@ -247,6 +275,7 @@ int wmain(int argc, wchar_t** argv) {
         auto size = GetModuleFileNameW(nullptr, own.data(), static_cast<DWORD>(own.size()));
         require(size > 0 && size < own.size(), "Cannot locate trainer directory."); own.resize(size);
         const auto directory = fs::path(own).parent_path();
+        model.logfile = (directory / L"metro-trainer.log").u8string();
         logfile.open(directory / L"metro-trainer.log", std::ios::app);
         require(static_cast<bool>(logfile), "Cannot create trainer log next to the trainer.");
         std::ifstream settings(directory / L"metro-trainer.ini");
@@ -254,17 +283,29 @@ int wmain(int argc, wchar_t** argv) {
         std::ostringstream config_text; config_text << settings.rdbuf();
         const auto config = metro::parse_config(config_text.str());
         SetConsoleCtrlHandler(stop_handler, TRUE);
+        if (!check) {
+            model.config = config;
+            for (const char* key : {"unlimited_ammo", "unlimited_throwables", "unlimited_medkits", "unlimited_filters",
+                                   "indestructible_mask", "no_reload", "god_mode", "unlimited_flashlight"})
+                model.selected[key] = config.feature_enabled(key);
+            for (const auto& entry : metro::verified_no_reload_classes())
+                model.selected[entry.feature] = config.feature_enabled(entry.feature);
+            plain_logging = false;
+            console = std::make_unique<metro::ui::WindowsConsole>();
+            show(metro::ui::Lifecycle::Waiting, "Waiting for Metro 2033 Redux. Ctrl+C exits.");
+        }
         log(check ? "Read-only check: verifying the running game." : "Waiting for Metro 2033 Redux. Ctrl+C exits.");
         do {
             const auto pids = find_processes();
             require(pids.size() <= 1, "Multiple metro.exe processes found; close duplicates.");
             if (pids.empty()) {
                 require(!check, "Game is not running; start it and run --check again.");
-                Sleep(250); continue;
+                refresh(); Sleep(250); continue;
             }
             Handle process(OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | SYNCHRONIZE |
                 (check ? 0 : PROCESS_VM_WRITE | PROCESS_VM_OPERATION), FALSE, pids.front()));
             require(process.value != nullptr, "Cannot open game process with required access.");
+            if (!check) show(metro::ui::Lifecycle::Preparing, "Validating game identity and hook profiles.");
             // The open handle pins this process, so its path and the file read below belong to it.
             const auto path = process_path(process.value);
             log("Game: " + fs::path(path).u8string());
@@ -287,22 +328,25 @@ int wmain(int argc, wchar_t** argv) {
                     require(WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0,
                             "Game exited while waiting for unpacking.");
                     if (!announced) { log("Waiting up to 60 seconds for the verified unpacked game image."); announced = true; }
-                    if (InterlockedCompareExchange(&stopping, 0, 0)) { log("Stopped. No memory was changed."); return 0; }
-                    Sleep(250);
+                    if (InterlockedCompareExchange(&stopping, 0, 0)) {
+                        show(metro::ui::Lifecycle::Stopped, "Stopped. No memory was changed.");
+                        log("Stopped. No memory was changed."); return 0;
+                    }
+                    refresh(); Sleep(250);
                 }
             }
             (void)base;
             log("Loaded game identity verified.");
             std::vector<metro::Patch> patches;
             std::map<std::string, bool> selected;
-            std::map<std::string, std::vector<metro::Patch>> feature_patches;
+            std::map<std::string, bool> feature_patches;
             const auto text_section = std::find_if(image.sections.begin(), image.sections.end(),
                 [](const IMAGE_SECTION_HEADER& section) { return memcmp(section.Name, ".text", 5) == 0; });
             require(text_section != image.sections.end(), "No text section for patch validation.");
             std::vector<std::uint8_t> runtime_text(text_section->Misc.VirtualSize);
             ProcessMemory readonly(process.value);
             require(readonly.read(base + text_section->VirtualAddress, runtime_text), "Cannot read patch context.");
-            for (const auto& definition : metro::verified_code_patches()) {
+            for (const auto& definition : metro::verified_conditional_sites()) {
                 require(definition.rva < image.nt.OptionalHeader.SizeOfImage
                     && definition.original.size() <= image.nt.OptionalHeader.SizeOfImage - definition.rva,
                     "Patch profile exceeds image bounds.");
@@ -314,9 +358,7 @@ int wmain(int argc, wchar_t** argv) {
                 std::vector<std::uint8_t> original(definition.original.size());
                 require(readonly.read(base + definition.rva, original) && original == definition.original,
                     "Original patch bytes do not match the verified profile.");
-                metro::Patch patch{base + definition.rva, definition.original, definition.replacement};
-                patches.push_back(patch);
-                feature_patches[definition.feature].push_back(patch);
+                feature_patches[definition.feature] = true;
                 selected[definition.feature] = config.feature_enabled(definition.feature);
             }
             for (const auto& site : metro::verified_no_reload_sites()) {
@@ -347,6 +389,7 @@ int wmain(int argc, wchar_t** argv) {
             Handle stop_event(CreateEventW(nullptr, TRUE, FALSE, event_name.c_str()));
             require(stop_event.value != nullptr && GetLastError() != ERROR_ALREADY_EXISTS,
                     "Cannot create exclusive trainer stop event.");
+            show(metro::ui::Lifecycle::Preparing, "Preparing disabled hooks and shared controls.");
             metro::NoReloadRuntime reload(process.value, base, metro::verified_no_reload_classes());
             const auto reload_hooks = reload.hooks();
             const auto reload_ranges = reload.code_ranges();
@@ -355,12 +398,13 @@ int wmain(int argc, wchar_t** argv) {
             auto transaction = std::make_unique<metro::PatchTransaction>(std::vector<metro::Patch>{});
             bool master = config.enabled;
             metro::ExecutableMemory writable(process.value);
-            std::unique_ptr<metro::FrozenThreads> toggle_freeze;
             auto change = [&](bool restoring) {
                 for (unsigned attempt = 0; attempt < 100; ++attempt) {
                     try {
+                        const auto acquisition_started = std::chrono::steady_clock::now();
                         std::unique_ptr<metro::FrozenThreads> frozen;
-                        if (!toggle_freeze) frozen = std::make_unique<metro::FrozenThreads>(pids.front(), patches);
+                        frozen = std::make_unique<metro::FrozenThreads>(pids.front(), patches);
+                        const auto freeze_started = std::chrono::steady_clock::now();
                         std::string error;
                         bool ok = false;
                         try { ok = restoring ? transaction->restore(writable, error) : transaction->apply(writable, error); }
@@ -376,13 +420,20 @@ int wmain(int argc, wchar_t** argv) {
                                 Sleep(10);
                             }
                         }
-                        if (!ok) {
-                            const bool protections_ok = writable.restore_protections();
+                        const bool protections_ok = writable.restore_protections();
+                        frozen.reset();
+                        const auto freeze_finished = std::chrono::steady_clock::now();
+                        log(std::string(restoring ? "Restoration" : "Installation") + " thread acquisition: " +
+                            std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(
+                                freeze_started - acquisition_started).count()) + " us; suspended work and resume: " +
+                            std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(
+                                freeze_finished - freeze_started).count()) + " us (excludes thread acquisition)");
+                        if (!ok || !protections_ok) {
                             log(transaction->active() || !protections_ok
                                 ? "FATAL: restoration incomplete; foreign or inaccessible bytes preserved. Resuming game threads."
                                 : "Patch operation failed; owned bytes and protections restored.");
                         }
-                        return ok;
+                        return ok && protections_ok;
                     } catch (const std::exception& error) {
                         if (WaitForSingleObject(process.value, 0) == WAIT_OBJECT_0) return false;
                         if (attempt == 99) throw;
@@ -392,92 +443,97 @@ int wmain(int argc, wchar_t** argv) {
                 }
                 return false;
             };
-            auto desired_patches = [&]() {
-                std::vector<metro::Patch> active;
-                if (master) for (const auto& feature : feature_patches)
-                    if (selected[feature.first]) for (const auto& patch : feature.second) {
-                        const auto existing = std::find_if(active.begin(), active.end(), [&](const metro::Patch& p) { return p.address == patch.address; });
-                        if (existing == active.end()) active.push_back(patch);
-                        else require(existing->original == patch.original && existing->replacement == patch.replacement, "Conflicting feature patches.");
-                    }
-                if (master) {
-                    const auto reload_patches = reload.selected(selected);
-                    active.insert(active.end(), reload_patches.begin(), reload_patches.end());
-                }
-                return active;
+            auto sync = [&]() {
+                metro::ui::acknowledge(model, master, selected, reload.current_controls());
+                show(metro::ui::Lifecycle::Attached, master ? "Selected features active." : "Paused; selections retained.");
             };
-            transaction = std::make_unique<metro::PatchTransaction>(desired_patches());
-            require(change(false), "Could not apply selected features; inspect recovery log.");
-            auto log_selection = [&]() {
-                std::string snapshot = "Selection snapshot: enabled=" + std::string(master ? "true" : "false");
-                for (const auto& feature : selected) snapshot += ";" + feature.first + "=" + (feature.second ? "true" : "false");
-                log(snapshot);
-            };
-            log_selection();
-            std::map<std::string, metro::KeyLatch> latches;
-            for (const auto& binding : config.hotkeys)
-                latches[binding.first].update(binding_down(binding.second));
+            bool restoration_failed = false;
             try {
-                log("Hotkeys ready. ALT+SPACE toggles trainer by default; Ctrl+C restores original bytes.");
+                show(metro::ui::Lifecycle::Installing, "Installing hooks with controls disabled.");
+                transaction = std::make_unique<metro::PatchTransaction>(reload_hooks);
+                require(change(false), "Could not apply selected features; inspect recovery log.");
+                reload.publish(metro::effective_controls(master, selected));
+                sync();
+                auto log_selection = [&]() {
+                    std::string snapshot = "Selection snapshot: enabled=" + std::string(master ? "true" : "false");
+                    for (const auto& feature : selected) snapshot += ";" + feature.first + "=" + (feature.second ? "true" : "false");
+                    log(snapshot);
+                };
+                log_selection();
+                std::map<std::string, metro::KeyLatch> latches;
                 for (const auto& binding : config.hotkeys)
-                    log("Binding " + binding.first + " = virtual key " + std::to_string(binding.second));
+                    latches[binding.first].update(binding_down(binding.second));
+                log("Hotkeys ready. " + metro::ui::binding_label(config.hotkeys.at("enabled")) + " toggles master; Ctrl+C restores original bytes.");
+                for (const auto& binding : config.hotkeys)
+                    log("Binding " + binding.first + " = " + metro::ui::binding_label(binding.second));
                 while (!InterlockedCompareExchange(&stopping, 0, 0)
                        && WaitForSingleObject(stop_event.value, 0) != WAIT_OBJECT_0) {
                     if (WaitForSingleObject(process.value, 20) == WAIT_OBJECT_0) {
+                        model.master = false; model.effective.clear();
+                        show(metro::ui::Lifecycle::Stopped, "Game exited. Trainer finished.");
                         log("Game exited. Trainer finished."); return 0;
                     }
+                    refresh();
+                    // Snapshot all eligible bindings before applying toggles.
+                    // Presentation updates never consume console input.
+                    std::vector<std::string> pressed;
+                    DWORD foreground_pid = 0;
+                    GetWindowThreadProcessId(GetForegroundWindow(), &foreground_pid);
                     for (const auto& binding : config.hotkeys) {
-                        if (!latches[binding.first].update(binding_down(binding.second))) continue;
-                        DWORD foreground_pid = 0;
-                        GetWindowThreadProcessId(GetForegroundWindow(), &foreground_pid);
-                        if (foreground_pid != pids.front() && foreground_pid != GetCurrentProcessId()
-                            && GetForegroundWindow() != GetConsoleWindow()) continue;
+                        const bool down = binding_down(binding.second);
+                        const bool rising = latches[binding.first].update(down);
+                        if (console->hotkey_pressed(binding.second, down, rising, foreground_pid == pids.front()))
+                            pressed.push_back(binding.first);
+                    }
+                    for (const auto& name : pressed) {
+                        const auto binding = *config.hotkeys.find(name);
                         if (binding.first != "enabled" && !selected.count(binding.first)) { log("No verified profile for " + binding.first); continue; }
-                        const auto toggle_started = GetTickCount64();
-                        for (unsigned attempt = 0; !toggle_freeze; ++attempt) {
-                            try { toggle_freeze = std::make_unique<metro::FrozenThreads>(pids.front(), patches); }
-                            catch (const std::exception&) {
-                                if (attempt == 99 || WaitForSingleObject(process.value, 0) == WAIT_OBJECT_0) throw;
-                                Sleep(10);
-                            }
-                        }
-                        auto effective = [&]() {
-                            std::map<std::uintptr_t, std::vector<std::uint8_t>> values;
-                            for (const auto& patch : desired_patches()) values[patch.address] = patch.replacement;
-                            return values;
-                        };
-                        const auto previous_effective = effective();
-                        const bool previous_master = master;
-                        const auto previous_selected = selected;
+                        const auto previous_mask = metro::effective_controls(master, selected);
                         if (binding.first == "enabled") master = !master;
                         else selected[binding.first] = !selected[binding.first];
-                        std::string transition_error;
-                        if (!transaction->transition(writable, desired_patches(), transition_error)) {
-                            master = previous_master; selected = previous_selected;
-                            require(transaction->transition_recovered() && writable.restore_protections(),
-                                    "Toggle recovery incomplete; inspect log.");
-                            toggle_freeze.reset();
-                            log("Toggle rejected: " + transition_error);
-                            continue;
-                        }
-                        toggle_freeze.reset();
-                        log("Toggle transition: " + std::to_string(GetTickCount64()-toggle_started) + " ms");
+                        const auto next_mask = metro::effective_controls(master, selected);
+                        const auto publication_started = std::chrono::steady_clock::now();
+                        const bool published = reload.publish(next_mask);
+                        const auto publication_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now() - publication_started).count();
+                        if (published) log("Control publication: " + std::to_string(publication_ns) + " ns (local store, no freeze)");
                         const bool on = binding.first == "enabled" ? master : selected[binding.first];
                         log(binding.first + (on ? " enabled" : " disabled") + (!master && binding.first != "enabled" ? " (trainer paused)" : ""));
                         log_selection();
-                        if (config.sounds && previous_effective != effective()) soft_sound(on);
+                        sync();
+                        if (config.sounds && previous_mask != next_mask) soft_sound(on);
                     }
                 }
+                reload.publish(0);
+                model.master = false; model.effective.clear();
+                show(metro::ui::Lifecycle::Restoring, "Restoring original instructions; keep this window open.");
+                if (WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0) {
+                    restoration_failed = !change(true);
+                    require(!restoration_failed, "Could not restore all patches; foreign or inaccessible bytes were preserved.");
+                }
             } catch (...) {
-                // A toggle exception keeps its outer freeze through restoration.
-                if (WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0) change(true);
-                toggle_freeze.reset();
+                reload.publish(0);
+                model.master = false; model.effective.clear();
+                show(metro::ui::Lifecycle::Restoring, "Recovering original instructions; keep this window open.");
+                if (!restoration_failed && WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0) {
+                    try { restoration_failed = !change(true); }
+                    catch (...) { restoration_failed = true; }
+                }
+                if (restoration_failed) {
+                    model.error = "Restoration incomplete. Close the game before restarting trainer.";
+                    log("FATAL: " + model.error);
+                }
                 throw;
             }
-            if (WaitForSingleObject(process.value, 0) != WAIT_OBJECT_0)
-                require(change(true), "Could not restore all patches; foreign or inaccessible bytes were preserved.");
+            show(metro::ui::Lifecycle::Stopped, "Original bytes restored. Trainer finished.");
             log("Original bytes restored. Trainer finished."); return 0;
         } while (!InterlockedCompareExchange(&stopping, 0, 0));
+        show(metro::ui::Lifecycle::Stopped, "Stopped. No memory was changed.");
         log("Stopped. No memory was changed."); return 0;
-    } catch (const std::exception& error) { log(std::string("ERROR: ") + error.what()); return 1; }
+    } catch (const std::exception& error) {
+        log(std::string("ERROR: ") + error.what());
+        if (model.error.empty()) model.error = error.what();
+        show(metro::ui::Lifecycle::Error, "Trainer stopped. Inspect the log; resolve the error before restarting.");
+        return 1;
+    }
 }

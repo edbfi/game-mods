@@ -74,7 +74,8 @@ or runtime class identifiers.
 
 ## Generated code and lifecycle
 
-`make_no_reload_image()` saves flags and RAX/RCX/RDX before classification,
+`make_no_reload_image()` saves flags and RAX/RCX/RDX/R8 before classification,
+loads one aligned control DWORD, and bypasses classification when disabled. It
 restores them before displaced instructions, and returns through an indirect
 absolute jump which consumes no scratch register. Every unselected branch
 executes the displaced instructions. The selected shared branch omits SUB;
@@ -85,7 +86,8 @@ shared firing path. Each cave fits within one 4 KiB page.
 
 The Windows integration must allocate caves within rel32 jump range, validate
 original signatures, write and verify executable code before installing hooks,
-and update selectors while game threads are suspended. Cave allocations remain
+and install entry hooks transactionally while game threads are suspended. Normal
+selector changes publish a single coherent shared DWORD without suspension. Cave allocations remain
 owned by the game process after hook removal, so suspended return addresses or
 threads executing displaced calls cannot return into freed memory.
 
