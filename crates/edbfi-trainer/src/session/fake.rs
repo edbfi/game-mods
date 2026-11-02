@@ -21,8 +21,6 @@ use super::{Allocation, ClaimError, Controls, Game, Module, Owner};
 
 /// Where the pretend game is loaded; its file prefers `0x1_4000_0000`.
 pub(crate) const BASE: u64 = 0x7FF6_1230_0000;
-/// Where the control word is mapped.
-pub(crate) const CONTROLS: u64 = 0x7FF6_0000_0000;
 /// A code offset with a 64-bit relocation, away from every site.
 const RELOCATED: usize = 0x800;
 
@@ -48,6 +46,8 @@ pub(crate) struct Info {
     pub(crate) finished: Cell<u32>,
     pub(crate) controls_live: Cell<bool>,
     pub(crate) stop: Cell<bool>,
+    /// Where the control word was mapped.
+    pub(crate) controls_at: Cell<u64>,
     /// Allocation fails with access denied.
     pub(crate) deny: Cell<bool>,
     pub(crate) blocks: RefCell<Vec<(u64, Block)>>,
@@ -125,6 +125,7 @@ impl FakeGame {
             finished: Cell::new(0),
             controls_live: Cell::new(false),
             stop: Cell::new(false),
+            controls_at: Cell::new(0),
             deny: Cell::new(false),
             blocks: RefCell::new(Vec::new()),
             taken: RefCell::new(BTreeSet::new()),
@@ -258,9 +259,13 @@ impl Game for FakeGame {
         }))
     }
 
-    fn controls(&self) -> Result<Box<dyn Controls>, OsError> {
+    fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
         self.fail("controls")?;
-        self.fake.map(CONTROLS, PAGE, Protection::READ_WRITE, 0);
+        if self.fake.occupied(at.get(), PAGE) {
+            return Err(OsError::new("MapViewOfFileNuma2", 487));
+        }
+        self.info.controls_at.set(at.get());
+        self.fake.map(at.get(), PAGE, Protection::READ_WRITE, 0);
         self.info.word.set(0);
         self.info.controls_live.set(true);
         Ok(Box::new(FakeControls(Rc::clone(&self.info))))
@@ -308,7 +313,7 @@ struct FakeControls(Rc<Info>);
 
 impl Controls for FakeControls {
     fn remote(&self) -> Va {
-        Va::new(CONTROLS)
+        Va::new(self.0.controls_at.get())
     }
 
     fn store(&self, word: u32) {
@@ -316,18 +321,12 @@ impl Controls for FakeControls {
         info.word.set(word);
         info.stores.set(info.stores.get() + 1);
     }
-
-    fn restoring(&self) {}
-
-    fn finished(&self) {
-        let info = &self.0;
-        info.finished.set(info.finished.get() + 1);
-    }
 }
 
 impl Drop for FakeControls {
     fn drop(&mut self) {
         let info = &self.0;
+        info.finished.set(info.finished.get() + 1);
         info.word.set(0);
         info.controls_live.set(false);
     }

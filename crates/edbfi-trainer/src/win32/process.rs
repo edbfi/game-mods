@@ -12,7 +12,9 @@ use std::ptr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{ERROR_NO_MORE_FILES, FALSE, HANDLE, WAIT_OBJECT_0};
+use windows_sys::Win32::Foundation::{
+    ERROR_BAD_LENGTH, ERROR_NO_MORE_FILES, FALSE, HANDLE, WAIT_OBJECT_0,
+};
 use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, SYNCHRONIZE,
 };
@@ -354,10 +356,18 @@ impl Game for WinGame {
     }
 
     fn main_module(&self) -> Result<Module, OsError> {
-        // SAFETY: a module snapshot takes no pointers.
-        let raw =
-            unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self.pid) };
-        let snapshot = owned_or_invalid(raw, "CreateToolhelp32Snapshot")?;
+        // A snapshot taken while the game loads or unloads a module fails with `ERROR_BAD_LENGTH`; try again.
+        let mut tries = 0;
+        let snapshot = loop {
+            // SAFETY: a module snapshot takes no pointers.
+            let raw = unsafe {
+                CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self.pid)
+            };
+            match owned_or_invalid(raw, "CreateToolhelp32Snapshot") {
+                Err(error) if error.code == ERROR_BAD_LENGTH && tries < 8 => tries += 1,
+                result => break result?,
+            }
+        };
         // SAFETY: plain data, valid when zeroed.
         let mut entry: MODULEENTRY32W = unsafe { zeroed() };
         entry.dwSize = size_of::<MODULEENTRY32W>() as u32;
@@ -419,8 +429,8 @@ impl Game for WinGame {
         Ok(Box::new(block))
     }
 
-    fn controls(&self) -> Result<Box<dyn Controls>, OsError> {
-        Ok(Box::new(super::controls::Mapping::new(self.raw())?))
+    fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
+        Ok(Box::new(super::controls::Mapping::new(self.raw(), at)?))
     }
 
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {

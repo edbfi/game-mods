@@ -10,12 +10,12 @@
 
 use crate::addr::Va;
 use crate::cave::place::{FreeRegion, Reach, candidates};
-use crate::cave::{self, HookError};
+use crate::cave::{self, HookError, PAGE};
 use crate::patch::{OsError, Patch, PatchError, PatchJournal, Protection, RegionState};
 use crate::profile::ValidProfile;
 use crate::recovery::RecoveryAction;
 
-use super::{Allocation, Game, Hooks};
+use super::{Allocation, Controls, Game, Hooks};
 
 /// `ERROR_INVALID_ADDRESS`: the requested base is no longer free.
 pub(crate) const ERROR_INVALID_ADDRESS: u32 = 487;
@@ -34,7 +34,7 @@ pub(super) fn prepare(
     profile: &ValidProfile<'static>,
     image: Va,
 ) -> Result<Hooks, PrepareError> {
-    let controls = game.controls().map_err(PrepareError::Controls)?;
+    let controls = map_controls(game, image)?;
     let reach = Reach::new(profile.profile(), image).ok_or(PrepareError::NoReach)?;
     let block = place(game, reach)?;
     let plan = cave::plan(profile, image, block.base(), controls.remote())?;
@@ -79,6 +79,58 @@ pub(super) fn prepare(
         unpublished: Some(block),
         stuck: crate::patch::Stuck::default(),
     })
+}
+
+/// The lowest base the control word may take: above every 32-bit immediate a cave can hold.
+const CONTROLS_FLOOR: u64 = 1 << 32;
+/// How far the control word stays from the image, either side: past every global and continuation a cave
+/// holds, and past the caves' own reach.
+const CONTROLS_CLEARANCE: u64 = 1 << 32;
+/// Most bases tried for the control word.
+const CONTROLS_TRIES: usize = 64;
+
+/// Maps the control word at the first free granularity boundary above 4 GiB and at least 4 GiB from the
+/// image, so no constant a cave holds lies near it. Left to choose, Windows may put the view low, beside the
+/// class masks and float bits the caves compare against, and their proof would refuse it.
+fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, PrepareError> {
+    let granularity = game.granularity();
+    let image = image.get();
+    let near = |at: u64| at.abs_diff(image) < CONTROLS_CLEARANCE;
+    let mut cursor = if near(CONTROLS_FLOOR) {
+        image.saturating_add(CONTROLS_CLEARANCE)
+    } else {
+        CONTROLS_FLOOR
+    };
+    let top = game.highest_address();
+    let mut tries = 0;
+    for _ in 0..MAX_REGIONS {
+        if cursor >= top || tries >= CONTROLS_TRIES {
+            break;
+        }
+        let region = game.query(Va::new(cursor)).map_err(PrepareError::Query)?;
+        let Some(end) = region.end().filter(|&e| e > cursor) else {
+            break;
+        };
+        let base = cursor
+            .checked_next_multiple_of(granularity)
+            .unwrap_or(u64::MAX);
+        if region.state == RegionState::Free
+            && !near(base)
+            && base.saturating_add(u64::from(PAGE)) <= end
+        {
+            tries += 1;
+            match game.controls(Va::new(base)) {
+                Ok(controls) => return Ok(controls),
+                Err(error) if error.code == ERROR_INVALID_ADDRESS => {}
+                Err(error) => return Err(PrepareError::Controls(error)),
+            }
+        }
+        cursor = end;
+    }
+    Err(PrepareError::Controls(OsError::new(
+        "MapViewOfFileNuma2",
+        ERROR_INVALID_ADDRESS,
+    )))
 }
 
 /// Allocates the cave block at the best free base within `reach`.

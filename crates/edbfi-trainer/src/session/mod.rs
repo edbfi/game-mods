@@ -85,8 +85,8 @@ pub(crate) trait Game: Process {
     fn interrupted(&self) -> bool;
     /// Reserves and commits `len` read-write bytes at exactly `at`.
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError>;
-    /// Maps a zeroed control word into the game.
-    fn controls(&self) -> Result<Box<dyn Controls>, OsError>;
+    /// Maps a zeroed control word into the game at exactly `at`, an allocation-granularity boundary.
+    fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError>;
     /// Takes this process's owner and stop objects for `slug`.
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError>;
 }
@@ -113,12 +113,9 @@ pub(crate) trait Controls {
     fn remote(&self) -> Va;
     /// Stores `word` with one interlocked 32-bit store.
     fn store(&self, word: u32);
-    /// Reports that the session's restoration finished, whatever its outcome, so a close request waiting for
-    /// it can let the trainer exit. Dropping the controls zeroes them and unmaps the trainer's view; the game's
-    /// view stays.
-    fn finished(&self);
-    /// Starts a restoration attempt: a close request arriving now waits for it to finish.
-    fn restoring(&self);
+    // Dropping the controls zeroes them, tells a close request waiting on the session that nothing more will be
+    // restored, and unmaps the trainer's view; the game's view stays. A failed restoration does not tell it, so
+    // a close request keeps waiting while the owner tries again.
 }
 
 /// The objects proving this trainer owns the process.
@@ -544,7 +541,7 @@ fn frozen_change(
             Ok(Err(failure)) => {
                 let transient = failure.error.transient();
                 hooks.stuck.absorb(failure.stuck);
-                if game.exited() && hooks.stuck.is_empty() {
+                if game.exited() {
                     return not_held(attempts, TrainerError::Exited);
                 }
                 if !transient || attempts >= FREEZE_ATTEMPTS {
@@ -782,14 +779,15 @@ impl Session<Recovery> {
     ) -> Result<Session<Detached>, Box<TransitionFailure<Recovery>>> {
         let hooks = &mut self.state.hooks;
         hooks.controls.store(0);
-        hooks.controls.restoring();
         let changed = if self.core.game.exited() {
             Changed {
                 outcome: Err(TrainerError::Exited),
                 timing: Timing::default(),
                 text: TextCheck::Skipped(SkipReason::Incomplete),
             }
-        } else if hooks.journal.is_clean() {
+        } else if hooks.journal.is_clean()
+            && (hooks.unpublished.is_some() || verify == VerifyRestore::Sites)
+        {
             hooks.stuck.retry();
             Changed {
                 outcome: if hooks.stuck.is_empty() {
@@ -823,7 +821,6 @@ impl Session<Recovery> {
                 verify,
             )
         };
-        hooks.controls.finished();
         match changed.outcome {
             Ok(()) => {
                 let Recovery { owner, .. } = self.state;

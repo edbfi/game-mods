@@ -221,7 +221,13 @@ impl IdentifyError {
     /// Whether the game may still be unpacking its code, so a later attempt may succeed.
     #[must_use]
     pub const fn transient(&self) -> bool {
-        matches!(self, Self::Code { .. })
+        match self {
+            Self::Code { .. } => true,
+            // A game that has only just started has no module list yet: `ERROR_BAD_LENGTH`,
+            // `ERROR_PARTIAL_COPY` or `ERROR_NO_MORE_FILES` until its loader runs.
+            Self::Os(error) => matches!(error.code, 18 | 24 | 299),
+            _ => false,
+        }
     }
 
     /// Every site's check, when the code section was read.

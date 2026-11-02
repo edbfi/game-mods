@@ -550,3 +550,38 @@ fn an_owed_resume_survives_a_restore_whose_own_freeze_resumes() {
     failure.session.restore(VerifyRestore::Sites).unwrap();
     assert_eq!(game.fake.suspend_counts(), [0, 0]);
 }
+
+#[test]
+fn the_control_word_goes_above_4_gib_and_away_from_the_image() {
+    let (game, profile) = FakeGame::new();
+    // Someone already holds the first boundary above 4 GiB.
+    game.fake
+        .map(1 << 32, 0x1000, crate::patch::Protection::READ_WRITE, 0);
+    let session = prepared(&game, &profile);
+    let at = game.info.controls_at.get();
+    assert_eq!(at, (1 << 32) + 0x1_0000);
+    assert!(at.abs_diff(BASE) >= 1 << 32);
+    drop(session);
+}
+
+#[test]
+fn a_rolled_back_install_still_gets_its_whole_code_check() {
+    let (game, profile) = FakeGame::new();
+    let session = prepared(&game, &profile);
+    game.fake.fault_next("write", 1, Fault::Fail);
+    let failure = session.install().unwrap_err();
+    assert!(failure.session.hooked().is_empty());
+    let detached = failure.session.restore(VerifyRestore::Text).unwrap();
+    assert_eq!(detached.report().text, TextCheck::Identical);
+    // An install that never wrote has nothing to check.
+    let (game, profile) = FakeGame::new();
+    let session = prepared(&game, &profile);
+    game.info.stop.set(true);
+    game.fake.0.borrow_mut().threads.get_mut(&2).unwrap().rip = Va::new(BASE + 0x1100);
+    let failure = session.install().unwrap_err();
+    let detached = failure.session.restore(VerifyRestore::Text).unwrap();
+    assert_eq!(
+        detached.report().text,
+        TextCheck::Skipped(SkipReason::Untouched)
+    );
+}

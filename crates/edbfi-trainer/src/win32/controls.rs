@@ -23,7 +23,7 @@ use windows_sys::Win32::System::Memory::{
     CreateFileMappingW, FILE_MAP_READ, FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS, MapViewOfFile,
     PAGE_READWRITE, UnmapViewOfFile,
 };
-use windows_sys::Win32::System::Threading::{CreateEventW, ResetEvent, SetEvent};
+use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent};
 
 use crate::addr::Va;
 use crate::patch::OsError;
@@ -82,8 +82,8 @@ pub(crate) struct Mapping {
 }
 
 impl Mapping {
-    /// Maps a zeroed control word into the trainer and into `process`.
-    pub(crate) fn new(process: HANDLE) -> Result<Self, OsError> {
+    /// Maps a zeroed control word into the trainer, and into `process` at exactly `at`.
+    pub(crate) fn new(process: HANDLE, at: Va) -> Result<Self, OsError> {
         let map = map_remote()?;
         // SAFETY: a pagefile-backed section takes no pointers but the null attributes and name.
         let raw = unsafe {
@@ -145,7 +145,7 @@ impl Mapping {
                 section.as_raw_handle(),
                 process,
                 0,
-                none(),
+                at.get() as usize as *const c_void,
                 SIZE,
                 0,
                 PAGE_READWRITE,
@@ -189,23 +189,14 @@ impl Controls for Mapping {
     fn store(&self, word: u32) {
         self.word().store(word, Ordering::SeqCst);
     }
-
-    fn restoring(&self) {
-        // SAFETY: the completion event is a live event handle owned by the lease.
-        let _reset = unsafe { ResetEvent(self.lease().completion()) };
-    }
-
-    fn finished(&self) {
-        // SAFETY: the completion event is a live event handle owned by the lease.
-        let _set = unsafe { SetEvent(self.lease().completion()) };
-    }
 }
 
 impl Drop for Mapping {
     fn drop(&mut self) {
         self.word().store(0, Ordering::SeqCst);
         // Nothing more will be restored: release any close notice waiting on this session.
-        self.finished();
+        // SAFETY: the completion event is a live event handle owned by the lease.
+        let _set = unsafe { SetEvent(self.lease().completion()) };
         if self.registered {
             bridge::retire(self.lease);
         }
