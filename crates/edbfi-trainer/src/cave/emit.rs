@@ -81,12 +81,14 @@ pub(super) fn position_independent(instruction: &Instruction) -> bool {
 }
 
 /// Whether `call` is `call qword [reg...]`: an indirect call through a memory operand with a base or index
-/// register and no segment override, which reads the same callee wherever it runs.
+/// register other than RSP and no segment override, which reads the same callee wherever it runs and
+/// whatever the cave pushes first.
 pub(super) fn indirect_call(call: &Instruction) -> bool {
     call.code() == Code::Call_rm64
         && call.op0_kind() == OpKind::Memory
         && !call.is_ip_rel_memory_operand()
         && call.segment_prefix() == Register::None
+        && call.memory_base().full_register() != Register::RSP
         && (call.memory_base() != Register::None || call.memory_index() != Register::None)
 }
 

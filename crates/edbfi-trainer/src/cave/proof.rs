@@ -16,8 +16,9 @@
 //!   stack only through push, pop, `add`/`sub rsp` and bounded `[rsp+disp]` operands. The one exception is
 //!   the hook's declared effect: at most one instruction per path, such as the pressure floor's store.
 //! - **Game instructions.** A copied or substituted game instruction runs with no cave data on the stack,
-//!   so with every register, the flags and the stack as the game had them. The only cave data allowed is a
-//!   literal return address under the indirect jump that stands in for the game's own call.
+//!   so with every register, the flags and the stack as the game had them, and changes RSP only by a push,
+//!   pop, `add`/`sub rsp` or call. The only cave data allowed is a literal return address under the
+//!   indirect jump, through an operand not based on RSP, that stands in for the game's own call.
 //! - **Exits.** Every path ends in an exit the hook shape declares, with nothing of the cave's on the stack
 //!   except, for a call, the literal return address. Every declared exit is reachable.
 //! - **Literals.** The pool sits after the code; the code never falls into it, and every RIP-relative operand
@@ -97,6 +98,9 @@ pub enum ProofError {
     /// The control word's address is loaded more than once, or another constant lies near it.
     #[error("the control word's address appears more than once")]
     ControlAddress,
+    /// A memory operand with an FS or GS override, which adds a base the proof cannot see.
+    #[error("a segment-overridden memory operand")]
+    SegmentOverride,
     /// A memory operand with neither base nor index register.
     #[error("an absolute memory operand")]
     AbsoluteAddress,
@@ -442,6 +446,7 @@ impl Walk<'_> {
         if !stack_op {
             if game {
                 Self::game_stack(instruction, state)?;
+                self.game_keeps_rsp(instruction)?;
             } else {
                 self.frame_access(instruction, role, state)?;
                 self.clobbers(instruction, state)?;
@@ -457,10 +462,15 @@ impl Walk<'_> {
         self.flow(instruction, game, literal, state)
     }
 
-    /// Refuses absolute memory operands, and constants other than the counted `mov` that point into the
-    /// control word's page.
+    /// Refuses absolute and segment-overridden memory operands, and constants other than the counted `mov`
+    /// that lie near the control word.
     fn constants(&self, instruction: &Instruction) -> Result<(), ProofError> {
         let controls = self.claim.controls;
+        let has_memory = (0..instruction.op_count())
+            .any(|operand| instruction.op_kind(operand) == OpKind::Memory);
+        if has_memory && instruction.segment_prefix() != Register::None {
+            return Err(ProofError::SegmentOverride);
+        }
         for operand in 0..instruction.op_count() {
             let value = match instruction.op_kind(operand) {
                 OpKind::Memory if instruction.is_ip_rel_memory_operand() => continue,
@@ -497,11 +507,36 @@ impl Walk<'_> {
         Ok(())
     }
 
+    /// Refuses a game instruction other than a push, pop, `add`/`sub rsp` or call that writes RSP: the walk
+    /// could no longer model the stack after it.
+    fn game_keeps_rsp(&mut self, instruction: &Instruction) -> Result<(), ProofError> {
+        let transfers = matches!(
+            instruction.flow_control(),
+            FlowControl::Call | FlowControl::IndirectCall | FlowControl::Return
+        );
+        let writes_rsp = self
+            .info
+            .info(instruction)
+            .used_registers()
+            .iter()
+            .any(|used| used.register().full_register() == Register::RSP && writes(used.access()));
+        if writes_rsp && !transfers {
+            Err(ProofError::OutsideFrame)
+        } else {
+            Ok(())
+        }
+    }
+
     /// A game instruction must see the game's own stack. The indirect jump standing in for the game's call
     /// may have the literal return address on top.
     fn game_stack(instruction: &Instruction, state: &State) -> Result<(), ProofError> {
         let stack = match (instruction.code(), state.stack.split_last()) {
-            (Code::Jmp_rm64, Some((Slot::Literal(_), below))) => below,
+            // Through an RSP-based operand the pushed literal would shift what the jump reads.
+            (Code::Jmp_rm64, Some((Slot::Literal(_), below)))
+                if instruction.memory_base().full_register() != Register::RSP =>
+            {
+                below
+            }
             _ => state.stack.as_slice(),
         };
         if stack.iter().all(|slot| *slot == Slot::Game) {
@@ -557,7 +592,7 @@ impl Walk<'_> {
         let own = |slot| if game { Slot::Game } else { slot };
         let names_rsp = matches!(instruction.code(), Code::Push_r64 | Code::Pop_r64)
             && instruction.op0_register() == Register::RSP;
-        if names_rsp && !game {
+        if names_rsp {
             return Err(ProofError::OutsideFrame);
         }
         match instruction.code() {

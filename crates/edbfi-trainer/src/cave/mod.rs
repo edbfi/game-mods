@@ -453,6 +453,10 @@ pub fn allocation_len(profile: &Profile) -> u64 {
 /// Builds every hook of `profile` for an image at `image`, caves from `allocation` and the control word at
 /// `controls`.
 ///
+/// The control word must lie at least 64 KiB from every address a cave holds as a constant: the image
+/// globals the hooks read, the continuations and the call targets. The proof refuses any other constant
+/// that near it, so a closer control word fails here.
+///
 /// # Errors
 ///
 /// The first [`HookError`] of any site: an unaligned allocation or control word, an address that does not

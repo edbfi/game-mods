@@ -304,6 +304,12 @@ fn originals_that_are_not_the_reviewed_shape_are_refused() {
             crate::bytes!("41 09 80 78 04 00 00"),
             GateEffect::SkipMedkitAnd,
         ),
+        // A call through the stack: pushing the return address first would move what it reads.
+        gate(
+            0x1000,
+            crate::bytes!("FF 94 24 20 00 00 00"),
+            GateEffect::SkipMaskCall,
+        ),
         // A RIP-relative indirect call.
         gate(
             0x1000,
@@ -986,6 +992,25 @@ fn proof_keeps_game_instructions_on_the_game_state() {
         refusal::<NoCaveReturn>(through_register),
         ProofError::UnsupportedFlow
     );
+    let through_stack = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        unwind(e)?;
+        let ret = e.literal(NEXT.get());
+        e.asm().push(qword_ptr(ret))?;
+        e.game(|asm| asm.jmp(qword_ptr(rsp + 0x20)))
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(through_stack),
+        ProofError::GameStackHidden
+    );
+    // A game instruction that moves RSP out from under the walk.
+    let moved = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        unwind(e)?;
+        e.game(|asm| asm.lea(rsp, ptr(rsp + 8)))?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(moved), ProofError::OutsideFrame);
 }
 
 #[test]
@@ -1051,7 +1076,21 @@ fn proof_refuses_other_ways_to_reach_the_control_word() {
         unwind(e)?;
         e.jump(NEXT)
     });
-    assert_eq!(refusal::<NoCaveReturn>(segment), ProofError::ControlAccess);
+    assert_eq!(
+        refusal::<NoCaveReturn>(segment),
+        ProofError::SegmentOverride
+    );
+    let segment_literal = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        unwind(e)?;
+        let target = e.literal(NEXT.get());
+        e.asm().jmp(qword_ptr(target).gs())?;
+        Ok(())
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(segment_literal),
+        ProofError::SegmentOverride
+    );
 }
 
 type Emit = fn(&mut Emitter) -> Result<(), Fault>;
