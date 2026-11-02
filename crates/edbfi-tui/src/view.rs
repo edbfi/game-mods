@@ -932,7 +932,14 @@ pub(crate) fn plain_card(app: &App<'_>) -> Option<Vec<String>> {
                     .filter(|para| !para.text.is_empty())
                     .map(|para| format!("  {}", para.text)),
             )
-            .chain((!content.actions.is_empty()).then(|| format!("  Keys: {}", content.actions)))
+            // A lost console reads no keys; only Ctrl+C still reaches the trainer.
+            .chain((!content.actions.is_empty()).then(|| {
+                if app.plain() {
+                    "  Ctrl+C quits.".to_owned()
+                } else {
+                    format!("  Keys: {}", content.actions)
+                }
+            }))
             .collect()
     })
 }
@@ -1308,7 +1315,7 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
             chord,
             holder,
         } => {
-            let old = binding_text(app.model.settings.bindings.get(*target));
+            let old = app.model.settings.bindings.get(*target);
             let paras = vec![
                 Para::new(
                     format!("{chord} already belongs to {}.", app.target_label(*holder)),
@@ -1320,10 +1327,10 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
                         "Swap them? {} gets {chord}; {} gets {}.",
                         app.target_label(*target),
                         app.target_label(*holder),
-                        if old == "No hotkey" {
+                        if old.0.is_none() {
                             "no hotkey".to_owned()
                         } else {
-                            old
+                            binding_text(old)
                         }
                     ),
                     Tone::Text,

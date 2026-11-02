@@ -164,7 +164,8 @@ impl SettingsProblem {
 pub enum RuntimeEvent {
     /// The runtime moved to a new phase.
     Phase(Phase),
-    /// A publication completed.
+    /// A publication completed. The runtime sends exactly one per [`RuntimeCommand::Publish`] it carries out,
+    /// in the order it received them; the dashboard matches each to its publication by that order.
     Ack(Ack),
     /// Something was recorded in the journal.
     Journal(Entry),

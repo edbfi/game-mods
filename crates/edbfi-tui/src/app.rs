@@ -1310,11 +1310,8 @@ impl<'p> App<'p> {
         };
         let bits = self.profile.toggle(id).controls.word();
         let effective = self.profile.effective(&self.desired()).bits().word();
-        let wanted = if bits == 0 {
-            self.model.master == Master::Active && self.model.settings.selection.contains(id)
-        } else {
-            effective & bits == bits
-        };
+        // Validation gives every toggle at least one bit, so this is never vacuously true.
+        let wanted = effective & bits == bits;
         let shown = matches!(self.status(row), Status::On | Status::Via);
         wanted != shown
     }

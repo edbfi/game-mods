@@ -209,16 +209,12 @@ fn quitting_while_attached_confirms_and_defaults_to_stay() {
         [Effect::Runtime(RuntimeCommand::Quit), Effect::Title]
     );
     assert!(app.update(letter(b'Q')).is_empty(), "already quitting");
-    let mut waiting = app_waiting_quit();
+    let mut waiting = self::app(Phase::Waiting);
     assert!(
         waiting
             .update(press(ConsoleKey::Escape))
             .contains(&Effect::Runtime(RuntimeCommand::Quit))
     );
-}
-
-fn app_waiting_quit() -> App<'static> {
-    app(Phase::Waiting)
 }
 
 #[test]
@@ -511,7 +507,7 @@ fn a_plain_console_quits_on_the_first_interrupt_and_nothing_publishes_after() {
     app.update(Msg::ConsoleLost);
     let effects = app.update(Msg::Input(Command::Interrupt));
     assert!(effects.contains(&Effect::Runtime(RuntimeCommand::Quit)));
-    let mut waiting = app_waiting_quit();
+    let mut waiting = self::app(Phase::Waiting);
     waiting.update(letter(b'Q'));
     let effects = waiting.update(Msg::Runtime(RuntimeEvent::Phase(attached())));
     assert_eq!(
@@ -650,7 +646,8 @@ fn a_selection_change_that_keeps_the_mask_updates_the_acknowledged_selection() {
     app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
     app.update(Msg::Input(Command::Hotkey(target("red"))));
     assert_eq!(app.status(id("red")), Status::Via);
-    assert!(!app.pending(id("red"))); // Red, then the global without its acknowledgement, then red off: the publication in flight now stands
+    assert!(!app.pending(id("red")));
+    // Red, then the global without its acknowledgement, then red off: the publication in flight now stands
     // for the selection without red, so its acknowledgement shows red via the global.
     let mut app = live();
     let effects = app.update(Msg::Input(Command::Hotkey(target("red"))));
@@ -662,4 +659,24 @@ fn a_selection_change_that_keeps_the_mask_updates_the_acknowledged_selection() {
     assert!(!app.pending(id("red")));
     ack(&mut app, 41, global);
     assert_eq!(app.status(id("red")), Status::Via);
+}
+
+#[test]
+fn a_plain_card_offers_only_the_key_that_still_works() {
+    let profile = profile();
+    let error = Settings::parse(&profile, b"schema = 99\n").unwrap_err();
+    let mut app = app(Phase::Settings(SettingsProblem::Invalid {
+        path: PathBuf::from("settings.toml"),
+        error,
+    }));
+    app.update(Msg::ConsoleLost);
+    let lines = crate::plain::Report::new().lines(&app);
+    assert!(
+        lines.iter().any(|line| line == "  Ctrl+C quits."),
+        "{lines:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("Keys:")),
+        "{lines:?}"
+    );
 }
