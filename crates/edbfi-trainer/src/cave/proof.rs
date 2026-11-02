@@ -488,6 +488,10 @@ impl Walk<'_> {
                 if bytes == 0 || !bytes.is_multiple_of(8) || bytes > 0x100 {
                     return Err(ProofError::UnsupportedStack);
                 }
+                // The adjustment changes the arithmetic flags.
+                if !game && !state.flags_saved() {
+                    return Err(ProofError::UnsavedFlags);
+                }
                 let slot = own(Slot::Frame);
                 for _ in 0..bytes / 8 {
                     if matches!(
@@ -544,6 +548,9 @@ impl Walk<'_> {
         }
         for memory in info.used_memory() {
             if memory.base() == Register::RSP {
+                if memory.index() != Register::None {
+                    return Err(ProofError::OutsideFrame);
+                }
                 let start = memory.displacement();
                 let end = start.checked_add(memory.memory_size().size() as u64);
                 let inside = end.is_some_and(|end| end <= state.frame());

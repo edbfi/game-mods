@@ -616,6 +616,26 @@ fn proof_bounds_stack_and_memory() {
         e.jump(NEXT)
     });
     assert_eq!(refusal::<NoCaveReturn>(odd), ProofError::UnsupportedStack);
+    let flags_after_unwind = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        unwind(e)?;
+        e.asm().sub(rsp, 8)?;
+        e.asm().add(rsp, 8)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(flags_after_unwind),
+        ProofError::UnsavedFlags
+    );
+    let indexed = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        e.asm().sub(rsp, 0x10)?;
+        e.asm().mov(qword_ptr(rsp + rbx), rax)?;
+        e.asm().add(rsp, 0x10)?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(indexed), ProofError::OutsideFrame);
     let moved = finish(vec![Exit::Jump(NEXT)], |e| {
         snapshot(e)?;
         e.asm().mov(rsp, rax)?;
