@@ -90,7 +90,7 @@ const CONTROLS_CLEARANCE: u64 = 1 << 32;
 /// Most bases tried for the control word.
 const CONTROLS_TRIES: usize = 64;
 
-/// Maps the control word at the first free granularity boundary above 4 GiB and at least 4 GiB from the
+/// Maps the control word at the first free granularity boundary above 8 GiB and at least 4 GiB from the
 /// image, so no constant a cave holds lies near it. Left to choose, Windows may put the view low, beside the
 /// class masks and float bits the caves compare against, and their proof would refuse it.
 fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, PrepareError> {

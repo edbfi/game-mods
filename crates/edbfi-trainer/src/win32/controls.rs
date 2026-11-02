@@ -128,7 +128,7 @@ impl Mapping {
         // however the mapping moves; it is freed only after the bridge has no reader of it.
         let lease = NonNull::from(Box::leak(Box::new(Lease::new(word, completion))));
         let free = || {
-            // SAFETY: `lease` came from `Box::leak` above and was never published, so nothing else holds it.
+            // SAFETY: `lease` came from `Box::leak` above, and is either unpublished or retired with no reader.
             drop(unsafe { Box::from_raw(lease.as_ptr()) });
         };
         // With the shutdown bridge installed, every session must be reachable from it, one at a time. The slot
