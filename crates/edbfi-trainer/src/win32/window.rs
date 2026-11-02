@@ -11,7 +11,7 @@
 
 use std::sync::OnceLock;
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows_sys::Win32::Foundation::{ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG, RegisterClassW,
@@ -22,7 +22,7 @@ use crate::patch::OsError;
 
 use super::bridge::{self, Bridge};
 use super::process::none;
-use super::{last_error, wide};
+use super::{last_code, last_error, wide};
 
 /// The window, once created, for tests to send messages to.
 static WINDOW: OnceLock<usize> = OnceLock::new();
@@ -103,7 +103,9 @@ fn create() -> Result<HWND, OsError> {
         lpszClassName: class.as_ptr(),
     };
     // SAFETY: `definition` is fully initialised and its class name outlives the call.
-    if unsafe { RegisterClassW(&raw const definition) } == 0 {
+    let registered = unsafe { RegisterClassW(&raw const definition) } != 0;
+    // A class left from an earlier, failed attempt is reused.
+    if !registered && last_code() != ERROR_CLASS_ALREADY_EXISTS {
         return Err(last_error("RegisterClassW"));
     }
     // SAFETY: the class is registered; a hidden, parentless (top-level) window with no menu or data.

@@ -139,13 +139,13 @@ pub(crate) fn get() -> Option<&'static Bridge> {
 }
 
 /// Puts `lease` in the bridge's slot, if a bridge is installed and no other session holds it.
-pub(crate) fn publish(lease: &Lease) -> bool {
+pub(crate) fn publish(lease: NonNull<Lease>) -> bool {
     get().is_some_and(|bridge| {
         bridge
             .slot
             .compare_exchange(
                 ptr::null_mut(),
-                ptr::from_ref(lease).cast_mut(),
+                lease.as_ptr(),
                 Ordering::SeqCst,
                 Ordering::SeqCst,
             )
@@ -154,10 +154,10 @@ pub(crate) fn publish(lease: &Lease) -> bool {
 }
 
 /// Takes `lease` out of the slot and waits until no callback is using it.
-pub(crate) fn retire(lease: &Lease) {
+pub(crate) fn retire(lease: NonNull<Lease>) {
     if let Some(bridge) = get() {
         let _taken = bridge.slot.compare_exchange(
-            ptr::from_ref(lease).cast_mut(),
+            lease.as_ptr(),
             ptr::null_mut(),
             Ordering::SeqCst,
             Ordering::SeqCst,

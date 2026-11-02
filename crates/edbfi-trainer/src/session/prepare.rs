@@ -100,7 +100,11 @@ fn place(game: &dyn Game, reach: Reach) -> Result<Box<dyn Allocation>, PrepareEr
 
 /// The free regions overlapping the allocation bases `reach` allows, from one walk of the address space.
 pub(super) fn free_regions(game: &dyn Game, reach: Reach) -> Result<Vec<FreeRegion>, PrepareError> {
-    let end = reach.highest().get().saturating_add(reach.size());
+    let end = reach
+        .highest()
+        .get()
+        .saturating_add(reach.size())
+        .min(game.highest_address().saturating_add(1));
     let mut cursor = reach.lowest().get();
     let mut free = Vec::new();
     for _ in 0..MAX_REGIONS {

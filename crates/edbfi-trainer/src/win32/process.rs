@@ -383,11 +383,15 @@ impl Game for WinGame {
     }
 
     fn granularity(&self) -> u64 {
-        // SAFETY: plain data, valid when zeroed.
-        let mut info: SYSTEM_INFO = unsafe { zeroed() };
-        // SAFETY: `info` is writable.
-        unsafe { GetSystemInfo(&raw mut info) };
-        u64::from(info.dwAllocationGranularity)
+        u64::from(system().dwAllocationGranularity)
+    }
+
+    fn highest_address(&self) -> u64 {
+        system().lpMaximumApplicationAddress as usize as u64
+    }
+
+    fn interrupted(&self) -> bool {
+        super::bridge::get().is_some_and(super::bridge::Bridge::requested)
     }
 
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError> {
@@ -422,6 +426,15 @@ impl Game for WinGame {
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {
         Ok(Box::new(super::owner::claim(slug, self.pid)?))
     }
+}
+
+/// This machine's memory layout.
+fn system() -> SYSTEM_INFO {
+    // SAFETY: plain data, valid when zeroed.
+    let mut info: SYSTEM_INFO = unsafe { zeroed() };
+    // SAFETY: `info` is writable.
+    unsafe { GetSystemInfo(&raw mut info) };
+    info
 }
 
 /// A null pointer, for optional arguments.

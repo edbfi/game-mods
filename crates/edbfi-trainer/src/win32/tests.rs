@@ -25,8 +25,8 @@ use crate::profile::{
     SiteId, TextSection, ValidProfile,
 };
 use crate::session::{
-    Candidate, Installed, ReadOnly, Session, StopOutcome, TextCheck, TrainerError, VerifyRestore,
-    Write, identify, request_stop,
+    Candidate, Installed, ReadOnly, SelectError, Session, StopOutcome, TextCheck, TrainerError,
+    VerifyRestore, Write, identify, request_stop, select,
 };
 
 use super::bridge;
@@ -476,4 +476,36 @@ fn a_panic_zeroes_the_controls_at_once() {
     let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
     assert_eq!(dummy.ask("alpha"), "alpha 0");
     session.restore(VerifyRestore::Sites).unwrap();
+}
+
+#[test]
+fn discovery_finds_one_game_refuses_several_and_stops_every_trainer() {
+    let _serial = serial();
+    let first = Dummy::start();
+    let profile = profile(&first);
+    let game = profile.profile();
+    assert_eq!(select(game, None), Ok(first.pid()));
+    assert_eq!(select(game, Some(first.pid())), Ok(first.pid()));
+    assert_eq!(
+        select(game, Some(std::process::id())),
+        Err(SelectError::NotGame(std::process::id()))
+    );
+    let second = Dummy::start();
+    assert_eq!(select(game, None), Err(SelectError::Ambiguous(2)));
+    assert_eq!(select(game, Some(second.pid())), Ok(second.pid()));
+    // One of the two has a trainer; asking every game's trainer to stop reaches only that one.
+    let session = attach(&second, &profile);
+    let mut outcomes = request_stop(game, None).unwrap();
+    outcomes.sort_by_key(|&(pid, _)| pid != second.pid());
+    assert_eq!(
+        outcomes,
+        [
+            (second.pid(), StopOutcome::Requested),
+            (first.pid(), StopOutcome::NoTrainer)
+        ]
+    );
+    assert!(session.stop_requested());
+    session.restore(VerifyRestore::Sites).unwrap();
+    drop((first, second));
+    assert_eq!(select(game, None), Err(SelectError::NotRunning));
 }

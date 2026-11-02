@@ -77,7 +77,7 @@ pub(crate) struct Mapping {
     _section: OwnedHandle,
     word: NonNull<AtomicU32>,
     remote: Va,
-    lease: Box<Lease>,
+    lease: NonNull<Lease>,
     registered: bool,
 }
 
@@ -115,6 +115,30 @@ impl Mapping {
         };
         // SAFETY: the view is page-aligned, so 4-byte aligned, and stays mapped for this function.
         unsafe { word.as_ref() }.store(0, Ordering::SeqCst);
+        // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
+        let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
+        let completion = match owned(raw, "CreateEventW") {
+            Ok(event) => event,
+            Err(error) => {
+                unmap();
+                return Err(error);
+            }
+        };
+        // The lease is owned through a raw pointer from here on, so the pointer the bridge holds stays valid
+        // however the mapping moves; it is freed only after the bridge has no reader of it.
+        let lease = NonNull::from(Box::leak(Box::new(Lease::new(word, completion))));
+        let free = || {
+            // SAFETY: `lease` came from `Box::leak` above and was never published, so nothing else holds it.
+            drop(unsafe { Box::from_raw(lease.as_ptr()) });
+        };
+        // With the shutdown bridge installed, every session must be reachable from it, one at a time. The slot
+        // is taken before the game gets a view, so a refusal leaves nothing in the game.
+        let registered = bridge::publish(lease);
+        if !registered && bridge::get().is_some() {
+            free();
+            unmap();
+            return Err(OsError::new("MapViewOfFileNuma2", ERROR_BUSY));
+        }
         // SAFETY: `map` is `MapViewOfFileNuma2`; `section` and `process` are live handles.
         let remote = unsafe {
             map(
@@ -130,24 +154,12 @@ impl Mapping {
         };
         if remote.is_null() {
             let error = last_error("MapViewOfFileNuma2");
+            if registered {
+                bridge::retire(lease);
+            }
+            free();
             unmap();
             return Err(error);
-        }
-        // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
-        let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
-        let completion = match owned(raw, "CreateEventW") {
-            Ok(event) => event,
-            Err(error) => {
-                unmap();
-                return Err(error);
-            }
-        };
-        let lease = Box::new(Lease::new(word, completion));
-        // With the shutdown bridge installed, every session must be reachable from it; one at a time.
-        let registered = bridge::publish(&lease);
-        if !registered && bridge::get().is_some() {
-            unmap();
-            return Err(OsError::new("MapViewOfFileNuma2", ERROR_BUSY));
         }
         Ok(Self {
             _section: section,
@@ -156,6 +168,11 @@ impl Mapping {
             lease,
             registered,
         })
+    }
+
+    fn lease(&self) -> &Lease {
+        // SAFETY: the lease lives until `drop` frees it.
+        unsafe { self.lease.as_ref() }
     }
 
     fn word(&self) -> &AtomicU32 {
@@ -175,16 +192,20 @@ impl Controls for Mapping {
 
     fn finished(&self) {
         // SAFETY: the completion event is a live event handle owned by the lease.
-        let _set = unsafe { SetEvent(self.lease.completion()) };
+        let _set = unsafe { SetEvent(self.lease().completion()) };
     }
 }
 
 impl Drop for Mapping {
     fn drop(&mut self) {
         self.word().store(0, Ordering::SeqCst);
+        // Nothing more will be restored: release any close notice waiting on this session.
+        self.finished();
         if self.registered {
-            bridge::retire(&self.lease);
+            bridge::retire(self.lease);
         }
+        // SAFETY: the lease came from `Box::leak` in `new`, and no callback can reach it any more.
+        drop(unsafe { Box::from_raw(self.lease.as_ptr()) });
         let view = MEMORY_MAPPED_VIEW_ADDRESS {
             Value: self.word.as_ptr().cast(),
         };

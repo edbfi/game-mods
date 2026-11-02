@@ -79,6 +79,10 @@ pub(crate) trait Game: Process {
     fn wait(&self, timeout: Duration);
     /// The allocation granularity.
     fn granularity(&self) -> u64;
+    /// The highest address a process can use.
+    fn highest_address(&self) -> u64;
+    /// Whether this trainer was asked to shut down, by a closing window, logoff or Ctrl+C.
+    fn interrupted(&self) -> bool;
     /// Reserves and commits `len` read-write bytes at exactly `at`.
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError>;
     /// Maps a zeroed control word into the game.
@@ -481,6 +485,8 @@ pub enum SkipReason {
     Incomplete,
     /// The code section could not be read.
     Unreadable,
+    /// No site was ever written, so there was nothing to restore or check.
+    Untouched,
 }
 
 /// A completed restoration.
@@ -536,6 +542,9 @@ fn frozen_change(
             Ok(Err(failure)) => {
                 let transient = failure.error.transient();
                 hooks.stuck.absorb(failure.stuck);
+                if game.exited() && hooks.stuck.is_empty() {
+                    return not_held(attempts, TrainerError::Exited);
+                }
                 if !transient || attempts >= FREEZE_ATTEMPTS {
                     return not_held(attempts, TrainerError::Freeze(failure.error));
                 }
@@ -556,16 +565,33 @@ fn frozen_change(
         result.unwrap_or(Err(TrainerError::Panicked))
     };
     let mut outcome = caught(catch_unwind(AssertUnwindSafe(|| change(&frozen, hooks))));
-    let mut tries = 0;
-    while outcome.is_err() && tries < ROLLBACK_ATTEMPTS && !game.exited() {
-        tries += 1;
+    let mut last = None;
+    for attempt in 0..ROLLBACK_ATTEMPTS {
+        if outcome.is_ok() || hooks.journal.is_clean() || game.exited() {
+            break;
+        }
+        if attempt > 0 {
+            game.wait(RETRY_WAIT);
+        }
         match caught(catch_unwind(AssertUnwindSafe(|| recover(&frozen, hooks)))) {
             Ok(()) => {
-                outcome = settle(outcome);
+                last = None;
                 break;
             }
-            Err(_) => game.wait(RETRY_WAIT),
+            Err(error) => last = Some(error),
         }
+    }
+    if outcome.is_err() && hooks.journal.is_clean() {
+        outcome = settle(outcome);
+    } else if let (Err(TrainerError::Panicked), Some(left @ TrainerError::Restore(_))) =
+        (&outcome, last)
+    {
+        // A panic whose rollback failed too leaves the game holding the trainer's code: say that.
+        outcome = Err(left);
+    }
+    if outcome.is_err() && game.exited() {
+        // A game that died mid-change cannot be read or written; nothing of it remains to restore.
+        outcome = Err(TrainerError::Exited);
     }
     let text = match (verify, &outcome) {
         (VerifyRestore::Sites, _) => TextCheck::Skipped(SkipReason::NotRequested),
@@ -624,7 +650,7 @@ impl Session<Prepared> {
         let changed = frozen_change(
             &self.core,
             &mut hooks,
-            &|| owner.stop_requested(),
+            &|| owner.stop_requested() || self.core.game.interrupted(),
             &mut |frozen, hooks| {
                 let Hooks {
                     journal,
@@ -759,7 +785,10 @@ impl Session<Recovery> {
                     }))
                 },
                 timing: Timing::default(),
-                text: TextCheck::Skipped(SkipReason::NotRequested),
+                text: TextCheck::Skipped(match verify {
+                    VerifyRestore::Sites => SkipReason::NotRequested,
+                    VerifyRestore::Text => SkipReason::Untouched,
+                }),
             }
         } else {
             let restore: Step<'_> = &mut |frozen, hooks| {

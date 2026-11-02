@@ -508,3 +508,24 @@ fn an_install_rolled_back_on_a_retry_reports_a_clean_rollback() {
     assert_eq!(failure.error.recovery(), RecoveryAction::Retry);
     assert!(failure.session.hooked().is_empty());
 }
+
+#[test]
+fn a_panic_whose_rollback_fails_reports_the_hooks_left() {
+    let (game, profile) = FakeGame::new();
+    let session = prepared(&game, &profile);
+    // The second jump's write panics after the first jump went in; every rollback write then fails.
+    game.fake.fault_next("write", 1, Fault::Panic);
+    for nth in 2..64 {
+        game.fake.fault_next("write", nth, Fault::Fail);
+    }
+    let failure = session.install().unwrap_err();
+    assert!(
+        matches!(failure.error, TrainerError::Restore(_)),
+        "{}",
+        failure.error
+    );
+    assert_eq!(failure.error.recovery(), RecoveryAction::RestartGame);
+    assert_eq!(failure.session.hooked(), [SiteId(1)]);
+    game.fake.clear_faults();
+    failure.session.restore(VerifyRestore::Sites).unwrap();
+}

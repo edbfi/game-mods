@@ -228,6 +228,14 @@ impl Game for FakeGame {
         0x1_0000
     }
 
+    fn highest_address(&self) -> u64 {
+        (1 << 47) - 1
+    }
+
+    fn interrupted(&self) -> bool {
+        false
+    }
+
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError> {
         if self.fake.enter("allocate").is_some() {
             // An injected failure is a lost race: someone else took the base.
