@@ -1,0 +1,35 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightGreen bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+e fg=Yellow bg=Reset mod=BOLD
+ Metro 2033 Redux     ATTACHED · ACTIVE |
+abbbbbbbbbbbbbbbbaaaaaccccccccdddcccccca
+ [Cheats] No reload by weapon Options   |
+abbbbbbbbdddddddddddddddddddddddddddddaa
+ ►●Unlimited ammo              ON       |
+aebeeeeeeeeeeeeeeaaaaaaaaaaaaaaccaaaaaaa
+   Unlimited throwables        OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
+   Unlimited medkits           OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
+   Unlimited filters           OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
+   Indestructible mask         OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
+  ●No reload, all weapons      ON       |
+aabaaaaaaaaaaaaaaaaaaaaaaaaaaaaccaaaaaaa
+   ▼ 2 more                             |
+aaaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ Alt+F1 · S1 S2 · gameplay partial      |
+aaaaaaadddddddddddddddddddddddddddaaaaaa
+ Tab section  Arrows move  R bind       |
+addddddddddddddddddddddddddddddddaaaaaaa
+ Space toggle  P pause  ? help  Q quit  |
+adddddddddddddddddddddddddddddddddddddaa

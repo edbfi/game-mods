@@ -1,0 +1,34 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightRed bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+ Metro 2033 Redux       NEEDS ATTENTION |
+abbbbbbbbbbbbbbbbaaaaaaaccccccccccccccca
+ ┌─ Needs attention ──────────────────┐ |
+adddcccccccccccccccdddddddddddddddddddda
+ │ Two copies of metro.exe are        │ |
+adacccccccccccccccccccccccccccaaaaaaaada
+ │ running (PIDs 4120 and 7788).      │ |
+adacccccccccccccccccccccccccccccaaaaaada
+ │ Close the extra copies of the game │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ so only one runs.                  │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │                                    │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Log:                               │ |
+adaddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ C:\Users\Player\AppData\Local\edbf │ |
+adaddddddddddddddddddddddddddddddddddada
+ │ ▼ 2 more                           │ |
+adaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Enter retry  Q quit                │ |
+adabbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaada
+ └────────────────────────────────────┘ |
+adddddddddddddddddddddddddddddddddddddda

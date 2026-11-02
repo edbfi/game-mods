@@ -1,0 +1,73 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+100x30
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=DarkGray bg=Reset mod=NONE
+d fg=LightGreen bg=Reset mod=NONE
+e fg=Cyan bg=Reset mod=NONE
+f fg=LightBlue bg=Reset mod=NONE
+g fg=LightYellow bg=Reset mod=NONE
+ edbfi · Metro 2033 Redux                                         ATTACHED · ACTIVE · Alt+F8 pauses |
+abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddcccddddddcccccccccccccccca
+ ─────────────────┌─ Help ───────────────────────────────────────────────────────┐───────────────── |
+accccccccccccccccccccbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
+  TRAINER         │ Keys                                                         │                  |
+aabbbbbbbaaaaaaaaacabbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaa
+ ●All cheats      │ Up/Down       move                                           │         VIA      |
+abaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+                  │ Tab, Left/Right  switch section                              │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  CHEATS          │ Home/End, PgUp/PgDn  jump                                    │         VIA      |
+aabbbbbbaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Unlimited ammo  │ Space/Enter   toggle the row                                 │         VIA      |
+abaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited throwa│ R             set the row's hotkey                           │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited medkit│ P             pause or resume every cheat                    │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited filter│ ? or H        this help                                      │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Indestructible m│ Q/Esc         quit                                           │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●No reload, all w│ Hotkeys work in the game and here.                           │         VIA      |
+abaaaaaaaaaaaaaaaacaccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  God mode        │                                                              │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited flashl│ Status                                                       │         VIA      |
+aaaaaaaaaaaaaaaaaacabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+                  │ ON      applied in the game                                  │         VIA      |
+aaaaaaaaaaaaaaaaaacadddddddddddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  OPTIONS         │ VIA     applied through another selected cheat               │         VIA      |
+aabbbbbbbaaaaaaaaacaeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Keep Hellsing pr│ PAUSED  selected; every cheat is paused                      │         VIA      |
+abaaaaaaaaaaaaaaaacafffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Chimes          │ ARMED   selected; applies when the game connects             │         VIA      |
+abaaaaaaaaaaaaaaaacaggggggggggggggggggggggggggggggggggggggggggggggggaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Start paused    │ OFF     not applied                                          │         VIA      |
+aaaaaaaaaaaaaaaaaacacccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+                  │                                                              │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited ammo  │ Files                                                        │         VIA      |
+aabbbbbbbbbbbbbbaacabbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Keeps reserve am│ Settings:                                                    │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Alt+F1 · S1 S2 ·│ C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\train │         VIA      |
+aaaaaaaacccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+                  │ er\settings.toml                                             │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Settings …ro-203│ Log:                                                         │         VIA      |
+aaccccccccaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Log      …etro-2│ ▼ 2 more                                                     │         ON       |
+aacccaaaaaaaaaaaaacaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaddaaaaaaa
+  Attached in 42 m│                                                              │         VIA      |
+aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ─────────────────│ Esc close  Up/Down scroll                                    │───────────────── |
+accccccccccccccccccabbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccccccccccccccccca
+                  └──────────────────────────────────────────────────────────────┘                  |
+aaaaaaaaaaaaaaaaaaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaa
+ Up/Down move  Tab section  Space toggle  R bind  P pause  ? help  Q quit                           |
+accccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaa

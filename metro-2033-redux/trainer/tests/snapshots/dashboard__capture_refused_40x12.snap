@@ -1,0 +1,35 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightGreen bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+e fg=LightRed bg=Reset mod=NONE
+ Metro 2033 Redux     ATTACHED · ACTIVE |
+abbbbbbbbbbbbbbbbaaaaaccccccccdddcccccca
+┌─ Set a hotkey ───────────────────────┐|
+dddbbbbbbbbbbbbddddddddddddddddddddddddd
+│ G can't be used: it would fire while │|
+daeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeead
+│ typing; add Ctrl or Alt              │|
+daeeeeeeeeeeeeeeeeeeeeeeeaaaaaaaaaaaaaad
+│ Unlimited ammo: Alt+F1               │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Press the new hotkey. Letters and    │|
+dadddddddddddddddddddddddddddddddddaaaad
+│ digits need Ctrl or Alt; F1-F24 and  │|
+dadddddddddddddddddddddddddddddddddddaad
+│ Num0-Num9 work alone.                │|
+dadddddddddddddddddddddaaaaaaaaaaaaaaaad
+│                                      │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Esc cancel  Backspace remove         │|
+dabbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaad
+└──────────────────────────────────────┘|
+dddddddddddddddddddddddddddddddddddddddd
+ Space toggle  P pause  ? help  Q quit  |
+adddddddddddddddddddddddddddddddddddddaa

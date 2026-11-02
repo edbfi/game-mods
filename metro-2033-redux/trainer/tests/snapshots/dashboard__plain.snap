@@ -1,0 +1,111 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "format!(\"{first}\\n---\\n{second}\\n---\\n{third}\")"
+---
+edbfi - Metro 2033 Redux trainer
+State: WAITING for metro.exe
+Settings: C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\trainer\settings.toml
+Log: C:\Users\Player\AppData\Local\edbfi\metro-2033-redux\trainer\trainer.log
+Cheats:
+  * Unlimited ammo          Alt+F1        ARMED
+    Unlimited throwables    Alt+F2        OFF
+    Unlimited medkits       Alt+F3        OFF
+    Unlimited filters       Alt+F6        OFF
+    Indestructible mask     Alt+F5        OFF
+  * No reload, all weapons  Alt+1         ARMED
+    God mode                Alt+2         OFF
+    Unlimited flashlight    Alt+3         OFF
+No reload by weapon:
+    Kalash                                OFF
+    aksu                                  OFF
+    rpk                                   OFF
+    ashot                                 OFF
+    vsv                                   OFF
+    ventil                                OFF
+    padonag                               OFF
+    preved                                OFF
+    vyhlop                                OFF
+    saiga                                 OFF
+    tumak                                 OFF
+    2012                                  OFF
+    gatling                               OFF
+    ubludok                               OFF
+    Shambler                              OFF
+    bigun                                 OFF
+    duplet                                OFF
+    Revolver                              OFF
+    abzac                                 OFF
+    hellbreath                            OFF
+    hellshock                             OFF
+    tihar                                 OFF
+  * Hellsing                              ARMED
+    flamethrower                          OFF
+Options:
+    All cheats              Alt+F8        INACTIVE
+  * Keep Hellsing pressure                ON
+  * Chimes                                ON
+    Start paused                          OFF
+---
+State: ATTACHED - PAUSED - Alt+F8 resumes
+Unlimited ammo: PAUSED (Alt+F1)
+No reload, all weapons: PAUSED (Alt+1)
+Kalash: PAUSED
+aksu: PAUSED
+rpk: PAUSED
+ashot: PAUSED
+vsv: PAUSED
+ventil: PAUSED
+padonag: PAUSED
+preved: PAUSED
+vyhlop: PAUSED
+saiga: PAUSED
+tumak: PAUSED
+2012: PAUSED
+gatling: PAUSED
+ubludok: PAUSED
+Shambler: PAUSED
+bigun: PAUSED
+duplet: PAUSED
+Revolver: PAUSED
+abzac: PAUSED
+hellbreath: PAUSED
+hellshock: PAUSED
+tihar: PAUSED
+Hellsing: PAUSED
+flamethrower: PAUSED
+All cheats: PAUSED (Alt+F8)
+---
+State: SETTINGS
+Settings need attention
+  line 4, column 16: string values must be quoted, expected literal string
+  Fix the reported line in the settings file, then reload.
+  D replaces the file with defaults and keeps the old one as a backup. Nothing connects until then.
+  C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\trainer\settings.toml
+  Keys: Enter reload  D defaults  Q quit
+Unlimited ammo: ARMED (Alt+F1)
+No reload, all weapons: ARMED (Alt+1)
+Kalash: OFF
+aksu: OFF
+rpk: OFF
+ashot: OFF
+vsv: OFF
+ventil: OFF
+padonag: OFF
+preved: OFF
+vyhlop: OFF
+saiga: OFF
+tumak: OFF
+2012: OFF
+gatling: OFF
+ubludok: OFF
+Shambler: OFF
+bigun: OFF
+duplet: OFF
+Revolver: OFF
+abzac: OFF
+hellbreath: OFF
+hellshock: OFF
+tihar: OFF
+Hellsing: ARMED
+flamethrower: OFF
+All cheats: INACTIVE (Alt+F8)

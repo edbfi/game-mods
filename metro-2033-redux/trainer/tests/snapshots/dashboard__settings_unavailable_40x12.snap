@@ -1,0 +1,34 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightRed bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+ Metro 2033 Redux              SETTINGS |
+abbbbbbbbbbbbbbbbaaaaaaaaaaaaaacccccccca
+ ┌─ Settings unavailable ─────────────┐ |
+adddccccccccccccccccccccddddddddddddddda
+ │ cannot create                      │ |
+adacccccccccccccaaaaaaaaaaaaaaaaaaaaaada
+ │ C:\Users\Player\AppData\Roaming\ed │ |
+adaccccccccccccccccccccccccccccccccccada
+ │ bfi\metro-2033-redux\trainer\setti │ |
+adaccccccccccccccccccccccccccccccccccada
+ │ ngs.toml: Access is denied. (os    │ |
+adacccccccccccccccccccccccccccccccaaaada
+ │ error 5)                           │ |
+adaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Try again.                         │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ No settings file exists yet, so S  │ |
+adadddddddddddddddddddddddddddddddddaada
+ │ ▼ 3 more                           │ |
+adaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Enter retry  S unsaved  Q quit     │ |
+adabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaada
+ └────────────────────────────────────┘ |
+adddddddddddddddddddddddddddddddddddddda

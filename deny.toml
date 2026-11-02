@@ -10,6 +10,11 @@ unused-allowed-license = "allow"
 confidence-threshold = 0.9
 private = { ignore = true }
 
+# hashbrown's default hasher, pulled in by ratatui.
+[[licenses.exceptions]]
+crate = "foldhash"
+allow = ["Zlib"]
+
 # The workspace never depends on these directly. `wrappers` lists the only crates allowed to pull one in.
 [bans]
 multiple-versions = "deny"
@@ -28,6 +33,8 @@ deny = [
     { crate = "chrono", wrappers = [] },
     { crate = "tokio", wrappers = [] },
 ]
+# Build-time only: ratatui's derive_more and strum macros still use syn 2, thiserror uses syn 3.
+skip = [{ crate = "syn@2.0.119", reason = "proc-macro dependency of ratatui's derive_more and strum" }]
 
 [sources]
 unknown-registry = "deny"

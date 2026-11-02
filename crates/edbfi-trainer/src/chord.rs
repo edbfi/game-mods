@@ -37,6 +37,14 @@ impl Key {
     pub const PAUSE: Self = Self(0x13);
     /// The Delete key.
     pub const DELETE: Self = Self(0x2E);
+    /// The Page Up key.
+    pub const PAGE_UP: Self = Self(0x21);
+    /// The Page Down key.
+    pub const PAGE_DOWN: Self = Self(0x22);
+    /// The End key.
+    pub const END: Self = Self(0x23);
+    /// The Home key.
+    pub const HOME: Self = Self(0x24);
 
     /// The letter key `A`..=`Z`.
     #[must_use]

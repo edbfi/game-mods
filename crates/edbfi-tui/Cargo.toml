@@ -10,3 +10,12 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+edbfi-trainer.workspace = true
+ratatui.workspace = true
+unicode-width.workspace = true
+
+[dev-dependencies]
+edbfi-trainer = { workspace = true, features = ["simulate"] }
+proptest.workspace = true

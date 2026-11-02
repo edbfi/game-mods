@@ -1,0 +1,34 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightRed bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+ Metro 2033 Redux              SETTINGS |
+abbbbbbbbbbbbbbbbaaaaaaaaaaaaaacccccccca
+ ┌─ Settings need attention ──────────┐ |
+adddcccccccccccccccccccccccdddddddddddda
+ │ line 4, column 16: string values   │ |
+adaccccccccccccccccccccccccccccccccaaada
+ │ must be quoted, expected literal   │ |
+adaccccccccccccccccccccccccccccccccaaada
+ │ string                             │ |
+adaccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Fix the reported line in the       │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ settings file, then reload.        │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ D replaces the file with defaults  │ |
+adadddddddddddddddddddddddddddddddddaada
+ │ and keeps the old one as a backup. │ |
+adaddddddddddddddddddddddddddddddddddada
+ │ ▼ 5 more                           │ |
+adaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Enter reload  D defaults  Q quit   │ |
+adabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaada
+ └────────────────────────────────────┘ |
+adddddddddddddddddddddddddddddddddddddda

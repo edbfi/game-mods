@@ -1,0 +1,34 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightRed bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+ Metro 2033 Redux          NOT RESTORED |
+abbbbbbbbbbbbbbbbaaaaaaaaaacccccccccccca
+ ┌─ Game code not restored ───────────┐ |
+adddccccccccccccccccccccccddddddddddddda
+ │ Restart the game before you play   │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ on. Every cheat is off, but its    │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ code still holds trainer hooks,    │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ and the trainer won't reconnect to │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ it.                                │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Sites still changed: S3 S7         │ |
+adaccccccccccccccccccccccccccaaaaaaaaada
+ │                                    │ |
+adaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ ▼ 7 more                           │ |
+adaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ │ Q quit                             │ |
+adabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaada
+ └────────────────────────────────────┘ |
+adddddddddddddddddddddddddddddddddddddda

@@ -1,3 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+# The trainer reads console input through its Windows input layer; only examples read crossterm events.
+disallowed-methods = [
+    { path = "crossterm::event::read", reason = "console input comes from the trainer's input layer" },
+    { path = "crossterm::event::poll", reason = "console input comes from the trainer's input layer" },
+]
