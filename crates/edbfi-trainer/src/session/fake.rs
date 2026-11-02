@@ -48,6 +48,8 @@ pub(crate) struct Info {
     pub(crate) finished: Cell<u32>,
     pub(crate) controls_live: Cell<bool>,
     pub(crate) stop: Cell<bool>,
+    /// Allocation fails with access denied.
+    pub(crate) deny: Cell<bool>,
     pub(crate) blocks: RefCell<Vec<(u64, Block)>>,
     /// Bases that look free to a walk but fail to allocate, as if another allocation took them.
     pub(crate) taken: RefCell<BTreeSet<u64>>,
@@ -123,6 +125,7 @@ impl FakeGame {
             finished: Cell::new(0),
             controls_live: Cell::new(false),
             stop: Cell::new(false),
+            deny: Cell::new(false),
             blocks: RefCell::new(Vec::new()),
             taken: RefCell::new(BTreeSet::new()),
         };
@@ -226,7 +229,13 @@ impl Game for FakeGame {
     }
 
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError> {
-        self.fail("allocate")?;
+        if self.fake.enter("allocate").is_some() {
+            // An injected failure is a lost race: someone else took the base.
+            return Err(OsError::new("VirtualAllocEx", 487));
+        }
+        if self.info.deny.get() {
+            return Err(OsError::new("VirtualAllocEx", 5));
+        }
         if self.info.taken.borrow().contains(&at.get()) || self.fake.occupied(at.get(), len) {
             return Err(OsError::new("VirtualAllocEx", 487));
         }

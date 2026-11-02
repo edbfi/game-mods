@@ -221,6 +221,20 @@ fn placement_moves_past_taken_bases_and_gives_up_cleanly() {
     assert_eq!(failure.error, TrainerError::Prepare(PrepareError::NoSpace));
     assert_eq!(failure.error.recovery(), RecoveryAction::Retry);
     assert!(game.blocks().is_empty());
+
+    // Any other allocation failure is not a race, so it is reported rather than retried elsewhere.
+    let (game, profile) = FakeGame::new();
+    game.info.deny.set(true);
+    let failure = identified(&game, &profile)
+        .claim()
+        .unwrap()
+        .prepare()
+        .unwrap_err();
+    assert!(matches!(
+        failure.error,
+        TrainerError::Prepare(PrepareError::Allocate(_))
+    ));
+    assert_eq!(game.fake.calls("allocate"), 1);
 }
 
 #[test]
@@ -465,4 +479,32 @@ fn a_thread_that_will_not_resume_blocks_detach_until_it_does() {
     // Once it resumes, the session detaches with the game running.
     failure.session.restore(VerifyRestore::Sites).unwrap();
     assert_eq!(game.fake.suspend_counts(), [0, 0]);
+}
+
+#[test]
+fn a_restore_that_succeeds_on_a_retry_is_a_success() {
+    let (game, profile) = FakeGame::new();
+    let code = game.code();
+    let session = installed(&game, &profile);
+    // The first restoring write fails; the retry inside the same freeze succeeds.
+    game.fake.fault_next("write", 0, Fault::Fail);
+    let detached = session.restore(VerifyRestore::Text).unwrap();
+    assert_eq!(game.code(), code);
+    assert_eq!(detached.report().text, TextCheck::Identical);
+}
+
+#[test]
+fn an_install_rolled_back_on_a_retry_reports_a_clean_rollback() {
+    let (game, profile) = FakeGame::new();
+    let session = prepared(&game, &profile);
+    // The second jump's write fails; the rollback's first write fails too, and its retry succeeds.
+    game.fake.fault_next("write", 1, Fault::Fail);
+    game.fake.fault_next("write", 2, Fault::Fail);
+    let failure = session.install().unwrap_err();
+    let TrainerError::Apply(error) = &failure.error else {
+        panic!("{}", failure.error);
+    };
+    assert_eq!(error.rollback, Ok(()));
+    assert_eq!(failure.error.recovery(), RecoveryAction::Retry);
+    assert!(failure.session.hooked().is_empty());
 }

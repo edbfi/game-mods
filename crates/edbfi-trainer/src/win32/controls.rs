@@ -16,7 +16,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use windows_sys::Win32::Foundation::{
-    ERROR_PROC_NOT_FOUND, FALSE, HANDLE, INVALID_HANDLE_VALUE, TRUE,
+    ERROR_BUSY, ERROR_PROC_NOT_FOUND, FALSE, HANDLE, INVALID_HANDLE_VALUE, TRUE,
 };
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::System::Memory::{
@@ -143,7 +143,12 @@ impl Mapping {
             }
         };
         let lease = Box::new(Lease::new(word, completion));
+        // With the shutdown bridge installed, every session must be reachable from it; one at a time.
         let registered = bridge::publish(&lease);
+        if !registered && bridge::get().is_some() {
+            unmap();
+            return Err(OsError::new("MapViewOfFileNuma2", ERROR_BUSY));
+        }
         Ok(Self {
             _section: section,
             word,

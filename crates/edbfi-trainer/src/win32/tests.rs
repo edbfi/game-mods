@@ -32,6 +32,15 @@ use crate::session::{
 use super::bridge;
 use super::process::WinGame;
 
+/// The bridge, its shutdown event and its lease slot are process-wide, so these tests take turns.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn dummy_path() -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let path = exe
@@ -275,6 +284,7 @@ fn originals(profile: &ValidProfile<'static>) -> Vec<Vec<u8>> {
 
 #[test]
 fn a_real_process_is_installed_toggled_paused_and_restored() {
+    let _serial = serial();
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     assert_eq!(dummy.ask("alpha"), "alpha 0");
@@ -336,6 +346,7 @@ fn a_real_process_is_installed_toggled_paused_and_restored() {
 
 #[test]
 fn a_setter_blocked_across_detach_returns_into_the_retained_cave() {
+    let _serial = serial();
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
@@ -358,6 +369,7 @@ fn a_setter_blocked_across_detach_returns_into_the_retained_cave() {
 
 #[test]
 fn a_game_that_exits_ends_the_session_without_restoring() {
+    let _serial = serial();
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
@@ -411,6 +423,7 @@ fn send(message: u32, wparam: usize) -> isize {
 
 #[test]
 fn a_closing_console_waits_for_restoration_on_every_attach() {
+    let _serial = serial();
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     // A second attach gets a fresh lease: its notice waits again rather than finding the first one done.
@@ -420,6 +433,7 @@ fn a_closing_console_waits_for_restoration_on_every_attach() {
 
 #[test]
 fn a_session_end_waits_for_restoration() {
+    let _serial = serial();
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     notice_restores(&mut dummy, &profile, || {
@@ -432,6 +446,7 @@ fn a_session_end_waits_for_restoration() {
 
 #[test]
 fn a_cancelled_session_end_changes_nothing() {
+    let _serial = serial();
     let shutdown = bridge::install().unwrap();
     bridge::reset_for_tests();
     let mut dummy = Dummy::start();
@@ -446,6 +461,7 @@ fn a_cancelled_session_end_changes_nothing() {
 
 #[test]
 fn a_panic_zeroes_the_controls_at_once() {
+    let _serial = serial();
     bridge::install().unwrap();
     bridge::reset_for_tests();
     let mut dummy = Dummy::start();

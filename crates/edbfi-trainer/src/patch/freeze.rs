@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Holding every game thread still while code changes.
 //!
-//! [`Freeze::new`] enumerates the game's threads until the sorted id set comes out the same three times in a
-//! row, at most [`Freeze::PASSES`] times. Every new thread is opened, checked to still belong to the game,
-//! and suspended, with each suspension recorded so it is undone exactly once; a thread that was already
+//! [`Freeze::new`] enumerates the game's threads until the sorted id set is unchanged twice in a row (three
+//! equal passes), at most [`Freeze::PASSES`] times. Every new thread is opened, checked to still belong to the
+//! game, and suspended, with each suspension recorded so it is undone exactly once; a thread that was already
 //! suspended stays suspended. Then each thread's instruction pointer must lie outside every range about to
 //! change. Any failure resumes what it suspended and reports both.
 #![forbid(unsafe_code)]
@@ -272,8 +272,8 @@ pub struct FreezeError {
 }
 
 impl FreezeError {
-    /// Whether trying again may succeed: a busy or changing thread moves on; a left-suspended thread or a
-    /// foreign owner does not get better by waiting.
+    /// Whether trying again may succeed: a busy, changing or reused thread id moves on with a fresh
+    /// enumeration; a thread left suspended or a game without threads does not get better by waiting.
     #[must_use]
     pub const fn transient(&self) -> bool {
         self.unresumed == 0 && !matches!(self.kind, FreezeKind::NoThreads)

@@ -495,6 +495,7 @@ pub struct Restored {
 type Step<'a> = &'a mut dyn FnMut(&Freeze<'_>, &mut Hooks) -> Result<(), TrainerError>;
 
 /// Freezes the game, runs `change` with the threads held, retries `recover` while it fails, and resumes.
+/// `settle` says what a failed change amounts to once `recover` succeeded.
 ///
 /// Freezing is retried while it may succeed, until `stop` says to give up or the game exits. A panic in
 /// `change` or `recover` is caught; the journal they share stays usable because ownership is recorded before
@@ -506,6 +507,7 @@ fn frozen_change(
     stop: &dyn Fn() -> bool,
     change: Step<'_>,
     recover: Step<'_>,
+    settle: fn(Result<(), TrainerError>) -> Result<(), TrainerError>,
     verify: VerifyRestore,
 ) -> Changed {
     let game = &*core.game;
@@ -522,6 +524,11 @@ fn frozen_change(
         text: TextCheck::Skipped(SkipReason::Incomplete),
     };
     hooks.stuck.retry();
+    // The whole-code check reads into a buffer allocated before the game is frozen.
+    let mut text_buffer = match verify {
+        VerifyRestore::Text => vec![0; core.profile.profile().identity.text.size as usize],
+        VerifyRestore::Sites => Vec::new(),
+    };
     let frozen = loop {
         attempts += 1;
         match catch_unwind(AssertUnwindSafe(|| Freeze::new(game, &ranges))) {
@@ -552,15 +559,18 @@ fn frozen_change(
     let mut tries = 0;
     while outcome.is_err() && tries < ROLLBACK_ATTEMPTS && !game.exited() {
         tries += 1;
-        if caught(catch_unwind(AssertUnwindSafe(|| recover(&frozen, hooks)))).is_ok() {
-            break;
+        match caught(catch_unwind(AssertUnwindSafe(|| recover(&frozen, hooks)))) {
+            Ok(()) => {
+                outcome = settle(outcome);
+                break;
+            }
+            Err(_) => game.wait(RETRY_WAIT),
         }
-        game.wait(RETRY_WAIT);
     }
     let text = match (verify, &outcome) {
         (VerifyRestore::Sites, _) => TextCheck::Skipped(SkipReason::NotRequested),
         (VerifyRestore::Text, Err(_)) => TextCheck::Skipped(SkipReason::Incomplete),
-        (VerifyRestore::Text, Ok(())) => text_check(core),
+        (VerifyRestore::Text, Ok(())) => text_check(core, &mut text_buffer),
     };
     let resumed = frozen.resume();
     let timing = Timing {
@@ -583,21 +593,16 @@ fn frozen_change(
 }
 
 /// Hashes the code section, relocations undone, and compares it with the supported build.
-fn text_check(core: &Core) -> TextCheck {
+fn text_check(core: &Core, text: &mut [u8]) -> TextCheck {
     let section = core.profile.profile().identity.text;
-    let mut text = vec![0; section.size as usize];
     let read = core
         .image
         .at(section.rva)
         .ok()
-        .and_then(|at| core.game.read(at, &mut text).ok())
-        .and_then(|()| {
-            core.relocations
-                .undo(&mut text, section.rva, core.image)
-                .ok()
-        });
+        .and_then(|at| core.game.read(at, text).ok())
+        .and_then(|()| core.relocations.undo(text, section.rva, core.image).ok());
     match read {
-        Some(()) if Sha256Digest::of(&text) == section.sha256 => TextCheck::Identical,
+        Some(()) if Sha256Digest::of(text) == section.sha256 => TextCheck::Identical,
         Some(()) => TextCheck::Differs,
         None => TextCheck::Skipped(SkipReason::Unreadable),
     }
@@ -636,6 +641,14 @@ impl Session<Prepared> {
             },
             &mut |frozen, hooks| {
                 patch::restore(frozen, &mut hooks.journal).map_err(TrainerError::Restore)
+            },
+            // A rollback that succeeded on a retry leaves nothing behind.
+            |outcome| match outcome {
+                Err(TrainerError::Apply(mut error)) => {
+                    error.rollback = Ok(());
+                    Err(TrainerError::Apply(error))
+                }
+                other => other,
             },
             VerifyRestore::Sites,
         );
@@ -755,7 +768,16 @@ impl Session<Recovery> {
             let mut again = |frozen: &Freeze<'_>, hooks: &mut Hooks| {
                 patch::restore(frozen, &mut hooks.journal).map_err(TrainerError::Restore)
             };
-            frozen_change(&self.core, hooks, &|| false, restore, &mut again, verify)
+            frozen_change(
+                &self.core,
+                hooks,
+                &|| false,
+                restore,
+                &mut again,
+                // Restoring again is the same restoration, succeeding.
+                |_| Ok(()),
+                verify,
+            )
         };
         hooks.controls.finished();
         match changed.outcome {

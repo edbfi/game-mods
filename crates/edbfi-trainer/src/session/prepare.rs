@@ -17,6 +17,12 @@ use crate::recovery::RecoveryAction;
 
 use super::{Allocation, Game, Hooks};
 
+/// `ERROR_INVALID_ADDRESS`: the requested base is no longer free.
+pub(crate) const ERROR_INVALID_ADDRESS: u32 = 487;
+
+/// `ERROR_PROC_NOT_FOUND`: a function this Windows does not export.
+const ERROR_PROC_NOT_FOUND: u32 = 127;
+
 /// Fresh walks of the address space before placement gives up.
 const PLACEMENT_ROUNDS: usize = 3;
 /// Most regions one walk visits.
@@ -41,7 +47,7 @@ pub(super) fn prepare(
             })?;
         let mut back = vec![0; cave.bytes().len()];
         game.read(cave.address(), &mut back)
-            .map_err(|source| PrepareError::Write {
+            .map_err(|source| PrepareError::Read {
                 at: cave.address(),
                 source,
             })?;
@@ -81,8 +87,11 @@ fn place(game: &dyn Game, reach: Reach) -> Result<Box<dyn Allocation>, PrepareEr
     for _ in 0..PLACEMENT_ROUNDS {
         let free = free_regions(game, reach)?;
         for base in candidates(reach, granularity, free) {
-            if let Ok(block) = game.allocate(base, reach.size()) {
-                return Ok(block);
+            match game.allocate(base, reach.size()) {
+                Ok(block) => return Ok(block),
+                // Taken since the walk: try the next base.
+                Err(error) if error.code == ERROR_INVALID_ADDRESS => {}
+                Err(error) => return Err(PrepareError::Allocate(error)),
             }
         }
     }
@@ -140,6 +149,17 @@ pub enum PrepareError {
         /// The failed call.
         source: OsError,
     },
+    /// A cave could not be read back.
+    #[error("cannot read back the cave at {at}: {source}")]
+    Read {
+        /// Where.
+        at: Va,
+        /// The failed call.
+        source: OsError,
+    },
+    /// Memory near the game could not be allocated, for a reason other than a lost race.
+    #[error("cannot allocate the caves: {0}")]
+    Allocate(OsError),
     /// A cave does not read back as written.
     #[error("the cave at {at} does not read back as written")]
     Readback {
@@ -159,7 +179,11 @@ impl PrepareError {
     #[must_use]
     pub const fn recovery(&self) -> RecoveryAction {
         match self {
-            Self::Controls(_) => RecoveryAction::UpdateWindows,
+            // Only a missing `MapViewOfFileNuma2` means Windows is too old.
+            Self::Controls(error) if error.code == ERROR_PROC_NOT_FOUND => {
+                RecoveryAction::UpdateWindows
+            }
+            Self::Controls(_) | Self::Read { .. } | Self::Allocate(_) => RecoveryAction::Retry,
             Self::NoReach | Self::Hook(_) | Self::Patches(_) => RecoveryAction::ReportBug,
             Self::Query(_)
             | Self::NoSpace

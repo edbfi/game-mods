@@ -62,19 +62,22 @@ pub(super) fn start(bridge: &'static Bridge) -> Result<(), OsError> {
     std::thread::Builder::new()
         .name("edbfi-session-end".into())
         .spawn(move || {
-            let pumped = std::panic::catch_unwind(|| match create() {
-                Ok(window) => {
-                    let _sent = ready.send(Ok(()));
-                    let _set = WINDOW.set(window as usize);
-                    pump();
-                }
-                Err(error) => {
+            let window = match std::panic::catch_unwind(create) {
+                Ok(Ok(window)) => window,
+                Ok(Err(error)) => {
                     let _sent = ready.send(Err(error));
+                    return;
                 }
-            });
-            // The pump never ends while the process runs; if it does, the owner must not keep hooks in place
-            // unheard.
-            let _ = pumped;
+                Err(_) => {
+                    let _sent = ready.send(Err(OsError::new("CreateWindowExW", 0)));
+                    return;
+                }
+            };
+            let _set = WINDOW.set(window as usize);
+            let _sent = ready.send(Ok(()));
+            // The pump never ends while the process runs. If it stops or panics, session end would go
+            // unheard, so the owner is asked to restore and exit.
+            let _pumped = std::panic::catch_unwind(pump);
             bridge.request();
         })
         .map_err(|_| OsError::new("CreateThread", 8))?;
