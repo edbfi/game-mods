@@ -6,8 +6,9 @@
 //! This window never shows. Its thread runs only the message pump and never touches the game: on
 //! `WM_QUERYENDSESSION` it zeroes the controls, asks the owner to restore, and waits for that within the
 //! budget before allowing the session to end; `WM_ENDSESSION` waits again, which returns at once if
-//! restoration already finished. A cancelled session end changes nothing. If the pump ever stops or panics,
-//! the owner is asked to restore and exit.
+//! restoration already finished. The query already asked the owner to restore and exit, so a session end
+//! another program cancels still ends the trainer; the cancelling `WM_ENDSESSION` itself changes nothing. If
+//! the pump ever stops or panics, the owner is asked to restore and exit.
 
 use std::sync::OnceLock;
 

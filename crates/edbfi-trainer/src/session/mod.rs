@@ -117,6 +117,8 @@ pub(crate) trait Controls {
     /// it can let the trainer exit. Dropping the controls zeroes them and unmaps the trainer's view; the game's
     /// view stays.
     fn finished(&self);
+    /// Starts a restoration attempt: a close request arriving now waits for it to finish.
+    fn restoring(&self);
 }
 
 /// The objects proving this trainer owns the process.
@@ -583,11 +585,16 @@ fn frozen_change(
     }
     if outcome.is_err() && hooks.journal.is_clean() {
         outcome = settle(outcome);
-    } else if let (Err(TrainerError::Panicked), Some(left @ TrainerError::Restore(_))) =
-        (&outcome, last)
-    {
-        // A panic whose rollback failed too leaves the game holding the trainer's code: say that.
-        outcome = Err(left);
+    } else if let Some(TrainerError::Restore(left)) = last {
+        // Report what the last attempt left, not the first.
+        outcome = Err(match outcome {
+            Err(TrainerError::Apply(mut error)) => {
+                error.rollback = Err(left);
+                TrainerError::Apply(error)
+            }
+            // A panic whose rollback failed too leaves the game holding the trainer's code: say that.
+            _ => TrainerError::Restore(left),
+        });
     }
     if outcome.is_err() && game.exited() {
         // A game that died mid-change cannot be read or written; nothing of it remains to restore.
@@ -608,6 +615,10 @@ fn frozen_change(
     // Including those owed from earlier freezes that would not resume again.
     if let Err(stuck) = resumed {
         hooks.stuck.absorb(stuck);
+    }
+    if game.exited() {
+        // A dead game's threads owe nothing.
+        hooks.stuck = Stuck::default();
     }
     if !hooks.stuck.is_empty() {
         outcome = Err(TrainerError::Resume(ResumeError {
@@ -771,6 +782,7 @@ impl Session<Recovery> {
     ) -> Result<Session<Detached>, Box<TransitionFailure<Recovery>>> {
         let hooks = &mut self.state.hooks;
         hooks.controls.store(0);
+        hooks.controls.restoring();
         let changed = if self.core.game.exited() {
             Changed {
                 outcome: Err(TrainerError::Exited),

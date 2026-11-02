@@ -317,6 +317,8 @@ impl Controls for FakeControls {
         info.stores.set(info.stores.get() + 1);
     }
 
+    fn restoring(&self) {}
+
     fn finished(&self) {
         let info = &self.0;
         info.finished.set(info.finished.get() + 1);

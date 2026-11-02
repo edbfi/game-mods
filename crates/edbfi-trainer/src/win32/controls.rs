@@ -23,7 +23,7 @@ use windows_sys::Win32::System::Memory::{
     CreateFileMappingW, FILE_MAP_READ, FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS, MapViewOfFile,
     PAGE_READWRITE, UnmapViewOfFile,
 };
-use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent};
+use windows_sys::Win32::System::Threading::{CreateEventW, ResetEvent, SetEvent};
 
 use crate::addr::Va;
 use crate::patch::OsError;
@@ -188,6 +188,11 @@ impl Controls for Mapping {
 
     fn store(&self, word: u32) {
         self.word().store(word, Ordering::SeqCst);
+    }
+
+    fn restoring(&self) {
+        // SAFETY: the completion event is a live event handle owned by the lease.
+        let _reset = unsafe { ResetEvent(self.lease().completion()) };
     }
 
     fn finished(&self) {
