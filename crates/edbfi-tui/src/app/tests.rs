@@ -650,5 +650,16 @@ fn a_selection_change_that_keeps_the_mask_updates_the_acknowledged_selection() {
     app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
     app.update(Msg::Input(Command::Hotkey(target("red"))));
     assert_eq!(app.status(id("red")), Status::Via);
+    assert!(!app.pending(id("red"))); // Red, then the global without its acknowledgement, then red off: the publication in flight now stands
+    // for the selection without red, so its acknowledgement shows red via the global.
+    let mut app = live();
+    let effects = app.update(Msg::Input(Command::Hotkey(target("red"))));
+    ack(&mut app, 40, published(&effects).unwrap());
+    let effects = app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
+    let global = published(&effects).unwrap();
+    app.update(Msg::Input(Command::Hotkey(target("red"))));
+    assert_eq!(app.status(id("red")), Status::On);
     assert!(!app.pending(id("red")));
+    ack(&mut app, 41, global);
+    assert_eq!(app.status(id("red")), Status::Via);
 }
