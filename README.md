@@ -21,8 +21,8 @@ above and in its run's summary. A memory-patching trainer can still trip heurist
 
 <!-- The nightly workflow rewrites the links between these markers after each scan. -->
 <!-- nightly-virustotal:start -->
-[vt-dawn-of-war-de-munitorum-logistics]: https://www.virustotal.com/gui/file/671338fd16889b1abf6d51e72bae6805245100d90862a89e799f9d7612d0ec16/detection
-[vt-metro-2033-redux-trainer]: https://www.virustotal.com/gui/file/bb8f000f5c933208b254d97606d770040eda0b021904ec9838c024ed0b0de502/detection
+[vt-dawn-of-war-de-munitorum-logistics]: https://www.virustotal.com/gui/file/17a58cf9b827e60eb02acb5563d911f84346e2131f40b330f517c629400c8247/detection
+[vt-metro-2033-redux-trainer]: https://www.virustotal.com/gui/file/51b75fb92ff6a2bb65294c25d5b44a65cb7e031a24fe6c1a0fbf962b96f53ae8/detection
 <!-- nightly-virustotal:end -->
 
 ## Develop
