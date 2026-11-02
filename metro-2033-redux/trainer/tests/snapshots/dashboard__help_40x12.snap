@@ -1,0 +1,33 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=DarkGray bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=Reset bg=Reset mod=NONE
+┌─ Help ───────────────────────────────┐|
+aaabbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+│ Keys                                 │|
+acbbbbccccccccccccccccccccccccccccccccca
+│ Up/Down       move                   │|
+acccccccccccccccccccccccccccccccccccccca
+│ Tab, Left/Right  switch section      │|
+acccccccccccccccccccccccccccccccccccccca
+│ Home/End, PgUp/PgDn  jump            │|
+acccccccccccccccccccccccccccccccccccccca
+│ Space/Enter   toggle the row         │|
+acccccccccccccccccccccccccccccccccccccca
+│ R             set the row's hotkey   │|
+acccccccccccccccccccccccccccccccccccccca
+│ P             pause or resume every  │|
+acccccccccccccccccccccccccccccccccccccca
+│ ▼ 24 more                            │|
+acaaaaaaaaacccccccccccccccccccccccccccca
+│                                      │|
+acccccccccccccccccccccccccccccccccccccca
+│ Esc close  Up/Down scroll            │|
+acbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccca
+└──────────────────────────────────────┘|
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

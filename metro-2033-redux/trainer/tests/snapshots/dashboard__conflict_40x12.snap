@@ -1,0 +1,35 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightGreen bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+e fg=LightYellow bg=Reset mod=NONE
+ Metro 2033 Redux     ATTACHED · ACTIVE |
+abbbbbbbbbbbbbbbbaaaaaccccccccdddcccccca
+┌─ Hotkey in use ──────────────────────┐|
+dddeeeeeeeeeeeeedddddddddddddddddddddddd
+│ Alt+F2 already belongs to Unlimited  │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ throwables.                          │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│                                      │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Swap them? Unlimited ammo gets       │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Alt+F2; Unlimited throwables gets    │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Alt+F1.                              │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│                                      │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Enter swap  Esc cancel               │|
+dabbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaad
+└──────────────────────────────────────┘|
+dddddddddddddddddddddddddddddddddddddddd
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

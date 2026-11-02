@@ -1,0 +1,33 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=DarkGray bg=Reset mod=NONE
+ Metro 2033 Redux                  DONE |
+abbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaabbbba
+ ┌─ Done ─────────────────────────────┐ |
+acccbbbbccccccccccccccccccccccccccccccca
+ │ The game's code is restored and no │ |
+acaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaca
+ │ cheats remain.                     │ |
+acaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaca
+ └────────────────────────────────────┘ |
+acccccccccccccccccccccccccccccccccccccca
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

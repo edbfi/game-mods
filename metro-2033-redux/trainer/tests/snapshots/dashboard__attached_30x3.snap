@@ -1,0 +1,16 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+30x3
+. fg=Reset bg=Reset mod=NONE
+a fg=Yellow bg=Reset mod=NONE
+b fg=DarkGray bg=Reset mod=NONE
+c fg=LightGreen bg=Reset mod=NONE
+d fg=Reset bg=Reset mod=NONE
+Metro 2033 Redux | ACTIVE     |
+aaaaaaaaaaaaaaaabbbccccccddddd
+Unlimited ammo ON · 3 selected|
+dddddddddddddddddddddddddddddd
+Grow to 40x12                 |
+bbbbbbbbbbbbbddddddddddddddddd

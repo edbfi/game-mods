@@ -1,0 +1,36 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=LightGreen bg=Reset mod=NONE
+d fg=DarkGray bg=Reset mod=NONE
+e fg=LightYellow bg=Reset mod=NONE
+f fg=Yellow bg=Reset mod=BOLD | REVERSED
+ Metro 2033 Redux     ATTACHED · ACTIVE |
+abbbbbbbbbbbbbbbbaaaaaccccccccdddcccccca
+┌─ Quit the trainer? ──────────────────┐|
+dddeeeeeeeeeeeeeeeeedddddddddddddddddddd
+│ Every cheat turns off and the game's │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ code is restored. The game keeps     │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ running.                             │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│                                      │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ ► Stay      Quit                     │|
+dafffffffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Ctrl+C again quits.                  │|
+dadddddddddddddddddddaaaaaaaaaaaaaaaaaad
+│                                      │|
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
+│ Enter choose  Esc stay               │|
+dabbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaad
+└──────────────────────────────────────┘|
+dddddddddddddddddddddddddddddddddddddddd
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

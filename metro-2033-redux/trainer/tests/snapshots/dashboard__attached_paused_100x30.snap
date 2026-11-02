@@ -1,0 +1,72 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+100x30
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=DarkGray bg=Reset mod=NONE
+d fg=LightGreen bg=Reset mod=NONE
+e fg=LightBlue bg=Reset mod=NONE
+f fg=Yellow bg=Reset mod=BOLD
+ edbfi · Metro 2033 Redux                                        ATTACHED · PAUSED · Alt+F8 resumes |
+abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddccceeeeeeccccccccccccccccca
+ ────────────────────────────────────────────────────────────────────────────────────────────────── |
+acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
+  TRAINER                                       │  NO RELOAD BY WEAPON                              |
+aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  All cheats              Alt+F8  PAUSED        │   Kalash                                 PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+                                                │   aksu                                   PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  CHEATS                                        │   rpk                                    PAUSED   |
+aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+►●Unlimited ammo          Alt+F1  PAUSED        │   ashot                                  PAUSED   |
+fbffffffffffffffaaaaaaaaaaaaaaaaaaeeeeeeaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Unlimited throwables    Alt+F2  OFF           │   vsv                                    PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Unlimited medkits       Alt+F3  OFF           │   ventil                                 PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Unlimited filters       Alt+F6  OFF           │   padonag                                PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Indestructible mask     Alt+F5  OFF           │   preved                                 PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+ ●No reload, all weapons  Alt+1   PAUSED        │   vyhlop                                 PAUSED   |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  God mode                Alt+2   OFF           │   saiga                                  PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Unlimited flashlight    Alt+3   OFF           │   tumak                                  PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+                                                │   2012                                   PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  OPTIONS                                       │   gatling                                PAUSED   |
+aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+ ●Keep Hellsing pressure          ON            │   ubludok                                PAUSED   |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+ ●Chimes                          ON            │   Shambler                               PAUSED   |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Start paused                    OFF           │   bigun                                  PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+                                                │   duplet                                 PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Unlimited ammo                                │   Revolver                               PAUSED   |
+aabbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Keeps reserve ammo; you still reload.         │   abzac                                  PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Alt+F1 · gameplay partial · S1 S2             │   hellbreath                             PAUSED   |
+aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+                                                │   hellshock                              PAUSED   |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Settings …ro-2033-redux\trainer\settings.toml │   tihar                                  PAUSED   |
+aaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Log      …etro-2033-redux\trainer\trainer.log │  ●Hellsing                               PAUSED   |
+aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+  Attached in 42 ms                             │   flamethrower                           PAUSED   |
+aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeeaaa
+ ────────────────────────────────────────────────────────────────────────────────────────────────── |
+acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
+ Last: All cheats PAUSED                                                                            |
+accccccaaaaaaaaaaaeeeeeeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ Up/Down move  Tab section  Space toggle  R bind  P pause  ? help  Q quit                           |
+accccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaa

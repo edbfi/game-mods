@@ -1,0 +1,72 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+100x30
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=DarkGray bg=Reset mod=NONE
+d fg=LightGreen bg=Reset mod=NONE
+e fg=Cyan bg=Reset mod=NONE
+f fg=LightYellow bg=Reset mod=NONE
+ edbfi · Metro 2033 Redux                                         ATTACHED · ACTIVE · Alt+F8 pauses |
+abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddcccddddddcccccccccccccccca
+ ────────────────────────────────────────────────────────────────────────────────────────────────── |
+acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
+  TRAINER                                       │  NO RELOAD BY WEAPON                              |
+aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ ●All cheats              Alt+F8  ACTIVE        │   Kalash                                 VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   aksu                                   VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  CHEATS                                        │   rpk                                    VIA      |
+aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ●Unlimited ammo          Alt+F1  ON            │   ashot                                  VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited throwables    Alt+F2  OFF           │   vsv                                    VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited medkits       Alt+F3  OFF           │   ventil                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited filters       Alt+F6  OFF           │   padonag                                VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Indestructible mask     Alt+F5  OFF           │   preved                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ●No reload, all weapons  Alt+1   ON            │   vyhlop                                 VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  God mode        ┌─ Set a hotkey ───────────────────────────────────────────────┐         VIA      |
+aaaaaaaaaaaaaaaaaacccbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaeeeaaaaaa
+  Unlimited flashl│ Unlimited ammo: Alt+F1                                       │         VIA      |
+aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+                  │ New: Alt+F9                                                  │         VIA      |
+aaaaaaaaaaaaaaaaaacafffffffffffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  OPTIONS         │                                                              │         VIA      |
+aabbbbbbbaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Keep Hellsing pr│ Enter set  Esc cancel  Bksp remove                           │         VIA      |
+abaaaaaaaaaaaaaaaacabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Chimes          └──────────────────────────────────────────────────────────────┘         VIA      |
+abaaaaaaaaaaaaaaaaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaeeeaaaaaa
+  Start paused                    OFF           │   bigun                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   duplet                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited ammo                                │   Revolver                               VIA      |
+aabbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Keeps reserve ammo; you still reload.         │   abzac                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Alt+F1 · gameplay partial · S1 S2             │   hellbreath                             VIA      |
+aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   hellshock                              VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Settings …ro-2033-redux\trainer\settings.toml │   tihar                                  VIA      |
+aaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Log      …etro-2033-redux\trainer\trainer.log │  ●Hellsing                               ON       |
+aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
+  Attached in 42 ms                             │   flamethrower                           VIA      |
+aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ────────────────────────────────────────────────────────────────────────────────────────────────── |
+acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
+                                                                                                    |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ Up/Down move  Tab section  Space toggle  R bind  P pause  ? help  Q quit                           |
+accccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaa

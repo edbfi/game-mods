@@ -16,7 +16,12 @@ path = "src/main.rs"
 edbfi-trainer.workspace = true
 
 [dev-dependencies]
+crossterm = { workspace = true, features = ["events"] }
+edbfi-trainer = { workspace = true, features = ["simulate"] }
+edbfi-tui.workspace = true
+insta.workspace = true
 proptest.workspace = true
+ratatui.workspace = true
 
 [build-dependencies]
 embed-resource.workspace = true

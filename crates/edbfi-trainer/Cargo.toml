@@ -11,6 +11,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Lets simulations and dashboard tests create acknowledgements no game saw. Never enable it in a trainer.
+simulate = []
+
 [dependencies]
 sha2.workspace = true
 thiserror.workspace = true

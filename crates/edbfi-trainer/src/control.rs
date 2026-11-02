@@ -162,7 +162,7 @@ pub struct ControlMask(ControlSet);
 
 impl ControlMask {
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "simulate")),
         expect(dead_code, reason = "the Windows publisher arrives in a later change")
     )]
     pub(crate) const fn published(desired: DesiredMask) -> Self {
@@ -194,11 +194,18 @@ pub struct Ack {
 
 impl Ack {
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "simulate")),
         expect(dead_code, reason = "the Windows publisher arrives in a later change")
     )]
     pub(crate) const fn new(revision: u64, mask: ControlMask) -> Self {
         Self { revision, mask }
+    }
+
+    /// An acknowledgement of `desired` at `revision` that no game saw, for simulations and dashboard tests.
+    #[cfg(feature = "simulate")]
+    #[must_use]
+    pub const fn simulated(revision: u64, desired: DesiredMask) -> Self {
+        Self::new(revision, ControlMask::published(desired))
     }
 
     /// The publication's sequence number.

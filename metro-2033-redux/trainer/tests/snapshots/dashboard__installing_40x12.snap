@@ -1,0 +1,34 @@
+---
+source: metro-2033-redux/trainer/tests/dashboard.rs
+expression: "cells(&render(app, size))"
+---
+40x12
+. fg=Reset bg=Reset mod=NONE
+a fg=Reset bg=Reset mod=NONE
+b fg=Yellow bg=Reset mod=NONE
+c fg=DarkGray bg=Reset mod=NONE
+d fg=Yellow bg=Reset mod=BOLD
+ Metro 2033 Redux            INSTALLING |
+abbbbbbbbbbbbbbbbaaaaaaaaaaaabbbbbbbbbba
+ [Cheats] No reload by weapon Options   |
+abbbbbbbbcccccccccccccccccccccccccccccaa
+ ►●Unlimited ammo              OFF      |
+adbddddddddddddddaaaaaaaaaaaaaacccaaaaaa
+   Unlimited throwables        OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+   Unlimited medkits           OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+   Unlimited filters           OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+   Indestructible mask         OFF      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+  ●No reload, all weapons      OFF      |
+aabaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+   ▼ 2 more                             |
+aaaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ Alt+F1 · gameplay partial · S1 S2      |
+aaaaaaacccccccccccccccccccccccccccaaaaaa
+ Keys wait until this finishes          |
+acccccccccccccccccccccccccccccaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
