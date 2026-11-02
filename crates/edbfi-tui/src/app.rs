@@ -9,7 +9,7 @@
 //! [`App::take_redraw`] reports whether anything visible changed, so an idle dashboard never draws.
 #![forbid(unsafe_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 
 use edbfi_trainer::chord::{Binding, Chord, Key, Modifiers};
@@ -17,7 +17,7 @@ use edbfi_trainer::control::{Ack, ControlSet, DesiredMask, Master};
 use edbfi_trainer::input::{Command, ConsoleKey, Press};
 use edbfi_trainer::journal::Severity;
 use edbfi_trainer::lifecycle::{Phase, RuntimeCommand, RuntimeEvent};
-use edbfi_trainer::profile::{Desired, OptionId, ToggleId, ValidProfile};
+use edbfi_trainer::profile::{Desired, OptionId, Selection, ToggleId, ValidProfile};
 use edbfi_trainer::settings::{External, Saved, Settings, StoreError, Target};
 
 use crate::layout::{Layout, Window};
@@ -231,6 +231,8 @@ pub(crate) struct Model {
     pub(crate) phase: Phase,
     pub(crate) master: Master,
     pub(crate) acked: Option<ControlSet>,
+    /// The selection that produced the acknowledged mask.
+    pub(crate) acked_selection: Option<Selection>,
     pub(crate) focus: Row,
     pub(crate) marks: BTreeMap<Pane, Row>,
     pub(crate) scroll: BTreeMap<Pane, usize>,
@@ -268,6 +270,8 @@ pub struct App<'p> {
     pub(crate) groups: Vec<GroupRows>,
     pub(crate) model: Model,
     published: Option<DesiredMask>,
+    /// Publications not yet acknowledged, oldest first, with the selection each came from.
+    in_flight: VecDeque<(DesiredMask, Selection)>,
     revision: Option<u64>,
     title: String,
     dirty: bool,
@@ -351,6 +355,7 @@ impl<'p> App<'p> {
                 phase: Phase::Waiting,
                 master: Master::Active,
                 acked: None,
+                acked_selection: None,
                 focus,
                 marks: BTreeMap::new(),
                 scroll: BTreeMap::new(),
@@ -368,6 +373,7 @@ impl<'p> App<'p> {
                 quitting: false,
             },
             published: None,
+            in_flight: VecDeque::new(),
             revision: None,
             title: String::new(),
             dirty: true,
@@ -415,6 +421,10 @@ impl<'p> App<'p> {
                 self.model.settings = settings;
                 self.model.paths.settings = path;
                 self.model.awaiting_load = false;
+                self.model.save_error = None;
+                if self.model.notice.as_ref().is_some_and(|n| n.until_saved) {
+                    self.model.notice = None;
+                }
                 self.effects.push(Effect::Bindings);
                 self.publish();
             }
@@ -532,11 +542,15 @@ impl<'p> App<'p> {
             self.model.master = self.model.settings.master_on_connect();
             self.model.acked = None;
             self.published = None;
+            self.in_flight.clear();
+            self.model.acked_selection = None;
             self.revision = None;
             self.publish();
         } else if !self.model.phase.is_attached() {
             self.model.acked = None;
             self.published = None;
+            self.in_flight.clear();
+            self.model.acked_selection = None;
             self.revision = None;
         }
     }
@@ -553,6 +567,15 @@ impl<'p> App<'p> {
         let old = self.model.acked.unwrap_or(ControlSet::EMPTY);
         let new = ack.mask().bits();
         self.model.acked = Some(new);
+        // Acknowledgements arrive in publication order, so the first matching publication is this one.
+        if let Some(at) = self
+            .in_flight
+            .iter()
+            .position(|(mask, _)| mask.bits() == new)
+        {
+            self.in_flight.drain(..at);
+            self.model.acked_selection = self.in_flight.pop_front().map(|(_, selection)| selection);
+        }
         if new != old && self.model.settings.sounds {
             let rose = new.word() & !old.word() != 0;
             self.effects
@@ -568,6 +591,8 @@ impl<'p> App<'p> {
         let mask = self.profile.effective(&self.desired());
         if self.published != Some(mask) {
             self.published = Some(mask);
+            self.in_flight
+                .push_back((mask, self.model.settings.selection));
             self.effects
                 .push(Effect::Runtime(RuntimeCommand::Publish(mask)));
         }
@@ -617,7 +642,7 @@ impl<'p> App<'p> {
                     .map_or_else(|| error.to_string(), ToString::to_string);
                 self.model.save_error = Some(reason);
                 self.model.notice = Some(Notice {
-                    text: "Settings not saved; S retries, ? shows why".into(),
+                    text: "Save failed; S retries, ? shows why".into(),
                     tone: Tone::Error,
                     until_saved: true,
                 });
@@ -627,11 +652,13 @@ impl<'p> App<'p> {
 
     // ----- input -----
 
-    fn input_closed(&self) -> bool {
-        matches!(
-            self.model.phase,
-            Phase::Installing | Phase::Restoring | Phase::Finished(_)
-        )
+    /// Whether keys wait: the runtime is writing or restoring code, it has finished, or the trainer is quitting.
+    pub(crate) fn input_closed(&self) -> bool {
+        self.model.quitting
+            || matches!(
+                self.model.phase,
+                Phase::Installing | Phase::Restoring | Phase::Finished(_)
+            )
     }
 
     fn input(&mut self, command: Command) {
@@ -806,13 +833,12 @@ impl<'p> App<'p> {
         match modal {
             Modal::Help { scroll } => {
                 let step = match press.key {
-                    _ if !press.modifiers.is_empty() && !is_char(press, '?') => return,
-                    ConsoleKey::Up => -1,
-                    ConsoleKey::Down => 1,
-                    ConsoleKey::Key(Key::PAGE_UP) => -5,
-                    ConsoleKey::Key(Key::PAGE_DOWN) => 5,
-                    ConsoleKey::Key(Key::HOME) => isize::MIN,
-                    ConsoleKey::Key(Key::END) => isize::MAX,
+                    ConsoleKey::Up if press.modifiers.is_empty() => -1,
+                    ConsoleKey::Down if press.modifiers.is_empty() => 1,
+                    ConsoleKey::Key(Key::PAGE_UP) if press.modifiers.is_empty() => -5,
+                    ConsoleKey::Key(Key::PAGE_DOWN) if press.modifiers.is_empty() => 5,
+                    ConsoleKey::Key(Key::HOME) if press.modifiers.is_empty() => isize::MIN,
+                    ConsoleKey::Key(Key::END) if press.modifiers.is_empty() => isize::MAX,
                     _ => {
                         if is_plain(press, ConsoleKey::Escape)
                             || is_plain(press, ConsoleKey::Enter)
@@ -887,7 +913,11 @@ impl<'p> App<'p> {
             let mut right = Vec::new();
             for (index, group) in self.groups.iter().enumerate() {
                 if group.classes {
-                    // The wide view pins this group's title above the pane.
+                    // The wide view pins the first class group's title above the pane; later ones get headings.
+                    if !right.is_empty() {
+                        right.push(Item::Blank);
+                        right.push(Item::Heading(Heading::Group(index)));
+                    }
                     right.extend(rows(group));
                 } else {
                     left.push(Item::Heading(Heading::Group(index)));
@@ -1063,7 +1093,10 @@ impl<'p> App<'p> {
     }
 
     fn request_save(&mut self) {
-        if self.model.paths.settings.is_some() && !self.model.awaiting_load {
+        if self.model.awaiting_load {
+            // Never save the defaults shown behind a settings problem; say so instead.
+            self.model.save = SaveState::SessionOnly;
+        } else if self.model.paths.settings.is_some() {
             self.model.save = SaveState::Pending;
             self.effects.push(Effect::Save);
         }
@@ -1208,7 +1241,13 @@ impl<'p> App<'p> {
             .toggles()
             .find(|(other, toggle)| {
                 let own = toggle.controls.word();
-                *other != id && own & bits == bits && acked & own == own
+                *other != id
+                    && own & bits == bits
+                    && acked & own == own
+                    && self
+                        .model
+                        .acked_selection
+                        .is_none_or(|selection| selection.contains(*other))
             })
             .map(|(other, _)| other)
     }
@@ -1235,7 +1274,12 @@ impl<'p> App<'p> {
                 let acked = self.model.acked.unwrap_or(ControlSet::EMPTY).word();
                 let covered = self.coverer(id).is_some();
                 if bits != 0 && acked & bits == bits {
-                    if !selected && self.acked_coverer(id).is_some() {
+                    // Applied: through this row's own acknowledged selection, or through another one's.
+                    let own = self
+                        .model
+                        .acked_selection
+                        .is_some_and(|selection| selection.contains(id));
+                    if !selected && !own && self.acked_coverer(id).is_some() {
                         Status::Via
                     } else {
                         Status::On
@@ -1258,8 +1302,13 @@ impl<'p> App<'p> {
             let wanted = self.profile.effective(&self.desired()).bits();
             return row == Row::Master && self.model.acked != Some(wanted);
         };
-        let wanted = self.model.master == Master::Active
-            && (self.model.settings.selection.contains(id) || self.coverer(id).is_some());
+        let bits = self.profile.toggle(id).controls.word();
+        let effective = self.profile.effective(&self.desired()).bits().word();
+        let wanted = if bits == 0 {
+            self.model.master == Master::Active && self.model.settings.selection.contains(id)
+        } else {
+            effective & bits == bits
+        };
         let shown = matches!(self.status(row), Status::On | Status::Via);
         wanted != shown
     }

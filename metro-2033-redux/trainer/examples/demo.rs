@@ -104,6 +104,9 @@ impl Sim {
                 self.quitting = true;
                 if self.phase.is_attached() {
                     self.enter(Phase::Restoring, queue);
+                } else if self.hooks_left {
+                    // Hooks remain, so the run never finishes cleanly; exit and say so.
+                    self.done = Some(Finish::Untouched);
                 } else {
                     self.done = Some(Finish::Untouched);
                     self.enter(Phase::Finished(Finish::Untouched), queue);
@@ -170,14 +173,14 @@ impl Sim {
             ),
             KeyCode::Char('t') => {
                 self.hooks_left = true;
-                self.enter(
-                failure(
+                let message =
+                    "Restoring the game's code failed: WriteProcessMemory was denied (OS error 5).";
+                let phase = failure(
                     RecoveryAction::RestartGame,
-                    "Restoring the game's code failed: WriteProcessMemory was denied (OS error 5).",
+                    message,
                     vec![SiteId(3), SiteId(7)],
-                ),
-                queue,
-            );
+                );
+                self.enter(phase, queue);
             }
             KeyCode::Char('s') => {
                 let profile = profile()?;

@@ -94,14 +94,9 @@ pub(crate) fn pane_height(app: &App<'_>, pane: Pane) -> usize {
     }
 }
 
-/// Whether keys wait: the runtime is writing or restoring code, or the trainer is quitting.
-fn input_closed(app: &App<'_>) -> bool {
-    app.model.quitting || matches!(app.model.phase, Phase::Installing | Phase::Restoring)
-}
-
 /// The key line, or why keys wait.
 fn footer<'a>(app: &App<'_>, keys: &'a str) -> &'a str {
-    if input_closed(app) {
+    if app.input_closed() {
         "Keys wait until this finishes"
     } else {
         keys
@@ -304,7 +299,7 @@ fn details(app: &App<'_>, row: Row) -> (String, String, Vec<(String, Tone)>) {
                         facts.push((format!("via {}", app.label(Row::Toggle(cover))), Tone::Via));
                     }
                 }
-                Status::Armed if !input_closed(app) => {
+                Status::Armed if !app.input_closed() => {
                     facts.push(("applies on connect".into(), Tone::Armed));
                 }
                 _ => {}
@@ -844,7 +839,7 @@ fn compact(app: &App<'_>, canvas: &mut Canvas<'_>) {
         return;
     }
     let y = height - u16::try_from(compact_help_lines(width)).unwrap_or(2);
-    if input_closed(app) {
+    if app.input_closed() {
         canvas.say(1, y, footer(app, ""), room, Tone::Muted);
     } else if compact_help_lines(width) == 1 {
         let line = format!("{}  {}", COMPACT_HELP[0], COMPACT_HELP[1]);

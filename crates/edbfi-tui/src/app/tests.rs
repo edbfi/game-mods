@@ -539,3 +539,92 @@ fn modified_keys_do_not_answer_the_quit_dialog() {
         Some(Modal::Quit { quit: true, .. })
     ));
 }
+
+#[test]
+fn rows_covered_only_together_are_not_pending_and_deselection_reads_on_until_acknowledged() {
+    let mut app = live();
+    for key in ["red", "blue"] {
+        let effects = app.update(Msg::Input(Command::Hotkey(target(key))));
+        let mask = published(&effects).unwrap();
+        ack(&mut app, 10 + u64::from(key == "blue"), mask);
+    }
+    // Both classes together switch on every bit of the global, which nobody selected.
+    assert_eq!(app.status(id("all_colours")), Status::On);
+    assert!(!app.pending(id("all_colours")));
+    // Clearing red: until acknowledged, the game applies it through its own selection, not via the global.
+    app.update(Msg::Input(Command::Hotkey(target("red"))));
+    assert_eq!(app.status(id("red")), Status::On);
+    assert!(app.pending(id("red")));
+}
+
+#[test]
+fn help_closes_with_shifted_letters() {
+    let mut app = live();
+    app.update(letter(b'H'));
+    app.update(Msg::Input(Command::Press(Press {
+        key: ConsoleKey::Key(Key::letter(b'Q').unwrap()),
+        modifiers: Modifiers::SHIFT,
+    })));
+    assert!(app.model.modal.is_none());
+}
+
+#[test]
+fn loading_settings_clears_a_stale_save_failure() {
+    let mut app = live();
+    app.update(press(ConsoleKey::Key(Key::SPACE)));
+    app.update(Msg::Saved(Err(StoreError::Write {
+        path: PathBuf::from("settings.toml"),
+        source: std::io::Error::other("disk full"),
+    })));
+    app.update(Msg::Loaded {
+        settings: Settings::defaults(&profile()),
+        path: Some(PathBuf::from("settings.toml")),
+    });
+    assert!(app.model.notice.is_none() && app.model.save_error.is_none());
+}
+
+proptest::proptest! {
+    /// Once the game has acknowledged exactly what the app wants, no row waits for it.
+    #[test]
+    fn nothing_is_pending_once_the_wish_is_acknowledged(
+        selected in 0u8..32,
+        keep in proptest::bool::ANY,
+        paused in proptest::bool::ANY,
+    ) {
+        let mut app = live();
+        let profile = profile();
+        for (index, (toggle, _)) in profile.toggles().enumerate() {
+            app.model.settings.selection.set(toggle, selected & 1 << index != 0);
+        }
+        let option = profile.options().next().unwrap().0;
+        app.model.settings.options.set(option, keep);
+        app.model.master = if paused { Master::Paused } else { Master::Active };
+        app.publish();
+        let mask = app.profile.effective(&app.desired());
+        ack(&mut app, 100, mask);
+        let rows: Vec<Row> = profile.toggles().map(|(toggle, _)| Row::Toggle(toggle)).chain([Row::Master]).collect();
+        for row in rows {
+            proptest::prop_assert!(!app.pending(row), "{row:?}");
+        }
+    }
+}
+
+#[test]
+fn plain_output_states_why_a_save_failed() {
+    let mut app = live();
+    let mut report = crate::plain::Report::new();
+    report.lines(&app);
+    app.update(Msg::ConsoleLost);
+    app.update(Msg::Input(Command::Hotkey(target("alpha"))));
+    app.update(Msg::Saved(Err(StoreError::Write {
+        path: PathBuf::from("settings.toml"),
+        source: std::io::Error::other("disk full"),
+    })));
+    let lines = report.lines(&app);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "Notice: settings not saved: disk full"),
+        "{lines:?}"
+    );
+}

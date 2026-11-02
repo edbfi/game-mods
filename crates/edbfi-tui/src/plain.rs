@@ -155,7 +155,13 @@ fn shown(app: &App<'_>) -> Shown {
         .model
         .notice
         .as_ref()
-        .map(|notice| format!("Notice: {}", text::ascii(&notice.text)))
+        .map(|notice| match &app.model.save_error {
+            // Plain output has no keys to press, so it states the cause instead of how to see it.
+            Some(reason) if notice.until_saved => {
+                format!("Notice: settings not saved: {}", text::ascii(reason))
+            }
+            _ => format!("Notice: {}", text::ascii(&notice.text)),
+        })
         .or_else(|| match &app.model.last {
             Some(Last::Message { text: message, .. }) => {
                 Some(format!("Note: {}", text::ascii(message)))
