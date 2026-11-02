@@ -605,8 +605,11 @@ fn frozen_change(
         held: held.elapsed(),
     };
     // Threads left suspended matter more than anything else that failed: the game is stuck until they resume.
+    // Including those owed from earlier freezes that would not resume again.
     if let Err(stuck) = resumed {
         hooks.stuck.absorb(stuck);
+    }
+    if !hooks.stuck.is_empty() {
         outcome = Err(TrainerError::Resume(ResumeError {
             failed: hooks.stuck.len(),
         }));

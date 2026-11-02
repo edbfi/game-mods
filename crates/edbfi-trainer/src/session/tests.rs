@@ -529,3 +529,24 @@ fn a_panic_whose_rollback_fails_reports_the_hooks_left() {
     game.fake.clear_faults();
     failure.session.restore(VerifyRestore::Sites).unwrap();
 }
+
+#[test]
+fn an_owed_resume_survives_a_restore_whose_own_freeze_resumes() {
+    let (game, profile) = FakeGame::new();
+    let session = prepared(&game, &profile);
+    // Install leaves one thread owing a resume.
+    game.fake.fault_next("resume", 0, Fault::Fail);
+    let failure = session.install().unwrap_err();
+    assert_eq!(failure.session.suspended_threads(), 1);
+    // The restore's retry of that resume fails again, while its own freeze resumes cleanly.
+    game.fake.fault_next("resume", 0, Fault::Fail);
+    let failure = failure.session.restore(VerifyRestore::Sites).unwrap_err();
+    assert_eq!(
+        failure.error,
+        TrainerError::Resume(ResumeError { failed: 1 })
+    );
+    assert!(failure.session.hooked().is_empty());
+    assert_eq!(game.fake.suspend_counts(), [0, 1]);
+    failure.session.restore(VerifyRestore::Sites).unwrap();
+    assert_eq!(game.fake.suspend_counts(), [0, 0]);
+}
