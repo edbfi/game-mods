@@ -71,6 +71,7 @@ pub(super) fn prepare(
         plan,
         journal,
         unpublished: Some(block),
+        stuck: crate::patch::Stuck::default(),
     })
 }
 

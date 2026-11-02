@@ -5,7 +5,7 @@ use std::num::NonZeroU32;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use super::fake::{Fake, Fault, PAGE};
-use super::freeze::{FreezeKind, ResumeError};
+use super::freeze::FreezeKind;
 use super::*;
 
 const CODE: u64 = 0x1000_0000;
@@ -96,7 +96,7 @@ fn only_ours(fake: &Fake, journal: &PatchJournal) -> bool {
 fn apply_once(fake: &Fake, journal: &mut PatchJournal) -> Result<(), ApplyError> {
     let ranges = ranges(journal);
     let frozen = Freeze::new(fake, &ranges).unwrap();
-    let result = apply(&frozen, journal);
+    let result = apply(&frozen, journal, &mut || {});
     frozen.resume().unwrap();
     result
 }
@@ -369,7 +369,7 @@ fn a_freeze_waits_for_the_thread_set_to_settle() {
     fake.0.borrow_mut().snapshots = (0..Freeze::PASSES)
         .map(|pass| if pass % 2 == 0 { vec![1] } else { vec![1, 2] })
         .collect();
-    let error = Freeze::new(&fake, &[]).unwrap_err();
+    let error = Freeze::new(&fake, &[]).unwrap_err().error;
     assert_eq!(error.kind, FreezeKind::Unstable);
     assert!(error.transient());
     assert_eq!(fake.suspend_counts(), [0, 0]);
@@ -416,7 +416,7 @@ fn a_failed_freeze_resumes_what_it_suspended() {
     for (call, nth, kind) in cases {
         let fake = game();
         fake.fault(call, nth, Fault::Fail);
-        let error = Freeze::new(&fake, &[]).unwrap_err();
+        let error = Freeze::new(&fake, &[]).unwrap_err().error;
         assert_eq!(error.kind, kind, "{call}");
         assert_eq!(error.unresumed, 0);
         assert_eq!(fake.suspend_counts(), [0, 0], "{call}");
@@ -424,13 +424,13 @@ fn a_failed_freeze_resumes_what_it_suspended() {
     let fake = game();
     fake.0.borrow_mut().snapshots = [vec![]].into();
     assert_eq!(
-        Freeze::new(&fake, &[]).unwrap_err().kind,
+        Freeze::new(&fake, &[]).unwrap_err().error.kind,
         FreezeKind::NoThreads
     );
     let fake = game();
     fake.0.borrow_mut().threads.get_mut(&2).unwrap().owner = 5;
     assert_eq!(
-        Freeze::new(&fake, &[]).unwrap_err().kind,
+        Freeze::new(&fake, &[]).unwrap_err().error.kind,
         FreezeKind::Owner { thread: 2 }
     );
     assert_eq!(fake.suspend_counts(), [0, 0]);
@@ -449,7 +449,7 @@ fn a_thread_inside_a_changing_range_refuses_the_freeze() {
         fake.0.borrow_mut().threads.get_mut(&2).unwrap().rip = Va::new(rip);
         let result = Freeze::new(&fake, &[site]);
         assert_eq!(result.is_err(), busy, "{rip:#x}");
-        match result {
+        match result.map_err(|failure| failure.error) {
             Ok(frozen) => frozen.resume().unwrap(),
             Err(error) => {
                 assert_eq!(
@@ -471,14 +471,42 @@ fn threads_that_will_not_resume_are_counted() {
     let fake = game();
     let frozen = Freeze::new(&fake, &[]).unwrap();
     fake.fault("resume", 0, Fault::Fail);
-    assert_eq!(frozen.resume(), Err(ResumeError { failed: 1 }));
+    let mut stuck = frozen.resume().unwrap_err();
+    assert_eq!(stuck.len(), 1);
     assert_eq!(fake.suspend_counts(), [0, 1]);
+    // The owed resume is kept and can be tried again.
+    stuck.retry();
+    assert!(stuck.is_empty());
+    assert_eq!(fake.suspend_counts(), [0, 0]);
 
     let fake = game();
     fake.fault("resume", 0, Fault::Fail);
     fake.fault("context", 0, Fault::Fail);
-    let error = Freeze::new(&fake, &[]).unwrap_err();
+    let error = Freeze::new(&fake, &[]).unwrap_err().error;
     assert_eq!(error.unresumed, 1);
     assert!(!error.transient());
     assert_eq!(error.recovery(), RecoveryAction::RestartGame);
+}
+
+#[test]
+fn a_site_already_back_is_released_only_after_a_flush() {
+    let fake = game();
+    let mut journal = hooks();
+    apply_once(&fake, &mut journal).unwrap();
+    // The original went back but the flush never succeeds: the site stays owned.
+    for nth in 0..64 {
+        fake.fault_next("flush", nth, Fault::Fail);
+    }
+    let left = restore_once(&fake, &mut journal).unwrap_err();
+    assert_eq!(left.sites.len(), 3);
+    assert!(pristine(&fake));
+    let left = restore_once(&fake, &mut journal).unwrap_err();
+    assert_eq!(
+        left.sites.len(),
+        3,
+        "bytes already original still need their flush"
+    );
+    fake.clear_faults();
+    restore_once(&fake, &mut journal).unwrap();
+    assert!(journal.is_clean());
 }

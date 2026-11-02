@@ -14,7 +14,7 @@
 
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
@@ -214,34 +214,54 @@ pub(crate) fn console_notice(kind: u32) -> bool {
     (unsafe { console(kind) }) != FALSE
 }
 
+/// Which parts of the bridge are in place; an install that failed part-way retries only the rest.
+static HANDLER: AtomicBool = AtomicBool::new(false);
+static HOOK: AtomicBool = AtomicBool::new(false);
+static WINDOW: AtomicBool = AtomicBool::new(false);
+
 /// Installs the bridge once per process: the shutdown event, the console handler, a panic hook that zeroes
-/// the controls before the previous hook runs, and the hidden window that hears about session end.
+/// the controls, and the hidden window that hears about session end. A failed part is tried again by the
+/// next call; only a complete install returns the bridge.
 pub(crate) fn install() -> Result<&'static Bridge, OsError> {
     let _once = INSTALL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(bridge) = get() {
-        return Ok(bridge);
-    }
-    // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
-    let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
-    let shutdown = owned(raw, "CreateEventW")?;
-    let bridge = BRIDGE.get_or_init(|| Bridge {
-        shutdown,
-        slot: AtomicPtr::new(ptr::null_mut()),
-        readers: AtomicUsize::new(0),
-    });
-    // SAFETY: `console` is a valid handler for the life of the process.
-    if unsafe { SetConsoleCtrlHandler(Some(console), TRUE) } == FALSE {
-        return Err(last_error("SetConsoleCtrlHandler"));
-    }
-    let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        if let Some(bridge) = get() {
-            bridge.emergency_zero();
+    let bridge = match get() {
+        Some(bridge) => bridge,
+        None => {
+            // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
+            let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
+            let shutdown = owned(raw, "CreateEventW")?;
+            BRIDGE.get_or_init(|| Bridge {
+                shutdown,
+                slot: AtomicPtr::new(ptr::null_mut()),
+                readers: AtomicUsize::new(0),
+            })
         }
-        previous(info);
-    }));
-    super::window::start(bridge)?;
+    };
+    if !HANDLER.load(Ordering::SeqCst) {
+        // SAFETY: `console` is a valid handler for the life of the process.
+        if unsafe { SetConsoleCtrlHandler(Some(console), TRUE) } == FALSE {
+            return Err(last_error("SetConsoleCtrlHandler"));
+        }
+        HANDLER.store(true, Ordering::SeqCst);
+    }
+    if !HOOK.swap(true, Ordering::SeqCst) {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if let Some(bridge) = get() {
+                bridge.emergency_zero();
+            }
+            // While a game is frozen the hook does nothing else: the previous hook may allocate, format and
+            // lock, and the patch code catching this panic must roll back and resume the game first.
+            if !crate::patch::freeze::holding() {
+                previous(info);
+            }
+        }));
+    }
+    if !WINDOW.load(Ordering::SeqCst) {
+        super::window::start(bridge)?;
+        WINDOW.store(true, Ordering::SeqCst);
+    }
     Ok(bridge)
 }

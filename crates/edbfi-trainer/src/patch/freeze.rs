@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::addr::{CodeRange, Va};
 use crate::recovery::RecoveryAction;
@@ -41,18 +42,29 @@ impl<'p> Freeze<'p> {
     ///
     /// # Errors
     ///
-    /// A [`FreezeError`] naming the failure, after resuming every thread this call suspended.
-    pub(crate) fn new(process: &'p dyn Process, ranges: &[CodeRange]) -> Result<Self, FreezeError> {
+    /// A [`FreezeFailure`] naming the failure, after resuming every thread this call suspended, with any
+    /// thread that would not resume.
+    pub(crate) fn new(
+        process: &'p dyn Process,
+        ranges: &[CodeRange],
+    ) -> Result<Self, FreezeFailure> {
         let mut freeze = Self {
             process,
             suspended: Vec::new(),
         };
+        HELD.fetch_add(1, Ordering::SeqCst);
         match freeze.suspend_all().and_then(|()| freeze.check(ranges)) {
             Ok(()) => Ok(freeze),
-            Err(kind) => Err(FreezeError {
-                kind,
-                unresumed: freeze.resume_all(),
-            }),
+            Err(kind) => {
+                let stuck = Stuck(freeze.resume_all());
+                Err(FreezeFailure {
+                    error: FreezeError {
+                        kind,
+                        unresumed: stuck.len(),
+                    },
+                    stuck,
+                })
+            }
         }
     }
 
@@ -119,12 +131,12 @@ impl<'p> Freeze<'p> {
         Ok(())
     }
 
-    /// Resumes every held thread once, newest first, returning how many failed.
-    fn resume_all(&mut self) -> usize {
-        let mut failed = 0;
+    /// Resumes every held thread once, newest first, returning those that would not resume.
+    fn resume_all(&mut self) -> Vec<Box<dyn Thread>> {
+        let mut failed = Vec::new();
         while let Some(thread) = self.suspended.pop() {
             if thread.resume().is_err() {
-                failed += 1;
+                failed.push(thread);
             }
         }
         failed
@@ -134,19 +146,72 @@ impl<'p> Freeze<'p> {
     ///
     /// # Errors
     ///
-    /// [`ResumeError`] with the number of threads that would not resume; they stay suspended.
-    pub(crate) fn resume(mut self) -> Result<(), ResumeError> {
-        match self.resume_all() {
-            0 => Ok(()),
-            failed => Err(ResumeError { failed }),
-        }
+    /// The threads that would not resume. Each still owes one resume, which [`Stuck::retry`] can try again.
+    pub(crate) fn resume(mut self) -> Result<(), Stuck> {
+        let stuck = Stuck(self.resume_all());
+        if stuck.is_empty() { Ok(()) } else { Err(stuck) }
     }
 }
 
 impl Drop for Freeze<'_> {
+    /// Resumes whatever is still held. Threads that would not resume are lost here, so every path that can
+    /// report them calls [`Freeze::resume`] instead; only a panic reaches this with threads held.
     fn drop(&mut self) {
-        let _failed = self.resume_all();
+        let _lost = self.resume_all();
+        HELD.fetch_sub(1, Ordering::SeqCst);
     }
+}
+
+/// How many freezes are being built or held in this process. The panic hook does nothing but zero the
+/// controls while any is.
+static HELD: AtomicUsize = AtomicUsize::new(0);
+
+/// Whether this process is freezing a game or holding one frozen.
+#[cfg_attr(
+    not(windows),
+    expect(dead_code, reason = "only the Windows panic hook asks")
+)]
+pub(crate) fn holding() -> bool {
+    HELD.load(Ordering::SeqCst) > 0
+}
+
+/// Threads the trainer suspended that would not resume. Each owes exactly one resume.
+#[derive(Default)]
+pub(crate) struct Stuck(Vec<Box<dyn Thread>>);
+
+impl fmt::Debug for Stuck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Stuck({})", self.0.len())
+    }
+}
+
+impl Stuck {
+    /// How many threads still owe a resume.
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether none does.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Adds `other`'s threads.
+    pub(crate) fn absorb(&mut self, mut other: Self) {
+        self.0.append(&mut other.0);
+    }
+
+    /// Tries each thread's resume again, keeping those that still fail.
+    pub(crate) fn retry(&mut self) {
+        self.0.retain(|thread| thread.resume().is_err());
+    }
+}
+
+/// A freeze that failed: the error, and the threads it suspended that would not resume.
+#[derive(Debug)]
+pub(crate) struct FreezeFailure {
+    pub(crate) error: FreezeError,
+    pub(crate) stuck: Stuck,
 }
 
 /// Why the game could not be frozen.

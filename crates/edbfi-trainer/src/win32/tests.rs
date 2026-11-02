@@ -9,7 +9,9 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use windows_sys::Win32::System::Console::CTRL_CLOSE_EVENT;
-use windows_sys::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_QUERYENDSESSION};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    SendMessageW, WM_ENDSESSION, WM_QUERYENDSESSION,
+};
 
 use crate::addr::{Rva, Va};
 use crate::aob::{Pattern, Token};
@@ -366,13 +368,12 @@ fn a_game_that_exits_ends_the_session_without_restoring() {
     session.exited(proof).unwrap();
 }
 
-/// Starts `notice` on another thread, then plays the owner: waits for the shutdown request and restores.
-fn notice_restores(notice: impl FnOnce() + Send + 'static) {
+/// Attaches to `dummy`, starts `notice` on another thread, then plays the owner: waits for the shutdown
+/// request and restores. The notice must zero the controls at once and wait until restoration finished.
+fn notice_restores(dummy: &mut Dummy, profile: &ValidProfile<'static>, notice: fn()) {
     let shutdown = bridge::install().unwrap();
     bridge::reset_for_tests();
-    let mut dummy = Dummy::start();
-    let profile = profile(&dummy);
-    let mut session = attach(&dummy, &profile);
+    let mut session = attach(dummy, profile);
     session.publish(mask(&[0]));
     assert_eq!(dummy.ask("alpha"), "alpha 1");
     let started = Instant::now();
@@ -384,8 +385,10 @@ fn notice_restores(notice: impl FnOnce() + Send + 'static) {
         shutdown.wait(Duration::from_secs(5)),
         "the notice asks the owner to stop"
     );
-    // The notice zeroed the controls before the owner did anything.
+    // The notice zeroed the controls before the owner did anything, and is still waiting.
     assert_eq!(dummy.ask("alpha"), "alpha 0");
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(!waiter.is_finished(), "the notice waits for restoration");
     let image = session.image();
     session.restore(VerifyRestore::Sites).unwrap();
     let waited = waiter.join().unwrap();
@@ -393,22 +396,52 @@ fn notice_restores(notice: impl FnOnce() + Send + 'static) {
         waited < bridge::CLOSE_BUDGET,
         "the notice returned once restored: {waited:?}"
     );
-    assert_eq!(sites(&dummy, &profile, image), originals(&profile));
+    assert_eq!(sites(dummy, profile, image), originals(profile));
+}
+
+fn close_notice() {
+    assert!(bridge::console_notice(CTRL_CLOSE_EVENT));
+}
+
+fn send(message: u32, wparam: usize) -> isize {
+    let window = super::window::window().unwrap();
+    // SAFETY: `window` is the bridge's live hidden window; the message takes no pointers.
+    unsafe { SendMessageW(window, message, wparam, 0) }
 }
 
 #[test]
-fn a_closing_console_waits_for_restoration() {
-    notice_restores(|| assert!(bridge::console_notice(CTRL_CLOSE_EVENT)));
+fn a_closing_console_waits_for_restoration_on_every_attach() {
+    let mut dummy = Dummy::start();
+    let profile = profile(&dummy);
+    // A second attach gets a fresh lease: its notice waits again rather than finding the first one done.
+    notice_restores(&mut dummy, &profile, close_notice);
+    notice_restores(&mut dummy, &profile, close_notice);
 }
 
 #[test]
 fn a_session_end_waits_for_restoration() {
-    notice_restores(|| {
-        let window = super::window::window().unwrap();
-        // SAFETY: `window` is the bridge's live hidden window; the message takes no pointers.
-        let allowed = unsafe { SendMessageW(window, WM_QUERYENDSESSION, 0, 0) };
-        assert_eq!(allowed, 1);
+    let mut dummy = Dummy::start();
+    let profile = profile(&dummy);
+    notice_restores(&mut dummy, &profile, || {
+        assert_eq!(send(WM_QUERYENDSESSION, 0), 1);
     });
+    notice_restores(&mut dummy, &profile, || {
+        assert_eq!(send(WM_ENDSESSION, 1), 0);
+    });
+}
+
+#[test]
+fn a_cancelled_session_end_changes_nothing() {
+    let shutdown = bridge::install().unwrap();
+    bridge::reset_for_tests();
+    let mut dummy = Dummy::start();
+    let profile = profile(&dummy);
+    let mut session = attach(&dummy, &profile);
+    session.publish(mask(&[0]));
+    assert_eq!(send(WM_ENDSESSION, 0), 0);
+    assert!(!shutdown.requested());
+    assert_eq!(dummy.ask("alpha"), "alpha 1");
+    session.restore(VerifyRestore::Sites).unwrap();
 }
 
 #[test]

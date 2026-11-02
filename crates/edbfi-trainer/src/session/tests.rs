@@ -7,6 +7,7 @@ use super::fake::{BASE, Block, FakeGame};
 use super::*;
 use crate::control::{ControlBit, ControlSet};
 use crate::patch::fake::Fault;
+use crate::patch::freeze::ResumeError;
 use crate::patch::{PatchError, SiteFault};
 
 fn candidate(game: &FakeGame) -> Candidate<Write> {
@@ -437,4 +438,31 @@ fn a_changed_original_refuses_installation_without_writing() {
     assert_eq!(failure.error.recovery(), RecoveryAction::ModifiedGameCode);
     assert_eq!(game.fake.calls("write"), writes);
     assert!(failure.session.hooked().is_empty());
+    // Nothing was written, so nothing could reach the caves: they are not retained.
+    assert_eq!(game.blocks(), [Block::Live]);
+    drop(failure);
+    assert_eq!(game.blocks(), [Block::Freed]);
+}
+
+#[test]
+fn a_thread_that_will_not_resume_blocks_detach_until_it_does() {
+    let (game, profile) = FakeGame::new();
+    let session = installed(&game, &profile);
+    // Restoration works, but one thread then refuses to resume, twice.
+    game.fake.fault_next("resume", 0, Fault::Fail);
+    let failure = session.restore(VerifyRestore::Sites).unwrap_err();
+    assert_eq!(
+        failure.error,
+        TrainerError::Resume(ResumeError { failed: 1 })
+    );
+    assert_eq!(failure.error.recovery(), RecoveryAction::RestartGame);
+    assert!(failure.session.hooked().is_empty());
+    assert_eq!(failure.session.suspended_threads(), 1);
+    assert_eq!(game.fake.suspend_counts(), [0, 1]);
+    game.fake.fault_next("resume", 0, Fault::Fail);
+    let failure = failure.session.restore(VerifyRestore::Sites).unwrap_err();
+    assert_eq!(failure.session.suspended_threads(), 1);
+    // Once it resumes, the session detaches with the game running.
+    failure.session.restore(VerifyRestore::Sites).unwrap();
+    assert_eq!(game.fake.suspend_counts(), [0, 0]);
 }

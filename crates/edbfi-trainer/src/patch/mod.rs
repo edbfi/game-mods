@@ -32,7 +32,7 @@ use crate::addr::{CodeRange, Va};
 use crate::profile::SiteId;
 use crate::recovery::RecoveryAction;
 
-pub(crate) use freeze::Freeze;
+pub(crate) use freeze::{Freeze, Stuck};
 
 /// A Windows memory protection, one of the `PAGE_*` values.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -360,9 +360,14 @@ fn read_back(process: &dyn Process, at: Va, expected: &[u8]) -> Result<(), Memor
 
 /// Writes every patch of `journal`, while `frozen` holds the game's threads.
 ///
-/// Every original is checked before any write and again just before its own. A patch is owned from just
-/// before its write. On any failure everything owned is restored, and the result reports both.
-pub(crate) fn apply(frozen: &Freeze<'_>, journal: &mut PatchJournal) -> Result<(), ApplyError> {
+/// Every original is checked before any write and again just before its own. `first_write` runs once,
+/// after every original is checked and before anything is written. A patch is owned from just before its
+/// write. On any failure everything owned is restored, and the result reports both.
+pub(crate) fn apply(
+    frozen: &Freeze<'_>,
+    journal: &mut PatchJournal,
+    first_write: &mut dyn FnMut(),
+) -> Result<(), ApplyError> {
     let process = frozen.process();
     if journal.owns_any() {
         return Err(ApplyError {
@@ -388,6 +393,7 @@ pub(crate) fn apply(frozen: &Freeze<'_>, journal: &mut PatchJournal) -> Result<(
             rollback: Ok(()),
         });
     }
+    first_write();
     for i in 0..journal.patches.len() {
         let patch = &journal.patches[i];
         let (site, at, replacement) = (patch.site, patch.at(), patch.replacement.clone());
@@ -436,7 +442,10 @@ pub(crate) fn restore(
                 source,
             })),
             Ok(()) if !ours(&current, patch) => Err(SiteFault::Foreign),
-            Ok(()) if current == original => Ok(()),
+            // Already original, perhaps after an attempt whose flush failed: flush before letting go.
+            Ok(()) if current == original => process
+                .flush(at, original.len() as u64)
+                .map_err(|source| SiteFault::Memory(MemoryError::Flush { at, source })),
             Ok(()) => write_code(frozen, journal, at, &original)
                 .and_then(|()| read_back(process, at, &original))
                 .map_err(SiteFault::Memory),

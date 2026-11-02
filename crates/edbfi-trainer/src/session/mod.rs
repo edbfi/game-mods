@@ -51,7 +51,9 @@ use crate::cave::HookPlan;
 use crate::control::{Ack, ControlMask, DesiredMask};
 use crate::identity::Sha256Digest;
 use crate::patch::freeze::{FreezeError, ResumeError};
-use crate::patch::{self, ApplyError, Freeze, OsError, PatchJournal, Process, RestoreIncomplete};
+use crate::patch::{
+    self, ApplyError, Freeze, OsError, PatchJournal, Process, RestoreIncomplete, Stuck,
+};
 use crate::profile::{ModSlug, SiteId, ValidProfile};
 use crate::recovery::RecoveryAction;
 
@@ -228,6 +230,8 @@ struct Hooks {
     journal: PatchJournal,
     /// The cave block while nothing can reach it; `None` once it is retained.
     unpublished: Option<Box<dyn Allocation>>,
+    /// Game threads this session suspended that would not resume, each owing one resume.
+    stuck: Stuck,
 }
 
 impl Hooks {
@@ -238,13 +242,6 @@ impl Hooks {
             .iter()
             .flat_map(|hook| [hook.range(), hook.cave().code()])
             .collect()
-    }
-
-    /// Gives the caves up for good, before any site could jump to them.
-    fn retain(&mut self) {
-        if let Some(block) = self.unpublished.take() {
-            block.retain();
-        }
     }
 }
 
@@ -524,12 +521,18 @@ fn frozen_change(
         },
         text: TextCheck::Skipped(SkipReason::Incomplete),
     };
+    hooks.stuck.retry();
     let frozen = loop {
         attempts += 1;
         match catch_unwind(AssertUnwindSafe(|| Freeze::new(game, &ranges))) {
             Ok(Ok(frozen)) => break frozen,
-            Ok(Err(error)) if error.transient() && attempts < FREEZE_ATTEMPTS => {}
-            Ok(Err(error)) => return not_held(attempts, TrainerError::Freeze(error)),
+            Ok(Err(failure)) => {
+                let transient = failure.error.transient();
+                hooks.stuck.absorb(failure.stuck);
+                if !transient || attempts >= FREEZE_ATTEMPTS {
+                    return not_held(attempts, TrainerError::Freeze(failure.error));
+                }
+            }
             Err(_) => return not_held(attempts, TrainerError::Panicked),
         }
         game.wait(RETRY_WAIT);
@@ -565,11 +568,12 @@ fn frozen_change(
         acquire,
         held: held.elapsed(),
     };
-    if let Err(error) = resumed {
-        outcome = Err(match outcome {
-            Ok(()) => TrainerError::Resume(error),
-            Err(first) => first,
-        });
+    // Threads left suspended matter more than anything else that failed: the game is stuck until they resume.
+    if let Err(stuck) = resumed {
+        hooks.stuck.absorb(stuck);
+        outcome = Err(TrainerError::Resume(ResumeError {
+            failed: hooks.stuck.len(),
+        }));
     }
     Changed {
         outcome,
@@ -617,8 +621,18 @@ impl Session<Prepared> {
             &mut hooks,
             &|| owner.stop_requested(),
             &mut |frozen, hooks| {
-                hooks.retain();
-                patch::apply(frozen, &mut hooks.journal).map_err(TrainerError::Apply)
+                let Hooks {
+                    journal,
+                    unpublished,
+                    ..
+                } = hooks;
+                // From the first write on, a game thread may run the caves: give them up for good.
+                let mut retain = || {
+                    if let Some(block) = unpublished.take() {
+                        block.retain();
+                    }
+                };
+                patch::apply(frozen, journal, &mut retain).map_err(TrainerError::Apply)
             },
             &mut |frozen, hooks| {
                 patch::restore(frozen, &mut hooks.journal).map_err(TrainerError::Restore)
@@ -697,6 +711,12 @@ impl Session<Recovery> {
         self.state.hooks.journal.debt()
     }
 
+    /// Game threads this session suspended that would not resume. Restoring tries them again.
+    #[must_use]
+    pub fn suspended_threads(&self) -> usize {
+        self.state.hooks.stuck.len()
+    }
+
     /// Publishes zero, then freezes the game and restores every site still hooked, checking each.
     ///
     /// # Errors
@@ -716,8 +736,15 @@ impl Session<Recovery> {
                 text: TextCheck::Skipped(SkipReason::Incomplete),
             }
         } else if hooks.journal.is_clean() {
+            hooks.stuck.retry();
             Changed {
-                outcome: Ok(()),
+                outcome: if hooks.stuck.is_empty() {
+                    Ok(())
+                } else {
+                    Err(TrainerError::Resume(ResumeError {
+                        failed: hooks.stuck.len(),
+                    }))
+                },
                 timing: Timing::default(),
                 text: TextCheck::Skipped(SkipReason::NotRequested),
             }
