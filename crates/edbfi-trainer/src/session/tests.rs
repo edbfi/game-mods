@@ -552,14 +552,14 @@ fn an_owed_resume_survives_a_restore_whose_own_freeze_resumes() {
 }
 
 #[test]
-fn the_control_word_goes_above_4_gib_and_away_from_the_image() {
+fn the_control_word_goes_above_8_gib_and_away_from_the_image() {
     let (game, profile) = FakeGame::new();
-    // Someone already holds the first boundary above 4 GiB.
+    // Someone already holds the first boundary above 8 GiB.
     game.fake
-        .map(1 << 32, 0x1000, crate::patch::Protection::READ_WRITE, 0);
+        .map(1 << 33, 0x1000, crate::patch::Protection::READ_WRITE, 0);
     let session = prepared(&game, &profile);
     let at = game.info.controls_at.get();
-    assert_eq!(at, (1 << 32) + 0x1_0000);
+    assert_eq!(at, (1 << 33) + 0x1_0000);
     assert!(at.abs_diff(BASE) >= 1 << 32);
     drop(session);
 }

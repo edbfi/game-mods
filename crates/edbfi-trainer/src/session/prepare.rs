@@ -81,8 +81,9 @@ pub(super) fn prepare(
     })
 }
 
-/// The lowest base the control word may take: above every 32-bit immediate a cave can hold.
-const CONTROLS_FLOOR: u64 = 1 << 32;
+/// The lowest base the control word may take: more than 64 KiB above every zero-extended 32-bit immediate a
+/// cave can hold.
+const CONTROLS_FLOOR: u64 = 1 << 33;
 /// How far the control word stays from the image, either side: past every global and continuation a cave
 /// holds, and past the caves' own reach.
 const CONTROLS_CLEARANCE: u64 = 1 << 32;
@@ -111,7 +112,13 @@ fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, Prepare
         let Some(end) = region.end().filter(|&e| e > cursor) else {
             break;
         };
-        let base = cursor
+        // Within a free region, skip only the part too near the image.
+        let from = if near(cursor) {
+            cursor.max(image.saturating_add(CONTROLS_CLEARANCE))
+        } else {
+            cursor
+        };
+        let base = from
             .checked_next_multiple_of(granularity)
             .unwrap_or(u64::MAX);
         if region.state == RegionState::Free
