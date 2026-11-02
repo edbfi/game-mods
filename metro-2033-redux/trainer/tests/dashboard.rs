@@ -597,6 +597,22 @@ fn scrolling_reaches_the_last_line_of_help_and_cards() {
     );
 }
 
+#[test]
+fn a_locked_cheat_says_why_at_40x12() {
+    let mut app = app(Phase::Waiting, SMALL);
+    app.update(press(ConsoleKey::Key(Key::SPACE)));
+    let buffer = render(&app, SMALL);
+    let shown: String = (0..SMALL.1)
+        .map(|y| {
+            (0..SMALL.0)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(shown.contains("Cheats unlock once"), "{shown}");
+}
+
 // ----- properties -----
 
 /// The labels of every row reached by Tab and Down, checking each focused row is drawn.

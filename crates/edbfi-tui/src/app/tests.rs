@@ -190,7 +190,7 @@ fn pausing_before_connection_explains_itself() {
     let mut app = app(Phase::Waiting);
     let effects = app.update(Msg::Input(Command::Hotkey(Target::Master)));
     assert!(effects.is_empty());
-    assert!(matches!(app.model.last, Some(super::Last::Message { .. })));
+    assert!(app.model.notice.is_some());
 }
 
 #[test]
@@ -703,7 +703,10 @@ fn cheats_are_locked_until_the_trainer_hooks_the_game() {
                 .is_empty()
         );
         assert_eq!(app.settings().selection, before);
-        assert!(matches!(app.model.last, Some(super::Last::Message { .. })));
+        assert_eq!(
+            app.model.notice.as_ref().map(|n| n.text.as_str()),
+            Some(super::LOCKED)
+        );
         // Settings that are not cheats stay editable.
         app.model.focus = Row::Sounds;
         assert_eq!(

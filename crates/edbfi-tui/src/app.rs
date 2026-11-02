@@ -283,7 +283,7 @@ const fn letter(byte: u8) -> Key {
 }
 
 /// Why a cheat cannot change yet.
-const LOCKED: &str = "Cheats unlock once the trainer has hooked the game";
+const LOCKED: &str = "Cheats unlock once the game is hooked";
 
 const KEY_D: Key = letter(b'D');
 const KEY_H: Key = letter(b'H');
@@ -1077,9 +1077,11 @@ impl<'p> App<'p> {
         if self.model.phase.is_attached() {
             return false;
         }
-        self.model.last = Some(Last::Message {
+        // A notice, so even 40×12 without a status line shows why nothing changed.
+        self.model.notice = Some(Notice {
             text: LOCKED.into(),
-            tone: Tone::Muted,
+            tone: Tone::Armed,
+            until_saved: false,
         });
         true
     }
