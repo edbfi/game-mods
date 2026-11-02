@@ -161,10 +161,6 @@ impl fmt::Debug for DesiredMask {
 pub struct ControlMask(ControlSet);
 
 impl ControlMask {
-    #[cfg_attr(
-        not(any(test, feature = "simulate")),
-        expect(dead_code, reason = "the Windows publisher arrives in a later change")
-    )]
     pub(crate) const fn published(desired: DesiredMask) -> Self {
         Self(desired.0)
     }
@@ -193,10 +189,6 @@ pub struct Ack {
 }
 
 impl Ack {
-    #[cfg_attr(
-        not(any(test, feature = "simulate")),
-        expect(dead_code, reason = "the Windows publisher arrives in a later change")
-    )]
     pub(crate) const fn new(revision: u64, mask: ControlMask) -> Self {
         Self { revision, mask }
     }

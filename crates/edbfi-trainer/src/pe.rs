@@ -52,6 +52,16 @@ impl Section {
         self.virtual_size
     }
 
+    /// The section's bytes as the loader maps them: its raw data, then zeros up to its loaded size.
+    #[cfg(all(test, windows))]
+    pub(crate) fn loaded(&self, file: &[u8]) -> Option<Vec<u8>> {
+        let raw = self.raw_size.min(self.virtual_size) as usize;
+        let start = self.raw_offset as usize;
+        let mut bytes = file.get(start..start.checked_add(raw)?)?.to_vec();
+        bytes.resize(self.virtual_size as usize, 0);
+        Some(bytes)
+    }
+
     /// File bytes backing `[rva, rva + len)`, if this section's raw data covers all of it.
     fn file_range(&self, rva: Rva, len: u32) -> Option<std::ops::Range<usize>> {
         let start = rva.get().checked_sub(self.rva.get())?;
@@ -237,6 +247,12 @@ impl<'a> PeImage<'a> {
         &self.file[self.nt_offset..self.nt_offset + self.nt_len]
     }
 
+    /// Where the NT headers start in the file, and in the loaded image: `e_lfanew`.
+    #[must_use]
+    pub const fn nt_offset(&self) -> usize {
+        self.nt_offset
+    }
+
     /// Offset of `ImageBase` within [`nt_headers`](Self::nt_headers).
     pub const NT_IMAGE_BASE_OFFSET: usize = 4 + FILE_HEADER_LEN + OPT_IMAGE_BASE;
 
@@ -338,9 +354,13 @@ impl PeError {
 /// Builds synthetic PE files for tests.
 #[cfg(test)]
 pub(crate) mod testing {
-    /// A minimal PE32+ AMD64 file with `.text` at RVA 0x1000 (file 0x400) and `.reloc` holding `blocks`.
+    /// A minimal PE32+ AMD64 file with `.text` (at most 0x1000 bytes) at RVA 0x1000, file 0x400, and
+    /// `.reloc` at RVA 0x2000 holding `blocks`.
     pub(crate) fn image(text: &[u8], blocks: &[u8]) -> Vec<u8> {
-        let mut file = vec![0u8; 0x800 + blocks.len().max(1)];
+        assert!(text.len() <= 0x1000);
+        let text_raw = text.len().next_multiple_of(0x200).max(0x400);
+        let reloc_raw = 0x400 + text_raw;
+        let mut file = vec![0u8; reloc_raw + blocks.len().max(1)];
         file[..2].copy_from_slice(b"MZ");
         file[0x3C..0x40].copy_from_slice(&0x80u32.to_le_bytes());
         let nt = 0x80;
@@ -365,19 +385,18 @@ pub(crate) mod testing {
             text.len(),
             0x1000,
             0x400,
-            0x400,
+            text_raw,
         );
         section(
             &mut file[table + 40..table + 80],
             b".reloc\0\0",
             blocks.len(),
             0x2000,
-            0x800,
+            u32::try_from(reloc_raw).unwrap(),
             blocks.len().max(1),
         );
-        assert!(text.len() <= 0x400);
         file[0x400..0x400 + text.len()].copy_from_slice(text);
-        file[0x800..0x800 + blocks.len()].copy_from_slice(blocks);
+        file[reloc_raw..reloc_raw + blocks.len()].copy_from_slice(blocks);
         file
     }
 
