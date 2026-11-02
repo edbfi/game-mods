@@ -585,3 +585,25 @@ fn a_rolled_back_install_still_gets_its_whole_code_check() {
         TextCheck::Skipped(SkipReason::Untouched)
     );
 }
+
+#[test]
+fn a_lost_race_for_the_control_word_tries_the_next_boundary() {
+    let (game, profile) = FakeGame::new();
+    // The first boundary looks free to the walk but is taken when mapped; the next one in the same region
+    // is used.
+    game.info.taken.borrow_mut().insert(1 << 33);
+    drop(prepared(&game, &profile));
+    assert_eq!(game.info.controls_at.get(), (1 << 33) + 0x1_0000);
+    // Any other failure is reported.
+    let (game, profile) = FakeGame::new();
+    game.fake.fault("controls", 0, Fault::Fail);
+    let failure = identified(&game, &profile)
+        .claim()
+        .unwrap()
+        .prepare()
+        .unwrap_err();
+    assert!(matches!(
+        failure.error,
+        TrainerError::Prepare(PrepareError::Controls(_))
+    ));
+}

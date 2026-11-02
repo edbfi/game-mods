@@ -172,6 +172,12 @@ impl<A: Access> Candidate<A> {
     pub fn pid(&self) -> u32 {
         self.game.pid()
     }
+
+    /// Whether the process has exited, so retrying a transient identification is pointless.
+    #[must_use]
+    pub fn exited(&self) -> bool {
+        self.game.exited()
+    }
 }
 
 impl<A: Access> fmt::Debug for Candidate<A> {

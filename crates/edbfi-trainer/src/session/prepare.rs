@@ -128,7 +128,11 @@ fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, Prepare
             tries += 1;
             match game.controls(Va::new(base)) {
                 Ok(controls) => return Ok(controls),
-                Err(error) if error.code == ERROR_INVALID_ADDRESS => {}
+                // Taken since the walk: the rest of the region may still be free.
+                Err(error) if error.code == ERROR_INVALID_ADDRESS => {
+                    cursor = base.saturating_add(granularity);
+                    continue;
+                }
                 Err(error) => return Err(PrepareError::Controls(error)),
             }
         }

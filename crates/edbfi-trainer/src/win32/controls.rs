@@ -155,6 +155,11 @@ impl Mapping {
         if remote.is_null() {
             let error = last_error("MapViewOfFileNuma2");
             if registered {
+                // Release a close notice that found this lease before retiring it.
+                // SAFETY: `lease` came from `Box::leak` above and is still live.
+                let completion = unsafe { lease.as_ref() }.completion();
+                // SAFETY: the completion event is a live event handle owned by the lease.
+                let _set = unsafe { SetEvent(completion) };
                 bridge::retire(lease);
             }
             free();

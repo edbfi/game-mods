@@ -261,7 +261,7 @@ impl Game for FakeGame {
 
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
         self.fail("controls")?;
-        if self.fake.occupied(at.get(), PAGE) {
+        if self.info.taken.borrow().contains(&at.get()) || self.fake.occupied(at.get(), PAGE) {
             return Err(OsError::new("MapViewOfFileNuma2", 487));
         }
         self.info.controls_at.set(at.get());
