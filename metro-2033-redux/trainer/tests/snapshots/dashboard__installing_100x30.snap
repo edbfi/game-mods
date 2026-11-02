@@ -8,8 +8,7 @@ a fg=Reset bg=Reset mod=NONE
 b fg=Yellow bg=Reset mod=NONE
 c fg=DarkGray bg=Reset mod=NONE
 d fg=Yellow bg=Reset mod=BOLD
-e fg=LightYellow bg=Reset mod=NONE
-f fg=LightGreen bg=Reset mod=NONE
+e fg=LightGreen bg=Reset mod=NONE
  edbfi · Metro 2033 Redux                                                  INSTALLING · input waits |
 abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbcccccccccccccca
  ────────────────────────────────────────────────────────────────────────────────────────────────── |
@@ -22,8 +21,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaccccccccaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   CHEATS                                        │   rpk                                    OFF      |
 aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-►●Unlimited ammo          Alt+F1  ARMED         │   ashot                                  OFF      |
-dbddddddddddddddaaaaaaaaaaaaaaaaaaeeeeeaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+►●Unlimited ammo          Alt+F1  OFF           │   ashot                                  OFF      |
+dbddddddddddddddaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited throwables    Alt+F2  OFF           │   vsv                                    OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited medkits       Alt+F3  OFF           │   ventil                                 OFF      |
@@ -32,8 +31,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Indestructible mask     Alt+F5  OFF           │   preved                                 OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
- ●No reload, all weapons  Alt+1   ARMED         │   vyhlop                                 OFF      |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+ ●No reload, all weapons  Alt+1   OFF           │   vyhlop                                 OFF      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   God mode                Alt+2   OFF           │   saiga                                  OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited flashlight    Alt+3   OFF           │   tumak                                  OFF      |
@@ -43,9 +42,9 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   OPTIONS                                       │   gatling                                OFF      |
 aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
  ●Keep Hellsing pressure          ON            │   ubludok                                OFF      |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaffaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
  ●Chimes                          ON            │   Shambler                               OFF      |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaffaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Start paused                    OFF           │   bigun                                  OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
                                                 │   duplet                                 OFF      |
@@ -60,8 +59,8 @@ aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Settings …ro-2033-redux\trainer\settings.toml │   tihar                                  OFF      |
 aaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  Log      …etro-2033-redux\trainer\trainer.log │  ●Hellsing                               ARMED    |
-aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeaaaa
+  Log      …etro-2033-redux\trainer\trainer.log │  ●Hellsing                               OFF      |
+aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Installing hooks with every cheat off.        │   flamethrower                           OFF      |
 aaccccccccccccccccccccccccccccccccccccccaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
  ────────────────────────────────────────────────────────────────────────────────────────────────── |

@@ -8,13 +8,12 @@ a fg=Reset bg=Reset mod=NONE
 b fg=Yellow bg=Reset mod=NONE
 c fg=DarkGray bg=Reset mod=NONE
 d fg=Yellow bg=Reset mod=BOLD
-e fg=LightYellow bg=Reset mod=NONE
  Metro 2033 Redux             RESTORING |
 abbbbbbbbbbbbbbbbaaaaaaaaaaaaabbbbbbbbba
  [Cheats] No reload by weapon Options   |
 abbbbbbbbcccccccccccccccccccccccccccccaa
- ►●Unlimited ammo              ARMED    |
-adbddddddddddddddaaaaaaaaaaaaaaeeeeeaaaa
+ ►●Unlimited ammo              OFF      |
+adbddddddddddddddaaaaaaaaaaaaaacccaaaaaa
    Unlimited throwables        OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    Unlimited medkits           OFF      |
@@ -23,8 +22,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    Indestructible mask         OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  ●No reload, all weapons      ARMED    |
-aabaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeaaaa
+  ●No reload, all weapons      OFF      |
+aabaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    ▼ 2 more                             |
 aaaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
  Alt+F1 · gameplay partial · S1 S2      |

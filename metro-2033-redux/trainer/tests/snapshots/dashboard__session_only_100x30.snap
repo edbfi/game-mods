@@ -22,8 +22,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaccccccccaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   CHEATS                                        │   rpk                                    OFF      |
 aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-► Unlimited ammo          Alt+F1  OFF           │   ashot                                  OFF      |
-eaeeeeeeeeeeeeeeaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+►●Unlimited ammo          Alt+F1  OFF           │   ashot                                  OFF      |
+ebeeeeeeeeeeeeeeaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited throwables    Alt+F2  OFF           │   vsv                                    OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited medkits       Alt+F3  OFF           │   ventil                                 OFF      |
@@ -32,8 +32,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Indestructible mask     Alt+F5  OFF           │   preved                                 OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
- ●No reload, all weapons  Alt+1   ARMED         │   vyhlop                                 OFF      |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+ ●No reload, all weapons  Alt+1   OFF           │   vyhlop                                 OFF      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   God mode                Alt+2   OFF           │   saiga                                  OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Unlimited flashlight    Alt+3   OFF           │   tumak                                  OFF      |
@@ -54,19 +54,19 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aabbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Keeps reserve ammo; you still reload.         │   abzac                                  OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  Alt+F1 · gameplay partial · S1 S2             │   hellbreath                             OFF      |
-aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+  Alt+F1 · saved; applies once hooked           │   hellbreath                             OFF      |
+aaaaaaaacccddddddddddddddddddddddddddaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
                                                 │   hellshock                              OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Settings not saved this session               │   tihar                                  OFF      |
 aaccccccccaccccccccccccccccccccccaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  Log      …ументы\edbfi\?]0;pwned?\trainer.log │  ●Hellsing                               ARMED    |
-aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddaaaa
-  Start the game; selections apply on connect.  │   flamethrower                           OFF      |
-aaccccccccccccccccccccccccccccccccccccccccccccaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+  Log      …ументы\edbfi\?]0;pwned?\trainer.log │  ●Hellsing                               OFF      |
+aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+  Start the game; saved cheats apply on hook.   │   flamethrower                           OFF      |
+aacccccccccccccccccccccccccccccccccccccccccccaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
  ────────────────────────────────────────────────────────────────────────────────────────────────── |
 acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
- Last: Unlimited ammo OFF · not saved this session                                                  |
-accccccaaaaaaaaaaaaaaaccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ Last: Cheats unlock once the trainer has hooked the game · not saved this session                  |
+acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaa
  Up/Down move  Tab section  Space toggle  R bind  P pause  ? help  Q quit                           |
 accccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaa

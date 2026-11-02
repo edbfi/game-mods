@@ -13,8 +13,8 @@ e fg=LightYellow bg=Reset mod=NONE
 abbbbbbbbbbbbbbbbaaaaaaaaaaaaabbbbbbbbba
  [Cheats] No reload by weapon Options   |
 abbbbbbbbcccccccccccccccccccccccccccccaa
- ►●Unlimited ammo              ARMED    |
-adbddddddddddddddaaaaaaaaaaaaaaeeeeeaaaa
+ ►●Unlimited ammo              OFF      |
+adbddddddddddddddaaaaaaaaaaaaaacccaaaaaa
    Unlimited throwables        OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    Unlimited medkits           OFF      |
@@ -23,12 +23,12 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    Indestructible mask         OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  ●No reload, all weapons      ARMED    |
-aabaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeeeaaaa
+  ●No reload, all weapons      OFF      |
+aabaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
    ▼ 2 more                             |
 aaaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
- Alt+F1 · applies on connect            |
-aaaaaaaccceeeeeeeeeeeeeeeeeeaaaaaaaaaaaa
+ Alt+F1 · saved; applies once hooked    |
+aaaaaaaccceeeeeeeeeeeeeeeeeeeeeeeeeeaaaa
  Tab section  Arrows move  R bind       |
 accccccccccccccccccccccccccccccccaaaaaaa
  Space toggle  P pause  ? help  Q quit  |

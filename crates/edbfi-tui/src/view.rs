@@ -299,8 +299,11 @@ fn details(app: &App<'_>, row: Row) -> (String, String, Vec<(String, Tone)>) {
                         facts.push((format!("via {}", app.label(Row::Toggle(cover))), Tone::Via));
                     }
                 }
-                Status::Armed if !app.input_closed() => {
-                    facts.push(("applies on connect".into(), Tone::Armed));
+                _ if !app.model.phase.is_attached()
+                    && app.model.settings.selection.contains(id)
+                    && !app.input_closed() =>
+                {
+                    facts.push(("saved; applies once hooked".into(), Tone::Armed));
                 }
                 _ => {}
             }
@@ -643,7 +646,7 @@ fn draw_files(app: &App<'_>, canvas: &mut Canvas<'_>, x: u16, y: u16, room: u16)
         Phase::Attached { attach_duration } => {
             format!("Attached in {} ms", attach_duration.as_millis())
         }
-        Phase::Waiting => "Start the game; selections apply on connect.".into(),
+        Phase::Waiting => "Start the game; saved cheats apply on hook.".into(),
         Phase::Verifying { .. } => "Nothing is changed until every check passes.".into(),
         Phase::Installing => "Installing hooks with every cheat off.".into(),
         Phase::Restoring => "Restoring the game's code.".into(),
@@ -1200,11 +1203,11 @@ fn help_paras(app: &App<'_>) -> Vec<Para> {
         Para::new("ON      applied in the game", Tone::On),
         Para::new("VIA     applied through another selected cheat", Tone::Via),
         Para::new("PAUSED  selected; every cheat is paused", Tone::Paused),
-        Para::new(
-            "ARMED   selected; applies when the game connects",
-            Tone::Armed,
-        ),
         Para::new("OFF     not applied", Tone::Muted),
+        Para::new(
+            "Cheats unlock once the trainer has hooked the game; a marked row is a saved choice and applies then.",
+            Tone::Muted,
+        ),
         Para::blank(),
         Para::new("Files", Tone::Accent),
     ];

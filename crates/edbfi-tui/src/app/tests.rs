@@ -87,9 +87,10 @@ fn rows_show_acknowledged_state_never_the_wish() {
     let mut app = app(Phase::Waiting);
     assert_eq!(
         app.status(id("beta")),
-        Status::Armed,
-        "selected before attach"
+        Status::Off,
+        "nothing applies before the hook"
     );
+    assert!(app.marked(id("beta")), "the saved choice stays visible");
     assert_eq!(app.status(id("alpha")), Status::Off);
     assert_eq!(app.status(Row::Master), Status::Inactive);
     let effects = app.update(Msg::Runtime(RuntimeEvent::Phase(attached())));
@@ -485,8 +486,9 @@ fn defaults_shown_behind_a_settings_problem_are_never_saved() {
         path: PathBuf::from("settings.toml"),
         error,
     }));
-    // The runtime leaves the card without sending the settings first.
+    // The runtime leaves the card without sending the settings first. Chimes stay editable before the hook.
     app.update(Msg::Runtime(RuntimeEvent::Phase(Phase::Waiting)));
+    app.model.focus = Row::Sounds;
     assert!(
         !app.update(press(ConsoleKey::Key(Key::SPACE)))
             .contains(&Effect::Save)
@@ -679,4 +681,34 @@ fn a_plain_card_offers_only_the_key_that_still_works() {
         !lines.iter().any(|line| line.contains("Keys:")),
         "{lines:?}"
     );
+}
+
+#[test]
+fn cheats_are_locked_until_the_trainer_hooks_the_game() {
+    for phase in [
+        Phase::Waiting,
+        Phase::Verifying {
+            stage: edbfi_trainer::lifecycle::VerifyStage::Code,
+        },
+    ] {
+        let mut app = app(phase);
+        let before = app.settings().selection;
+        assert!(app.update(press(ConsoleKey::Key(Key::SPACE))).is_empty());
+        assert!(
+            app.update(Msg::Input(Command::Hotkey(target("alpha"))))
+                .is_empty()
+        );
+        assert!(
+            app.update(Msg::Input(Command::Hotkey(Target::Master)))
+                .is_empty()
+        );
+        assert_eq!(app.settings().selection, before);
+        assert!(matches!(app.model.last, Some(super::Last::Message { .. })));
+        // Settings that are not cheats stay editable.
+        app.model.focus = Row::Sounds;
+        assert_eq!(
+            app.update(press(ConsoleKey::Key(Key::SPACE))),
+            [Effect::Save]
+        );
+    }
 }

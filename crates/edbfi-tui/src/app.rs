@@ -140,7 +140,6 @@ pub(crate) enum Status {
     On,
     Via,
     Paused,
-    Armed,
     Off,
     Active,
     Inactive,
@@ -152,7 +151,6 @@ impl Status {
             Self::On => "ON",
             Self::Via => "VIA",
             Self::Paused => "PAUSED",
-            Self::Armed => "ARMED",
             Self::Off => "OFF",
             Self::Active => "ACTIVE",
             Self::Inactive => "INACTIVE",
@@ -164,7 +162,6 @@ impl Status {
             Self::On | Self::Active => Tone::On,
             Self::Via => Tone::Via,
             Self::Paused => Tone::Paused,
-            Self::Armed => Tone::Armed,
             Self::Off | Self::Inactive => Tone::Muted,
         }
     }
@@ -284,6 +281,9 @@ const fn letter(byte: u8) -> Key {
         None => panic!("not a letter"),
     }
 }
+
+/// Why a cheat cannot change yet.
+const LOCKED: &str = "Cheats unlock once the trainer has hooked the game";
 
 const KEY_D: Key = letter(b'D');
 const KEY_H: Key = letter(b'H');
@@ -1072,7 +1072,22 @@ impl<'p> App<'p> {
         }
     }
 
+    /// Cheats unlock only once the hooks are in: before that every cheat reads OFF and its saved choice waits.
+    fn locked(&mut self) -> bool {
+        if self.model.phase.is_attached() {
+            return false;
+        }
+        self.model.last = Some(Last::Message {
+            text: LOCKED.into(),
+            tone: Tone::Muted,
+        });
+        true
+    }
+
     fn toggle(&mut self, id: ToggleId) {
+        if self.locked() {
+            return;
+        }
         let on = self.model.settings.selection.contains(id);
         self.model.settings.selection.set(id, !on);
         self.changed(Row::Toggle(id));
@@ -1080,11 +1095,7 @@ impl<'p> App<'p> {
     }
 
     fn toggle_master(&mut self) {
-        if !self.model.phase.is_attached() {
-            self.model.last = Some(Last::Message {
-                text: "Pause works once the game is connected".into(),
-                tone: Tone::Muted,
-            });
+        if self.locked() {
             return;
         }
         self.model.master = self.model.master.toggled();
@@ -1274,7 +1285,7 @@ impl<'p> App<'p> {
             Row::Toggle(id) => {
                 let selected = self.model.settings.selection.contains(id);
                 if !attached {
-                    return if selected { Status::Armed } else { Status::Off };
+                    return Status::Off;
                 }
                 let bits = self.profile.toggle(id).controls.word();
                 let acked = self.model.acked.unwrap_or(ControlSet::EMPTY).word();

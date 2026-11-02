@@ -21,7 +21,7 @@ pub enum Tone {
     On,
     /// Applied through another selected cheat.
     Via,
-    /// Selected; applies when the game connects.
+    /// Something waits: a saved choice before the hook, a change the game has not confirmed, or a warning.
     Armed,
     /// Selected while every cheat is paused.
     Paused,

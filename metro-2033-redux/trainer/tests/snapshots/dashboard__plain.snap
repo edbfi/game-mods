@@ -7,12 +7,12 @@ State: WAITING for metro.exe
 Settings: C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\trainer\settings.toml
 Log: C:\Users\Player\AppData\Local\edbfi\metro-2033-redux\trainer\trainer.log
 Cheats:
-  * Unlimited ammo          Alt+F1        ARMED
+  * Unlimited ammo          Alt+F1        OFF
     Unlimited throwables    Alt+F2        OFF
     Unlimited medkits       Alt+F3        OFF
     Unlimited filters       Alt+F6        OFF
     Indestructible mask     Alt+F5        OFF
-  * No reload, all weapons  Alt+1         ARMED
+  * No reload, all weapons  Alt+1         OFF
     God mode                Alt+2         OFF
     Unlimited flashlight    Alt+3         OFF
 No reload by weapon:
@@ -38,7 +38,7 @@ No reload by weapon:
     hellbreath                            OFF
     hellshock                             OFF
     tihar                                 OFF
-  * Hellsing                              ARMED
+  * Hellsing                              OFF
     flamethrower                          OFF
 Options:
     All cheats              Alt+F8        INACTIVE
@@ -82,8 +82,8 @@ Settings need attention
   D replaces the file with defaults and keeps the old one as a backup. Nothing connects until then.
   C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\trainer\settings.toml
   Keys: Enter reload  D defaults  Q quit
-Unlimited ammo: ARMED (Alt+F1)
-No reload, all weapons: ARMED (Alt+1)
+Unlimited ammo: OFF (Alt+F1)
+No reload, all weapons: OFF (Alt+1)
 Kalash: OFF
 aksu: OFF
 rpk: OFF
@@ -106,6 +106,6 @@ abzac: OFF
 hellbreath: OFF
 hellshock: OFF
 tihar: OFF
-Hellsing: ARMED
+Hellsing: OFF
 flamethrower: OFF
 All cheats: INACTIVE (Alt+F8)

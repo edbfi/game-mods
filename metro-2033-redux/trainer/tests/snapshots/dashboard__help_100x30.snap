@@ -10,7 +10,6 @@ c fg=DarkGray bg=Reset mod=NONE
 d fg=LightGreen bg=Reset mod=NONE
 e fg=Cyan bg=Reset mod=NONE
 f fg=LightBlue bg=Reset mod=NONE
-g fg=LightYellow bg=Reset mod=NONE
  edbfi · Metro 2033 Redux                                         ATTACHED · ACTIVE · Alt+F8 pauses |
 abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddcccddddddcccccccccccccccca
  ─────────────────┌─ Help ───────────────────────────────────────────────────────┐───────────────── |
@@ -45,23 +44,23 @@ aaaaaaaaaaaaaaaaaacadddddddddddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aabbbbbbbaaaaaaaaacaeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
  ●Keep Hellsing pr│ PAUSED  selected; every cheat is paused                      │         VIA      |
 abaaaaaaaaaaaaaaaacafffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
- ●Chimes          │ ARMED   selected; applies when the game connects             │         VIA      |
-abaaaaaaaaaaaaaaaacaggggggggggggggggggggggggggggggggggggggggggggggggaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Start paused    │ OFF     not applied                                          │         VIA      |
-aaaaaaaaaaaaaaaaaacacccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-                  │                                                              │         VIA      |
-aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Unlimited ammo  │ Files                                                        │         VIA      |
-aabbbbbbbbbbbbbbaacabbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Keeps reserve am│ Settings:                                                    │         VIA      |
-aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Alt+F1 · gamepla│ C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\train │         VIA      |
+ ●Chimes          │ OFF     not applied                                          │         VIA      |
+abaaaaaaaaaaaaaaaacacccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Start paused    │ Cheats unlock once the trainer has hooked the game; a marked │         VIA      |
+aaaaaaaaaaaaaaaaaacaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccacaaaaaaaaaeeeaaaaaa
+                  │ row is a saved choice and applies then.                      │         VIA      |
+aaaaaaaaaaaaaaaaaacacccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Unlimited ammo  │                                                              │         VIA      |
+aabbbbbbbbbbbbbbaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Keeps reserve am│ Files                                                        │         VIA      |
+aaaaaaaaaaaaaaaaaacabbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  Alt+F1 · gamepla│ Settings:                                                    │         VIA      |
 aaaaaaaacccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-                  │ er\settings.toml                                             │         VIA      |
+                  │ C:\Users\Player\AppData\Roaming\edbfi\metro-2033-redux\train │         VIA      |
 aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Settings …ro-203│ Log:                                                         │         VIA      |
+  Settings …ro-203│ er\settings.toml                                             │         VIA      |
 aaccccccccaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Log      …etro-2│ ▼ 2 more                                                     │         ON       |
+  Log      …etro-2│ ▼ 3 more                                                     │         ON       |
 aacccaaaaaaaaaaaaacaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaddaaaaaaa
   Attached in 42 m│                                                              │         VIA      |
 aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa

@@ -13,8 +13,8 @@ e fg=Yellow bg=Reset mod=BOLD
 abbbbbbbbbbbbbbbbacccccccaaaaaaaaaaaaaaa
  [Cheats] No reload by weapon Options   |
 abbbbbbbbdddddddddddddddddddddddddddddaa
- ►●Unlimited ammo              ARMED    |
-aebeeeeeeeeeeeeeeaaaaaaaaaaaaaacccccaaaa
+ ►●Unlimited ammo              OFF      |
+aebeeeeeeeeeeeeeeaaaaaaaaaaaaaadddaaaaaa
    Unlimited throwables        OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
    Unlimited medkits           OFF      |
@@ -23,12 +23,12 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
    Indestructible mask         OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
-  ●No reload, all weapons      ARMED    |
-aabaaaaaaaaaaaaaaaaaaaaaaaaaaaacccccaaaa
+  ●No reload, all weapons      OFF      |
+aabaaaaaaaaaaaaaaaaaaaaaaaaaaaadddaaaaaa
    ▼ 2 more                             |
 aaaddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
- Alt+F1 · applies on connect            |
-aaaaaaadddccccccccccccccccccaaaaaaaaaaaa
+ Alt+F1 · saved; applies once hooked    |
+aaaaaaadddccccccccccccccccccccccccccaaaa
  Tab section  Arrows move  R bind       |
 addddddddddddddddddddddddddddddddaaaaaaa
  Space toggle  P pause  ? help  Q quit  |

@@ -386,12 +386,13 @@ fn scripted() -> io::Result<()> {
         .ok_or_else(|| io::Error::other("no ammo toggle"))?;
     let steps = [
         None,
-        Some(Msg::Input(Command::Hotkey(
-            edbfi_trainer::settings::Target::Toggle(ammo),
-        ))),
         Some(Msg::Runtime(RuntimeEvent::Phase(Phase::Verifying {
             stage: VerifyStage::Executable,
         }))),
+        // Cheats unlock once the trainer has hooked the game.
+        Some(Msg::Input(Command::Hotkey(
+            edbfi_trainer::settings::Target::Toggle(ammo),
+        ))),
         Some(Msg::Input(Command::Hotkey(
             edbfi_trainer::settings::Target::Master,
         ))),
