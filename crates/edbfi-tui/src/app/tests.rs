@@ -413,3 +413,25 @@ fn focus_survives_resizing() {
     assert!(app.title().ends_with("PAUSED"));
     assert!(!app.update(press(ConsoleKey::Down)).contains(&Effect::Title));
 }
+
+#[test]
+fn a_failed_restore_after_quitting_stays_answerable() {
+    let mut app = live();
+    app.update(letter(b'Q'));
+    app.update(press(ConsoleKey::Right));
+    assert_eq!(
+        app.update(press(ConsoleKey::Enter)),
+        [Effect::Runtime(RuntimeCommand::Quit), Effect::Title]
+    );
+    app.update(Msg::Runtime(RuntimeEvent::Phase(Phase::Restoring)));
+    app.update(Msg::Runtime(RuntimeEvent::Phase(Phase::Failed(Failure {
+        recovery: RecoveryAction::RestartGame,
+        message: "restore failed".into(),
+        unrestored: vec![edbfi_trainer::profile::SiteId(3)],
+    }))));
+    assert!(app.title().ends_with("NOT RESTORED"));
+    assert!(
+        app.update(letter(b'Q'))
+            .contains(&Effect::Runtime(RuntimeCommand::Quit))
+    );
+}

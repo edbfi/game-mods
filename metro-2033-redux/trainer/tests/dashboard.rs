@@ -524,6 +524,39 @@ fn rebinding_swaps_on_conflict() {
     );
 }
 
+#[test]
+fn scrolling_reaches_the_last_line_of_help_and_cards() {
+    let text = |buffer: &Buffer| {
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let mut help = live(SMALL, Appearance::default());
+    help.update(letter(b'H'));
+    for _ in 0..60 {
+        help.update(press(ConsoleKey::Down));
+    }
+    let shown = text(&render(&help, SMALL));
+    assert!(
+        shown.contains("trainer.log") && !shown.contains("more │"),
+        "{shown}"
+    );
+    let mut card = app(invalid_settings(), SMALL);
+    for _ in 0..60 {
+        card.update(press(ConsoleKey::Down));
+    }
+    let shown = text(&render(&card, SMALL));
+    assert!(
+        shown.contains("ngs.toml") && !shown.contains("▼"),
+        "{shown}"
+    );
+}
+
 // ----- properties -----
 
 /// The labels of every row reached by Tab and Down, checking each focused row is drawn.

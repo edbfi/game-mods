@@ -1053,7 +1053,7 @@ fn card_lines(app: &App<'_>, content: &Card) -> (Vec<Wrapped>, usize) {
 pub(crate) fn card_scroll_max(app: &App<'_>) -> usize {
     card(app).map_or(0, |content| {
         let (lines, visible) = card_lines(app, &content);
-        lines.len().saturating_sub(visible)
+        Window::last_top(lines.len(), visible)
     })
 }
 
@@ -1094,7 +1094,7 @@ fn draw_box(
     let window = Window::at(
         lines.len(),
         visible,
-        scroll.min(lines.len().saturating_sub(visible)),
+        scroll.min(Window::last_top(lines.len(), visible)),
     );
     let glyphs = canvas.glyphs();
     let mut y = area.y + 1;
@@ -1169,6 +1169,15 @@ fn help_paras(app: &App<'_>) -> Vec<Para> {
         Para::blank(),
         Para::new("Files", Tone::Accent),
     ];
+    if let Some(kept) = &app.model.kept {
+        paras.push(Para::new(
+            format!(
+                "Your outside edit of the settings was kept: {}",
+                kept.display()
+            ),
+            Tone::Armed,
+        ));
+    }
     paras.push(match &app.model.paths.settings {
         Some(path) => Para::new(format!("Settings: {}", path.display()), Tone::Text),
         None => Para::new("Settings: not saved this session", Tone::Muted),
@@ -1201,7 +1210,8 @@ pub(crate) fn help_scroll_max(app: &App<'_>) -> usize {
         usize::from(modal_width(width, height).saturating_sub(4)),
     );
     let area = dialog_area(width, height, lines.len(), HELP_ACTIONS);
-    lines.len().saturating_sub(
+    Window::last_top(
+        lines.len(),
         usize::from(area.height).saturating_sub(box_chrome(area.height, HELP_ACTIONS)),
     )
 }
@@ -1305,7 +1315,8 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
     };
     let lines = wrap_paras(&paras, inner);
     let area = dialog_area(width, height, lines.len(), &actions);
-    let scroll = scroll.min(lines.len().saturating_sub(
+    let scroll = scroll.min(Window::last_top(
+        lines.len(),
         usize::from(area.height).saturating_sub(box_chrome(area.height, &actions)),
     ));
     draw_box(canvas, area, &title, tone, &lines, scroll, &actions);

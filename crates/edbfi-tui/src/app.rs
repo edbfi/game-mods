@@ -236,6 +236,8 @@ pub(crate) struct Model {
     pub(crate) card_scroll: usize,
     pub(crate) last: Option<Last>,
     pub(crate) notice: Option<Notice>,
+    /// Where the latest outside edit of the settings file was kept; Help shows it for the session.
+    pub(crate) kept: Option<PathBuf>,
     pub(crate) save: SaveState,
     pub(crate) size: (u16, u16),
     pub(crate) appearance: Appearance,
@@ -350,6 +352,7 @@ impl<'p> App<'p> {
                 card_scroll: 0,
                 last: None,
                 notice: None,
+                kept: None,
                 save,
                 size: startup.size,
                 appearance: startup.appearance,
@@ -497,6 +500,10 @@ impl<'p> App<'p> {
             self.model.card_scroll = 0;
         }
         self.model.phase = phase;
+        // A failure while quitting, such as a failed restore, must stay readable and answerable.
+        if matches!(self.model.phase, Phase::Failed(_)) {
+            self.model.quitting = false;
+        }
         if card || (!self.model.phase.is_attached() && self.quit_open()) {
             if self.capturing() {
                 self.effects.push(Effect::Bindings);
@@ -563,13 +570,12 @@ impl<'p> App<'p> {
                 };
                 match external {
                     Some(External::Kept(path)) => {
+                        self.model.kept = Some(path.clone());
                         // Split on both separators, so a Windows path names its file on any host.
                         let shown = path.display().to_string();
                         let name = shown.rsplit(['\\', '/']).next().unwrap_or(&shown);
                         self.model.notice = Some(Notice {
-                            text: format!(
-                                "The settings file was edited outside the trainer; that version is kept as {name}"
-                            ),
+                            text: format!("Outside edit kept as {name}; ? shows where"),
                             tone: Tone::Armed,
                             until_saved: false,
                         });

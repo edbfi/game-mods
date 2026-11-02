@@ -74,12 +74,21 @@ impl Window {
         }
     }
 
+    /// The largest useful `top`: the one that shows the last item, after the line saying what is above.
+    pub(crate) fn last_top(total: usize, height: usize) -> usize {
+        if total <= height || height == 0 {
+            0
+        } else {
+            total - if height >= 3 { height - 1 } else { height }
+        }
+    }
+
     /// The slice that keeps `focus` visible and moves as little as possible from `top`.
     pub(crate) fn follow(total: usize, height: usize, top: usize, focus: Option<usize>) -> Self {
         if total <= height || height == 0 {
             return Self::at(total, height, 0);
         }
-        let last_top = total - if height >= 3 { height - 1 } else { height };
+        let last_top = Self::last_top(total, height);
         let mut top = top.min(last_top);
         // Each step either moves up to the focus or down by the overflow; an indicator appearing can force one
         // more step, so the loop settles in a few rounds.
@@ -136,6 +145,9 @@ mod tests {
             }
         );
         assert_eq!(Window::follow(3, 7, 5, Some(2)).top, 0);
+        // Scrolled to the end, the last item shows after the line counting what is above.
+        let end = Window::at(10, 7, Window::last_top(10, 7));
+        assert_eq!((end.top + end.shown, end.below), (10, false));
     }
 
     proptest! {
