@@ -628,3 +628,27 @@ fn plain_output_states_why_a_save_failed() {
         "{lines:?}"
     );
 }
+
+#[test]
+fn a_selection_change_that_keeps_the_mask_updates_the_acknowledged_selection() {
+    // Red on, then the global on, then red off: the mask never changes after the global, yet red is now
+    // applied only through the global.
+    let mut app = live();
+    let effects = app.update(Msg::Input(Command::Hotkey(target("red"))));
+    ack(&mut app, 20, published(&effects).unwrap());
+    let effects = app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
+    ack(&mut app, 21, published(&effects).unwrap());
+    let effects = app.update(Msg::Input(Command::Hotkey(target("red"))));
+    assert_eq!(published(&effects), None, "the mask is unchanged");
+    assert_eq!(app.status(id("red")), Status::Via);
+    // Red and blue, then the global, then red off.
+    let mut app = live();
+    for (key, revision) in [("red", 30), ("blue", 31)] {
+        let effects = app.update(Msg::Input(Command::Hotkey(target(key))));
+        ack(&mut app, revision, published(&effects).unwrap());
+    }
+    app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
+    app.update(Msg::Input(Command::Hotkey(target("red"))));
+    assert_eq!(app.status(id("red")), Status::Via);
+    assert!(!app.pending(id("red")));
+}

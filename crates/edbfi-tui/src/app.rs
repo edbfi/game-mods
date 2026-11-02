@@ -589,12 +589,18 @@ impl<'p> App<'p> {
             return;
         }
         let mask = self.profile.effective(&self.desired());
+        let selection = self.model.settings.selection;
         if self.published != Some(mask) {
             self.published = Some(mask);
-            self.in_flight
-                .push_back((mask, self.model.settings.selection));
+            self.in_flight.push_back((mask, selection));
             self.effects
                 .push(Effect::Runtime(RuntimeCommand::Publish(mask)));
+        } else if let Some((_, last)) = self.in_flight.back_mut() {
+            // Same mask, new selection: the publication in flight now stands for this selection.
+            *last = selection;
+        } else if self.model.acked == Some(mask.bits()) {
+            // A selection producing the acknowledged mask is itself acknowledged.
+            self.model.acked_selection = Some(selection);
         }
     }
 
