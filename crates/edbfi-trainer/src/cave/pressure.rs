@@ -17,7 +17,7 @@ use iced_x86::code_asm::{
     AsmRegisterXmm, dword_ptr, eax, get_xmm, qword_ptr, r11, rax, rbx, rcx, rdx, rsp, xmm2,
     xmmword_ptr,
 };
-use iced_x86::{OpKind, Register};
+use iced_x86::{Instruction, InstructionInfoFactory, OpAccess, OpKind, Register};
 
 use crate::addr::Va;
 use crate::control::ControlBit;
@@ -65,6 +65,10 @@ pub(super) fn build(
             (rbx, Floor::Result(result(&original, Register::XMM0)?))
         }
     };
+    if matches!(floor, Floor::Result(_)) && writes(&original, Register::RBX) {
+        // The consumption runs first, so it must leave the weapon where the cave reads it.
+        return Err(Fault::Original("it overwrites the weapon register"));
+    }
     let cont = at.checked_add(site.original.len() as u64)?;
     let player = &profile.player;
     let class = profile
@@ -176,6 +180,23 @@ pub(super) fn build(
     }
     e.jump(cont)?;
     e.finish(layout.cave(), vec![Exit::Jump(cont)])
+}
+
+/// Whether any of `instructions` writes `register` or part of it.
+fn writes(instructions: &[Instruction], register: Register) -> bool {
+    let mut info = InstructionInfoFactory::new();
+    instructions.iter().any(|instruction| {
+        info.info(instruction).used_registers().iter().any(|used| {
+            used.register().full_register() == register
+                && matches!(
+                    used.access(),
+                    OpAccess::Write
+                        | OpAccess::CondWrite
+                        | OpAccess::ReadWrite
+                        | OpAccess::ReadCondWrite
+                )
+        })
+    })
 }
 
 /// The register a consumption original leaves its result in: its last instruction must write `register`.

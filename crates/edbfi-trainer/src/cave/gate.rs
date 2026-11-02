@@ -2,8 +2,8 @@
 //! Gate caves: run the original unless the site's control bit is set, in which case do the gate's effect.
 //!
 //! The prologue saves the flags and RAX, reads the control word once and tests the bit. Each path starts by
-//! restoring RAX and the flags, so it begins with RAX, RSP and the flags as they were at the site; the cave
-//! touches no other register and no SIMD state.
+//! restoring RAX and the flags, so it begins with RAX, RSP and the flags as they were at the site. The
+//! scaffolding touches no other register and no SIMD state; only an effect does, such as zeroing XMM9.
 #![forbid(unsafe_code)]
 
 use iced_x86::code_asm::{al, dword_ptr, eax, rax, xmm9};

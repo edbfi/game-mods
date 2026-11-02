@@ -667,13 +667,7 @@ mod execution {
     }
 
     /// For a gate site with bit `bit` set: what the hooked run must equal, given the native and untouched runs.
-    fn gate_effect(
-        world: &World,
-        hook: &Hook,
-        seed: &State,
-        native: &Outcome,
-        untouched: &Outcome,
-    ) -> Outcome {
+    fn gate_effect(hook: &Hook, seed: &State, native: &Outcome, untouched: &Outcome) -> Outcome {
         let HookKind::Gate { effect, .. } = hook.site().kind else {
             unreachable!()
         };
@@ -713,7 +707,6 @@ mod execution {
             GateEffect::GodBranch { .. } => {
                 let mut want = untouched.clone();
                 want.state.set(Register::RAX, 1);
-                let _ = world;
                 want
             }
         }
@@ -744,7 +737,7 @@ mod execution {
                 let untouched = world.untouched(&seed, &setup);
                 for controls in [bit.word(), u32::MAX] {
                     let (native, hooked) = world.both(hook, controls, &seed, &setup);
-                    let want = gate_effect(&world, hook, &seed, &native, &untouched);
+                    let want = gate_effect(hook, &seed, &native, &untouched);
                     assert_case(&hooked, &want, &format!("S{id} on, controls {controls:#x}"));
                 }
             }

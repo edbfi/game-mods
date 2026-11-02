@@ -80,8 +80,9 @@ pub enum ProofError {
     /// A `pop` or `popf` that does not restore what the matching push saved.
     #[error("a pop does not restore the value its push saved")]
     WrongRestore,
-    /// The cave addresses the stack outside its own frame.
-    #[error("the cave addresses the stack outside its frame")]
+    /// The cave addresses the stack outside its own frame, or an instruction moves RSP other than by push,
+    /// pop, `add`/`sub rsp` or a call.
+    #[error("the stack is addressed outside the cave's frame or RSP is moved")]
     OutsideFrame,
     /// A game instruction uses the stack while the cave's data is on it.
     #[error("a game instruction runs with the cave's data on the stack")]
@@ -96,7 +97,9 @@ pub enum ProofError {
     #[error("the cave writes game memory")]
     MemoryWrite,
     /// The control word's address is loaded more than once, or another constant lies near it.
-    #[error("the control word's address appears more than once")]
+    #[error(
+        "the control word's address appears more than once, or another constant lies within 64 KiB of it"
+    )]
     ControlAddress,
     /// A memory operand with an FS or GS override, which adds a base the proof cannot see.
     #[error("a segment-overridden memory operand")]
@@ -126,7 +129,7 @@ pub enum ProofError {
     #[error("no path takes the declared exit: {0}")]
     MissingExit(Exit),
     /// A call in a cave typed as never returned into, or one that is not a game instruction.
-    #[error("a call in a cave the game must never return into")]
+    #[error("a call in a cave the game must never return into, or one that is not the game's")]
     UnexpectedCall,
     /// A cave typed as returned into holds no call.
     #[error("a cave typed as returned into holds no call")]

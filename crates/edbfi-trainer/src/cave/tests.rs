@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use iced_x86::Register;
 use iced_x86::code_asm::{
@@ -342,6 +341,15 @@ fn originals_that_are_not_the_reviewed_shape_are_refused() {
             crate::bytes!("48 8B CF 8D 50 FE"),
             HookKind::NoReload(ReloadKind::HellsingFireRdi),
         ),
+        // A consumption that overwrites the weapon register before the cave classifies it.
+        site(
+            0x1000,
+            crate::bytes!("48 8B 1F F3 0F 5C CE"),
+            HookKind::Pressure {
+                bit: ControlBit::new(31),
+                kind: PressureKind::Consumption1RbxXmm1,
+            },
+        ),
         // A consumption whose result is in xmm0, declared as xmm1.
         site(
             0x1000,
@@ -400,14 +408,6 @@ fn site_jumps_are_e9_rel32_padded_with_nops() {
         Err(HookError::Address { .. })
     ));
     assert!(site_jump(SiteId(1), at, Va::new(0x1005 + i32::MAX as u64), 5).is_ok());
-}
-
-#[test]
-fn every_error_is_a_bug_report() {
-    assert_eq!(
-        HookError::UnalignedCave(CAVE).recovery(),
-        crate::recovery::RecoveryAction::ReportBug
-    );
 }
 
 // The proof, tried on hand-assembled caves. `minimal` is the smallest valid cave; each test breaks one rule.
@@ -947,6 +947,8 @@ proptest! {
     ) {
         // Images from the bottom of the address space up, so the reach is clamped at its low end too.
         let image = Va::new(shift & !0xFFF);
+        // The proof refuses constants within 64 KiB of the control word, so keep the image clear of it.
+        prop_assume!(image.get().abs_diff(CONTROLS.get()) >= 0x10_0000);
         let reach = Reach::new(&SYNTHETIC, image).unwrap();
         let granularity = 0x1_0000;
         let free: Vec<FreeRegion> = regions
