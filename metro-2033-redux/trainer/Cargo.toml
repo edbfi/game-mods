@@ -19,9 +19,14 @@ edbfi-trainer.workspace = true
 crossterm = { workspace = true, features = ["events"] }
 edbfi-trainer = { workspace = true, features = ["simulate"] }
 edbfi-tui.workspace = true
+iced-x86.workspace = true
 insta.workspace = true
 proptest.workspace = true
 ratatui.workspace = true
+
+# The hook-cave execution tests map and run generated code, which only Linux x86-64 can do.
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dev-dependencies]
+libc.workspace = true
 
 [build-dependencies]
 embed-resource.workspace = true
