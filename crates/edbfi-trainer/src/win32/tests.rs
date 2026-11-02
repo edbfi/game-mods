@@ -297,8 +297,13 @@ fn a_real_process_is_installed_toggled_paused_and_restored() {
     let image = checked.image();
     drop(checked);
 
+    // A second trainer that identified the game before this one hooks it is refused when it claims; once
+    // hooked, the game no longer even identifies.
+    let other = identify(Candidate::<Write>::open(dummy.pid()).unwrap(), &profile).unwrap();
     let mut session = attach(&dummy, &profile);
     assert_eq!(session.image(), image);
+    let hooked = identify(Candidate::<ReadOnly>::open(dummy.pid()).unwrap(), &profile);
+    assert!(hooked.unwrap_err().error.transient());
     assert!(
         sites(&dummy, &profile, image)
             .iter()
@@ -322,7 +327,6 @@ fn a_real_process_is_installed_toggled_paused_and_restored() {
     assert_eq!(dummy.ask("drain"), "battery 97");
 
     // Another trainer is refused while this one owns the game.
-    let other = identify(Candidate::<Write>::open(dummy.pid()).unwrap(), &profile).unwrap();
     assert!(matches!(
         other.claim().unwrap_err().error,
         TrainerError::Claim(_)
