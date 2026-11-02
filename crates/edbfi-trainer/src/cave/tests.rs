@@ -2,7 +2,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use iced_x86::Register;
-use iced_x86::code_asm::{dword_ptr, eax, edx, qword_ptr, r8, rax, rbx, rcx, rdx, rsp};
+use iced_x86::code_asm::{
+    dword_ptr, eax, edx, esp, ptr, qword_ptr, r8, rax, rbx, rcx, rdx, rsp, xmm2,
+};
 use proptest::prelude::*;
 
 use super::emit::{Draft, Emitter, Fault};
@@ -11,7 +13,7 @@ use super::*;
 use crate::addr::Rva;
 use crate::control::ControlBit;
 use crate::profile::synthetic::SYNTHETIC;
-use crate::profile::{GateEffect, PressureKind};
+use crate::profile::{GateEffect, PressureKind, ReloadKind};
 
 const IMAGE: Va = Va::new(0x1_4000_0000);
 const CAVE: Va = Va::new(0x1_3000_0000);
@@ -306,6 +308,14 @@ fn originals_that_are_not_the_reviewed_shape_are_refused() {
         gate(
             0x1000,
             crate::bytes!("FF 15 00 00 00 00"),
+            GateEffect::SkipMaskCall,
+        ),
+        // A call through a register, not memory.
+        gate(0x1000, crate::bytes!("FF D0"), GateEffect::SkipMaskCall),
+        // A call through an absolute address.
+        gate(
+            0x1000,
+            crate::bytes!("FF 14 25 00 10 00 00"),
             GateEffect::SkipMaskCall,
         ),
         // A direct callback without its call.
@@ -858,11 +868,29 @@ fn reach_is_exact_at_both_rel32_endpoints() {
 fn reach_is_none_without_sites_or_past_the_address_space() {
     let near_top = Va::new(u64::MAX - 0x1000);
     assert_eq!(Reach::new(&SYNTHETIC, near_top), None);
+    // The last site starts in the address space but its jump would end past it.
+    let last = SYNTHETIC.sites[3].rva.get();
+    assert_eq!(
+        Reach::new(&SYNTHETIC, Va::new(u64::MAX - u64::from(last) - 3)),
+        None
+    );
     let none = Profile {
         sites: &[],
         ..SYNTHETIC
     };
     assert_eq!(Reach::new(&none, IMAGE), None);
+}
+
+#[test]
+fn no_candidate_is_address_zero() {
+    let reach = Reach::new(&SYNTHETIC, Va::new(0x1000)).unwrap();
+    assert_eq!(reach.lowest(), Va::new(u64::from(PAGE)));
+    // Only bases 0 and 0x10000 fit this region; 0 is never offered.
+    let free = [FreeRegion {
+        start: Va::new(0),
+        len: 0x2_0000,
+    }];
+    assert_eq!(candidates(reach, 0x1_0000, free), [Va::new(0x1_0000)]);
 }
 
 #[test]
@@ -909,9 +937,10 @@ proptest! {
     #[test]
     fn every_candidate_fits_its_region_and_the_reach(
         regions in proptest::collection::vec((0u64..0x4_0000_0000, 0u64..0x1000_0000), 0..8),
-        shift in 0u64..0x1_0000_0000,
+        shift in 0u64..0x2_0000_0000,
     ) {
-        let image = Va::new(0x1_0000_0000 + (shift & !0xFFF));
+        // Images from the bottom of the address space up, so the reach is clamped at its low end too.
+        let image = Va::new(shift & !0xFFF);
         let reach = Reach::new(&SYNTHETIC, image).unwrap();
         let granularity = 0x1_0000;
         let free: Vec<FreeRegion> = regions
@@ -924,6 +953,7 @@ proptest! {
             prop_assert!(pair[0].get().abs_diff(middle) <= pair[1].get().abs_diff(middle));
         }
         for base in found {
+            prop_assert!(base.get() != 0);
             prop_assert_eq!(base.get() % granularity, 0);
             prop_assert!(reach.contains(base));
             let end = base.get() + reach.size();
@@ -932,4 +962,142 @@ proptest! {
             prop_assert!(plan(&ValidProfile::new(&SYNTHETIC).unwrap(), image, base, CONTROLS).is_ok());
         }
     }
+}
+
+#[test]
+fn proof_keeps_game_instructions_on_the_game_state() {
+    // Replaying the original before restoring: the game would see the cave's RAX and flags.
+    let early = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        e.game(|asm| asm.mov(rcx, qword_ptr(rbx)))?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(early), ProofError::GameStackHidden);
+    // A game jump through a register, even with a literal return address pushed.
+    let through_register = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        unwind(e)?;
+        let ret = e.literal(NEXT.get());
+        e.asm().push(qword_ptr(ret))?;
+        e.game(|asm| asm.jmp(rax))
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(through_register),
+        ProofError::UnsupportedFlow
+    );
+}
+
+#[test]
+fn proof_allows_one_declared_effect_per_path() {
+    let store = |times: usize| {
+        finish(vec![Exit::Jump(NEXT)], move |e| {
+            snapshot(e)?;
+            for _ in 0..times {
+                e.effect(|asm| asm.movss(dword_ptr(rbx + 0xC00), xmm2))?;
+            }
+            unwind(e)?;
+            e.jump(NEXT)
+        })
+    };
+    assert!(prove::<NoCaveReturn>(store(1)).is_ok());
+    assert_eq!(
+        refusal::<NoCaveReturn>(store(2)),
+        ProofError::TooManyEffects
+    );
+}
+
+#[test]
+fn proof_refuses_other_ways_to_reach_the_control_word() {
+    let offset = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        e.asm().push(rcx)?;
+        e.asm().mov(rcx, CONTROLS.get() - 0x10)?;
+        e.asm().mov(eax, dword_ptr(rcx + 0x10))?;
+        e.asm().pop(rcx)?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(offset), ProofError::ControlAddress);
+    let displaced = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        e.asm().push(rcx)?;
+        e.asm().mov(rcx, CONTROLS.get() - 0x2_0000)?;
+        e.asm().mov(eax, dword_ptr(rcx + 0x2_0000))?;
+        e.asm().pop(rcx)?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(displaced),
+        ProofError::FarDisplacement
+    );
+    let absolute = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        // mov eax, [0x1000]
+        e.asm().db(&[0x8B, 0x04, 0x25, 0x00, 0x10, 0x00, 0x00])?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(
+        refusal::<NoCaveReturn>(absolute),
+        ProofError::AbsoluteAddress
+    );
+    let segment = finish(vec![Exit::Jump(NEXT)], |e| {
+        e.asm().pushfq()?;
+        e.asm().push(rax)?;
+        e.asm().mov(rax, CONTROLS.get())?;
+        e.asm().mov(eax, dword_ptr(rax).gs())?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(segment), ProofError::ControlAccess);
+}
+
+type Emit = fn(&mut Emitter) -> Result<(), Fault>;
+
+/// A minimal cave with RDX saved and a 16-byte frame reserved around `emit`.
+fn with_frame(emit: Emit) -> Draft {
+    finish(vec![Exit::Jump(NEXT)], move |e| {
+        snapshot(e)?;
+        e.asm().push(rdx)?;
+        e.asm().sub(rsp, 0x10)?;
+        emit(e)?;
+        e.asm().add(rsp, 0x10)?;
+        e.asm().pop(rdx)?;
+        unwind(e)?;
+        e.jump(NEXT)
+    })
+}
+
+#[test]
+fn proof_refuses_stack_aliases_and_unsized_frame_operands() {
+    let copy: Emit = |e| Ok(e.asm().mov(rdx, rsp)?);
+    let address: Emit = |e| Ok(e.asm().lea(rdx, ptr(rsp + 0x100))?);
+    let narrow: Emit = |e| Ok(e.asm().mov(edx, dword_ptr(esp + 8))?);
+    let unsized_save: Emit = |e| Ok(e.asm().xsave(ptr(rsp))?);
+    let push_rsp: Emit = |e| {
+        e.asm().push(rsp)?;
+        Ok(e.asm().add(rsp, 8)?)
+    };
+    for emit in [copy, address, narrow, unsized_save, push_rsp] {
+        assert_eq!(
+            refusal::<NoCaveReturn>(with_frame(emit)),
+            ProofError::OutsideFrame
+        );
+    }
+    let fits: Emit = |e| Ok(e.asm().mov(qword_ptr(rsp + 8), rdx)?);
+    assert!(prove::<NoCaveReturn>(with_frame(fits)).is_ok());
+}
+
+#[test]
+fn proof_refuses_branches_out_of_the_code() {
+    let out = finish(vec![Exit::Jump(NEXT)], |e| {
+        snapshot(e)?;
+        e.asm().test(eax, 1)?;
+        e.asm().jnz(ELSEWHERE.get())?;
+        unwind(e)?;
+        e.jump(NEXT)
+    });
+    assert_eq!(refusal::<NoCaveReturn>(out), ProofError::BranchTarget);
 }

@@ -147,19 +147,20 @@ pub(super) fn build(
     e.asm().jle(done)?;
     e.asm().cmp(eax, INFINITY_BITS)?;
     e.asm().jae(done)?;
-    e.asm().movss(xmm2, dword_ptr(rdx + normal))?;
+    // Compare the value just checked, not a second read of it.
+    e.asm().movd(xmm2, eax)?;
     match floor {
         Floor::Stored => {
             e.asm().ucomiss(xmm2, dword_ptr(r11 + pressure))?;
             e.asm().jp(done)?;
             e.asm().jbe(done)?;
-            e.game(|asm| asm.movss(dword_ptr(r11 + pressure), xmm2))?;
+            e.effect(|asm| asm.movss(dword_ptr(r11 + pressure), xmm2))?;
         }
         Floor::Result(register) => {
             e.asm().ucomiss(xmm2, register)?;
             e.asm().jp(done)?;
             e.asm().jbe(done)?;
-            e.game(|asm| asm.movss(register, xmm2))?;
+            e.effect(|asm| asm.movss(register, xmm2))?;
         }
     }
     e.bind(&mut done)?;

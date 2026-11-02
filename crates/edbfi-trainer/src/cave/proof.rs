@@ -7,11 +7,17 @@
 //!
 //! - **Control snapshot.** The control word's address appears once, in one `mov r64, imm64`, and every path
 //!   reads through that register exactly once, with a 32-bit `mov` load at offset 0.
+//!   No other constant lies within [`NEAR`] bytes of the control word, the cave's own memory operands have
+//!   displacements under [`NEAR`], and no instruction uses an absolute or segment-overridden operand to
+//!   read it, so no constant base plus displacement reaches it.
 //! - **Registers and flags.** The cave's own instructions write a general register or the flags only while
 //!   the value they replace is saved on the stack, and each `pop` restores the register that pushed it.
-//! - **Memory.** The cave's own instructions write memory only inside the frame they reserved.
-//! - **Game instructions.** A copied or substituted game instruction that uses the stack runs with no cave
-//!   data on it, so it sees the stack the game had at the site.
+//! - **Memory.** The cave's own instructions write memory only inside the frame they reserved, and touch the
+//!   stack only through push, pop, `add`/`sub rsp` and bounded `[rsp+disp]` operands. The one exception is
+//!   the hook's declared effect: at most one instruction per path, such as the pressure floor's store.
+//! - **Game instructions.** A copied or substituted game instruction runs with no cave data on the stack,
+//!   so with every register, the flags and the stack as the game had them. The only cave data allowed is a
+//!   literal return address under the indirect jump that stands in for the game's own call.
 //! - **Exits.** Every path ends in an exit the hook shape declares, with nothing of the cave's on the stack
 //!   except, for a call, the literal return address. Every declared exit is reachable.
 //! - **Literals.** The pool sits after the code; the code never falls into it, and every RIP-relative operand
@@ -25,8 +31,8 @@
 use std::collections::BTreeSet;
 
 use iced_x86::{
-    Code, Decoder, DecoderOptions, FlowControl, Instruction, InstructionInfoFactory, OpAccess,
-    OpKind, Register,
+    Code, Decoder, DecoderOptions, FlowControl, Instruction, InstructionInfoFactory, Mnemonic,
+    OpAccess, OpKind, Register,
 };
 
 use crate::addr::Va;
@@ -88,9 +94,18 @@ pub enum ProofError {
     /// The cave writes game memory.
     #[error("the cave writes game memory")]
     MemoryWrite,
-    /// The control word's address is loaded more than once or held in the pool.
+    /// The control word's address is loaded more than once, or another constant lies near it.
     #[error("the control word's address appears more than once")]
     ControlAddress,
+    /// A memory operand with neither base nor index register.
+    #[error("an absolute memory operand")]
+    AbsoluteAddress,
+    /// A cave memory operand with a displacement of 64 KiB or more.
+    #[error("a cave memory operand has a large displacement")]
+    FarDisplacement,
+    /// More than one declared effect on a path.
+    #[error("a path has more than one declared effect")]
+    TooManyEffects,
     /// The control word is accessed other than by one aligned 32-bit load.
     #[error("the control word is accessed other than by a 32-bit load")]
     ControlAccess,
@@ -126,6 +141,8 @@ pub(super) struct Claim<'a> {
     pub(super) literals: &'a [Literal],
     /// Offsets of game instructions, sorted.
     pub(super) game: &'a [u32],
+    /// Offsets of the hook's declared effects, sorted.
+    pub(super) effects: &'a [u32],
     /// The control word.
     pub(super) controls: Va,
     /// Whether the cave is typed as returned into.
@@ -168,6 +185,8 @@ struct State {
     controls: Option<Held>,
     /// Control-word loads so far.
     loads: u8,
+    /// Declared effects so far.
+    effects: u8,
 }
 
 impl State {
@@ -177,6 +196,8 @@ impl State {
         if self.stack != other.stack || self.loads != other.loads {
             return Err(ProofError::PathsDisagree);
         }
+        // An effect happens on some paths and not others; "at most one" holds for the larger count.
+        self.effects = self.effects.max(other.effects);
         if self.controls != other.controls {
             let held = self.controls.or(other.controls);
             if let (Some(a), Some(b)) = (self.controls, other.controls)
@@ -331,7 +352,7 @@ fn check_pool(claim: &Claim<'_>) -> Result<(), Failure> {
         if literal.offset != expected || held != Some(literal.value) {
             return Err((literal.offset, ProofError::LiteralPool));
         }
-        if literal.value == claim.controls.get() {
+        if near_controls(literal.value, claim.controls) {
             return Err((literal.offset, ProofError::ControlAddress));
         }
         expected += 8;
@@ -381,11 +402,15 @@ impl Walk<'_> {
         instruction.ip().wrapping_sub(self.claim.address.get()) as u32
     }
 
-    fn is_game(&self, instruction: &Instruction) -> bool {
-        self.claim
-            .game
-            .binary_search(&self.offset(instruction))
-            .is_ok()
+    fn role(&self, instruction: &Instruction) -> Role {
+        let offset = self.offset(instruction);
+        if self.claim.game.binary_search(&offset).is_ok() {
+            Role::Game
+        } else if self.claim.effects.binary_search(&offset).is_ok() {
+            Role::Effect
+        } else {
+            Role::Cave
+        }
     }
 
     /// The pool entry a RIP-relative operand names.
@@ -408,18 +433,82 @@ impl Walk<'_> {
 
     /// Applies `instruction` to `state` and says where control goes.
     fn step(&mut self, instruction: &Instruction, state: &mut State) -> Result<Flow, ProofError> {
-        let game = self.is_game(instruction);
+        let role = self.role(instruction);
+        let game = role == Role::Game;
         let literal = self.literal(instruction)?;
+        self.constants(instruction)?;
         self.control_access(instruction, state)?;
         let stack_op = self.stack(instruction, game, literal, state)?;
         if !stack_op {
-            self.frame_access(instruction, game, state)?;
-            if !game {
+            if game {
+                Self::game_stack(instruction, state)?;
+            } else {
+                self.frame_access(instruction, role, state)?;
                 self.clobbers(instruction, state)?;
+            }
+        }
+        if role == Role::Effect {
+            state.effects += 1;
+            if state.effects > 1 {
+                return Err(ProofError::TooManyEffects);
             }
         }
         self.track_controls(instruction, state)?;
         self.flow(instruction, game, literal, state)
+    }
+
+    /// Refuses absolute memory operands, and constants other than the counted `mov` that point into the
+    /// control word's page.
+    fn constants(&self, instruction: &Instruction) -> Result<(), ProofError> {
+        let controls = self.claim.controls;
+        for operand in 0..instruction.op_count() {
+            let value = match instruction.op_kind(operand) {
+                OpKind::Memory if instruction.is_ip_rel_memory_operand() => continue,
+                OpKind::Memory => {
+                    if instruction.memory_base() == Register::None
+                        && instruction.memory_index() == Register::None
+                    {
+                        return Err(ProofError::AbsoluteAddress);
+                    }
+                    instruction.memory_displacement64()
+                }
+                OpKind::Immediate8
+                | OpKind::Immediate8_2nd
+                | OpKind::Immediate16
+                | OpKind::Immediate32
+                | OpKind::Immediate64
+                | OpKind::Immediate8to16
+                | OpKind::Immediate8to32
+                | OpKind::Immediate8to64
+                | OpKind::Immediate32to64 => {
+                    if instruction.code() == Code::Mov_r64_imm64
+                        && instruction.immediate64() == controls.get()
+                    {
+                        continue;
+                    }
+                    instruction.immediate(operand)
+                }
+                _ => continue,
+            };
+            if near_controls(value, controls) {
+                return Err(ProofError::ControlAddress);
+            }
+        }
+        Ok(())
+    }
+
+    /// A game instruction must see the game's own stack. The indirect jump standing in for the game's call
+    /// may have the literal return address on top.
+    fn game_stack(instruction: &Instruction, state: &State) -> Result<(), ProofError> {
+        let stack = match (instruction.code(), state.stack.split_last()) {
+            (Code::Jmp_rm64, Some((Slot::Literal(_), below))) => below,
+            _ => state.stack.as_slice(),
+        };
+        if stack.iter().all(|slot| *slot == Slot::Game) {
+            Ok(())
+        } else {
+            Err(ProofError::GameStackHidden)
+        }
     }
 
     /// Counts control-word loads; refuses any other use of the register holding its address.
@@ -440,7 +529,8 @@ impl Walk<'_> {
             && instruction.op1_kind() == OpKind::Memory
             && instruction.memory_base() == controls
             && instruction.memory_index() == Register::None
-            && instruction.memory_displacement64() == 0;
+            && instruction.memory_displacement64() == 0
+            && instruction.segment_prefix() == Register::None;
         if load {
             state.loads = state.loads.saturating_add(1);
             return Ok(());
@@ -465,6 +555,11 @@ impl Walk<'_> {
         state: &mut State,
     ) -> Result<bool, ProofError> {
         let own = |slot| if game { Slot::Game } else { slot };
+        let names_rsp = matches!(instruction.code(), Code::Push_r64 | Code::Pop_r64)
+            && instruction.op0_register() == Register::RSP;
+        if names_rsp && !game {
+            return Err(ProofError::OutsideFrame);
+        }
         match instruction.code() {
             Code::Pushfq => state.stack.push(own(Slot::Flags)),
             Code::Push_r64 => state
@@ -512,52 +607,63 @@ impl Walk<'_> {
         Ok(true)
     }
 
-    /// Bounds explicit stack operands, and refuses any other write to RSP.
+    /// Bounds the stack operands of a cave instruction or declared effect, and refuses any other use of RSP
+    /// and, outside a declared effect, any memory write.
     fn frame_access(
         &mut self,
         instruction: &Instruction,
-        game: bool,
+        role: Role,
         state: &State,
     ) -> Result<(), ProofError> {
         let transfers = matches!(
             instruction.flow_control(),
             FlowControl::Call | FlowControl::IndirectCall | FlowControl::Return
         );
+        if transfers {
+            return Ok(());
+        }
+        let names_rsp = (0..instruction.op_count()).any(|operand| {
+            instruction.op_kind(operand) == OpKind::Register
+                && instruction.op_register(operand).full_register() == Register::RSP
+        });
+        let has_memory = (0..instruction.op_count())
+            .any(|operand| instruction.op_kind(operand) == OpKind::Memory);
+        let aliases_rsp = has_memory
+            && instruction.memory_base().full_register() == Register::RSP
+            && (instruction.memory_base() != Register::RSP
+                || instruction.mnemonic() == Mnemonic::Lea);
+        if names_rsp || aliases_rsp {
+            return Err(ProofError::OutsideFrame);
+        }
+        let far = has_memory
+            && !instruction.is_ip_rel_memory_operand()
+            && instruction
+                .memory_displacement64()
+                .cast_signed()
+                .unsigned_abs()
+                >= NEAR;
+        if far {
+            return Err(ProofError::FarDisplacement);
+        }
         let info = self.info.info(instruction);
         let writes_rsp = info
             .used_registers()
             .iter()
             .any(|used| used.register().full_register() == Register::RSP && writes(used.access()));
-        if writes_rsp && !transfers {
+        if writes_rsp {
             return Err(ProofError::OutsideFrame);
-        }
-        let uses_stack = transfers
-            || info
-                .used_registers()
-                .iter()
-                .any(|used| used.register().full_register() == Register::RSP);
-        if game {
-            return if uses_stack && !state.game_stack() {
-                Err(ProofError::GameStackHidden)
-            } else {
-                Ok(())
-            };
-        }
-        if transfers {
-            return Ok(());
         }
         for memory in info.used_memory() {
             if memory.base() == Register::RSP {
-                if memory.index() != Register::None {
-                    return Err(ProofError::OutsideFrame);
-                }
-                let start = memory.displacement();
-                let end = start.checked_add(memory.memory_size().size() as u64);
-                let inside = end.is_some_and(|end| end <= state.frame());
+                let size = memory.memory_size().size() as u64;
+                let end = memory.displacement().checked_add(size);
+                let inside = memory.index() == Register::None
+                    && size > 0
+                    && end.is_some_and(|end| end <= state.frame());
                 if !inside {
                     return Err(ProofError::OutsideFrame);
                 }
-            } else if writes(memory.access()) {
+            } else if writes(memory.access()) && role != Role::Effect {
                 return Err(ProofError::MemoryWrite);
             }
         }
@@ -642,7 +748,10 @@ impl Walk<'_> {
                 target: near()?,
                 falls_through: false,
             },
-            FlowControl::IndirectBranch if instruction.code() == Code::Jmp_rm64 => {
+            FlowControl::IndirectBranch
+                if instruction.code() == Code::Jmp_rm64
+                    && instruction.op0_kind() == OpKind::Memory =>
+            {
                 Flow::Exit(Self::jump_exit(literal, game, state)?)
             }
             FlowControl::Return if instruction.code() == Code::Retnq => {
@@ -686,6 +795,26 @@ impl Walk<'_> {
             _ => Err(ProofError::UnsupportedFlow),
         }
     }
+}
+
+/// How close to the control word a constant may come, and the largest displacement a cave's own memory
+/// operand may use.
+const NEAR: u64 = 0x1_0000;
+
+/// The kind of instruction, as the builder tagged it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    /// The cave's own scaffolding.
+    Cave,
+    /// The game's instruction, copied or substituted.
+    Game,
+    /// The hook's declared effect: a cave instruction allowed one memory write.
+    Effect,
+}
+
+/// Whether `value` lies within [`NEAR`] bytes of the control word.
+fn near_controls(value: u64, controls: Va) -> bool {
+    value.abs_diff(controls.get()) < NEAR
 }
 
 /// Whether an access reads.

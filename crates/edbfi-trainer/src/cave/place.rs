@@ -23,24 +23,28 @@ pub struct Reach {
 }
 
 impl Reach {
-    /// The reach of `profile`'s caves for an image at `image`, or `None` if no base reaches every site or the
-    /// profile has no site.
+    /// The reach of `profile`'s caves for an image at `image`, or `None` if no base reaches every site, a
+    /// site would end past the address space, or the profile has no site. The lowest base is never below a
+    /// page: address 0 asks an allocator for any address at all.
     #[must_use]
     pub fn new(profile: &Profile, image: Va) -> Option<Self> {
         let len = allocation_len(profile);
-        let mut lowest = 0_i128;
+        let mut lowest = i128::from(PAGE);
         let mut highest = i128::from(u64::MAX) - i128::from(len);
         if profile.sites.is_empty() || highest < 0 {
             return None;
         }
         for (page, site) in profile.sites.iter().enumerate() {
-            let next = i128::from(image.at(site.rva).ok()?.get()) + i128::from(Rel32::JMP_LEN);
+            let at = image.at(site.rva).ok()?;
+            let site_len = site.original.len().max(Rel32::JMP_LEN as usize) as u64;
+            at.checked_add(site_len).ok()?;
+            let next = i128::from(at.get()) + i128::from(Rel32::JMP_LEN);
             let cave = page as i128 * i128::from(PAGE);
             lowest = lowest.max(next + i128::from(i32::MIN) - cave);
             highest = highest.min(next + i128::from(i32::MAX) - cave);
         }
         (lowest <= highest).then_some(Self {
-            // Both lie in 0..=u64::MAX - len after the clamps above.
+            // Both lie in PAGE..=u64::MAX - len after the clamps above.
             lowest: lowest as u64,
             highest: highest as u64,
             len,

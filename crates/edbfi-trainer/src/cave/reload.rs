@@ -12,7 +12,7 @@
 use iced_x86::code_asm::{
     AsmRegister64, CodeLabel, dword_ptr, eax, get_gpr64, qword_ptr, r8, r8d, rax, rcx, rdx,
 };
-use iced_x86::{Code, FlowControl, Instruction, Mnemonic, OpKind, Register};
+use iced_x86::{Code, Instruction, Mnemonic, OpKind, Register};
 
 use crate::addr::Va;
 use crate::control::ControlSet;
@@ -113,15 +113,12 @@ fn receiver(kind: ReloadKind) -> Result<AsmRegister64, Fault> {
     get_gpr64(register).ok_or(Fault::Unencodable("receiver register"))
 }
 
-/// Only the direct callback holds a call: an indirect call through a register-based operand, which returns
-/// into the cave. Everything else must be position-independent.
+/// Only the direct callback holds a call: an indirect call through a register-based memory operand, which
+/// returns into the cave. Everything else must be position-independent.
 fn check_calls(original: &[Instruction], kind: ReloadKind) -> Result<(), Fault> {
     let mut calls = 0;
     for instruction in original {
-        let returning_call = instruction.flow_control() == FlowControl::IndirectCall
-            && instruction.code() == Code::Call_rm64
-            && !instruction.is_ip_rel_memory_operand();
-        if returning_call {
+        if emit::indirect_call(instruction) {
             calls += 1;
         } else if !emit::position_independent(instruction) {
             return Err(Fault::Original(

@@ -193,9 +193,17 @@ mod execution {
     const OBSERVED: usize = 0x103_C000;
     const OBSERVED_LEN: usize = 0x200;
     const RENDEZVOUS: usize = 0x103_D000;
+    /// Another actor's weapon, in every register that is not the site's receiver: a cave that classifies the
+    /// wrong register sees a stranger's weapon and leaves it alone.
+    const DECOY: usize = 0x103_E000;
+    const DECOY_HANDLE: usize = HANDLE + 0x100;
     /// A weapon whose owner field lies in the guard page after it.
     const EXPOSED: usize = 0x104_1000 - 0x100;
     const GUARD: usize = 0x104_1000;
+    /// A weapon inside a second guard page whose pressure lies in the readable page after it, for the
+    /// pressure sites, whose originals read the pressure.
+    const GUARD2: usize = 0x104_3000;
+    const EXPOSED2: usize = GUARD2 + 0x800;
     const STACK: usize = 0x110_0000;
     const STACK_LEN: usize = 0x2000;
     const ENTRY: usize = STACK + STACK_LEN - 0x408;
@@ -399,6 +407,12 @@ mod execution {
             // The virtual mask call and the reload setter dispatch through the weapon.
             a.put_u64(WEAPON + 0x1B0, a.at(Mock::Virtual.code()));
             a.put_u64(WEAPON + 0x1360, a.at(Mock::Setter.code()));
+            a.write(DECOY, &[0x33; WEAPON_LEN]);
+            a.put_u64(DECOY + layout.weapon_owner as usize, a.at(DECOY_HANDLE));
+            a.put_u64(DECOY_HANDLE, a.at(STRANGER) + u64::from(layout.owner));
+            a.put_u64(DECOY + layout.weapon_config as usize, a.at(CONFIG));
+            a.put_u64(DECOY + 0x1B0, a.at(Mock::Virtual.code()));
+            a.put_u64(DECOY + 0x1360, a.at(Mock::Setter.code()));
             a.write(STACK, &[CANARY; STACK_LEN]);
             a.put_u32(RENDEZVOUS, 0);
             a.put_u32(RENDEZVOUS + 4, 1);
@@ -551,17 +565,47 @@ mod execution {
                 lane(0) | lane(1) << 32 | lane(2) << 64 | lane(3) << 96
             }),
         };
+        // RDI keeps its pattern: S2 subtracts it from RBX, and a no-reload receiver gets the weapon from
+        // `receiver_seed`.
         for register in [
             Register::RAX,
             Register::RCX,
             Register::RBX,
-            Register::RDI,
             Register::R8,
             Register::R14,
         ] {
             state.set(register, weapon);
         }
         state.set(Register::RSI, weapon + 0x10);
+        state
+    }
+
+    /// The register holding the weapon at a no-reload or pressure site.
+    fn receiver(hook: &Hook) -> Register {
+        match hook.site().kind {
+            HookKind::NoReload(ReloadKind::SharedR14) => Register::R14,
+            HookKind::NoReload(ReloadKind::HellsingFireRdi) => Register::RDI,
+            HookKind::NoReload(_)
+            | HookKind::Pressure {
+                kind: PressureKind::RecoveryRcx,
+                ..
+            } => Register::RCX,
+            HookKind::Pressure { .. } => Register::RBX,
+            HookKind::Gate { .. } => panic!("{} has no receiver", hook.site().id),
+        }
+    }
+
+    /// A seed for `hook` with the weapon in its receiver only and the decoy in every other register a cave
+    /// could mistake for it.
+    fn receiver_seed(world: &World, variant: u64, hook: &Hook) -> State {
+        let mut state = seed(world, variant);
+        state.set(receiver(hook), world.arena.at(WEAPON));
+        let decoy = world.arena.at(DECOY);
+        for register in [Register::RCX, Register::RBX, Register::RDI, Register::R14] {
+            if register != receiver(hook) {
+                state.set(register, decoy);
+            }
+        }
         state
     }
 
@@ -792,7 +836,7 @@ mod execution {
         let all = world.class_bits();
         for id in 11..=14 {
             let hook = world.hook(id);
-            let seed = seed(&world, u64::from(id));
+            let seed = receiver_seed(&world, u64::from(id), hook);
             for (class, data) in METRO.classes.iter().enumerate() {
                 let bit = data.bit.word();
                 let other = METRO.classes[(class + 1) % METRO.classes.len()].bit.word();
@@ -856,7 +900,7 @@ mod execution {
         ];
         for id in 11..=14 {
             let hook = world.hook(id);
-            let seed = seed(&world, 3);
+            let seed = receiver_seed(&world, 3, hook);
             for (what, setup) in cases {
                 let (native, hooked) = world.both(hook, u32::MAX, &seed, setup);
                 let want = returned_into_cave(&world, hook, &native, &hooked);
@@ -866,26 +910,23 @@ mod execution {
     }
 
     #[test]
-    fn disabled_no_reload_never_reads_the_weapon() {
+    fn disabled_hooks_never_read_the_weapon() {
         let world = World::new();
         world.arena.guard(GUARD, PAGE);
-        for id in 11..=14 {
+        world.arena.guard(GUARD2, PAGE);
+        let classes = world.class_bits();
+        for id in 11..=17 {
             let hook = world.hook(id);
-            let receiver = match hook.site().kind {
-                HookKind::NoReload(ReloadKind::SharedR14) => Register::R14,
-                HookKind::NoReload(ReloadKind::HellsingFireRdi) => Register::RDI,
-                _ => Register::RCX,
+            let (exposed, off, on) = match hook.site().kind {
+                HookKind::Pressure { bit, .. } => (EXPOSED2, !bit.word(), bit.word()),
+                _ => (EXPOSED, !classes, classes),
             };
-            let mut seed = seed(&world, 2);
-            seed.set(receiver, world.arena.at(EXPOSED));
+            let mut seed = receiver_seed(&world, 2, hook);
+            seed.set(receiver(hook), world.arena.at(exposed));
             world.reset_objects();
             world.install(hook, true);
             let target = world.arena.at(world.image(hook.site().rva));
-            for (controls, survives) in [
-                (0, true),
-                (0x7F | 0x8000_0000, true),
-                (world.class_bits(), false),
-            ] {
+            for (controls, survives) in [(0, true), (off, true), (on, false)] {
                 world.arena.put_u32(CONTROL_WORD, controls);
                 let ending = forked(|| {
                     world.machine.enter(&world.arena, target, &seed);
@@ -910,9 +951,10 @@ mod execution {
         let blocker = |a: &Arena| {
             a.put_u32(CONFIG, class);
             a.put_u64(WEAPON + 0x1360, a.at(BLOCKER));
+            a.put_u64(DECOY + 0x1360, a.at(BLOCKER));
         };
         for controls in [0, METRO.classes[5].bit.word()] {
-            let seed = seed(&world, 4);
+            let seed = receiver_seed(&world, 4, hook);
             // The native reference runs with the setter released from the start.
             let native = world.run(hook, false, controls, &seed, &blocker);
             world.reset_objects();
@@ -1029,7 +1071,7 @@ mod execution {
             for (index, &pressure) in PRESSURES.iter().enumerate() {
                 for &normal in &NORMALS {
                     for mode in 0..16_u32 {
-                        let mut seed = seed(&world, u64::from(mode));
+                        let mut seed = receiver_seed(&world, u64::from(mode), hook);
                         let daz = mode & 1 != 0;
                         // Rounding mode, DAZ, FTZ and some sticky flags; every exception masked.
                         seed.mxcsr = 0x1F80
@@ -1124,7 +1166,7 @@ mod execution {
         ];
         for site in 15..=17 {
             let hook = world.hook(site);
-            let seed = seed(&world, 5);
+            let seed = receiver_seed(&world, 5, hook);
             for (what, change) in cases {
                 let setup = |a: &Arena| {
                     a.put_u32(CONFIG, id);
@@ -1166,8 +1208,13 @@ mod execution {
                     // Invalid unmasked, denormal unmasked, everything unmasked, and everything unmasked
                     // under DAZ and FTZ.
                     for mxcsr in [0x1F80 & !0x80, 0x1F80 & !0x100, 0x0000, 0x8040] {
-                        let mut seed = seed(&world, 0);
+                        let mut seed = receiver_seed(&world, 0, hook);
                         seed.mxcsr = mxcsr;
+                        // The consumption subtracts 4.0, which is exact for every pressure here.
+                        for register in [6, 7] {
+                            seed.xmm[register] =
+                                seed.xmm[register] & !0xFFFF_FFFF | u128::from(0x4080_0000_u32);
+                        }
                         let endings: Vec<Ending> = [false, true]
                             .into_iter()
                             .map(|hooked| {

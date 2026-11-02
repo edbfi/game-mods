@@ -15,9 +15,10 @@
 //!
 //! - every path reads the control word exactly once, with one aligned DWORD load;
 //! - the cave restores every general register and the flags it changes, popping each saved value into the
-//!   register that pushed it, and writes no memory but its own stack frame;
-//! - instructions copied from the game that use the stack run on the game's own stack, as they did at the
-//!   site;
+//!   register that pushed it, and writes no memory but its own stack frame and, once at most, the hook's
+//!   declared effect (the pressure floor's store);
+//! - instructions copied from the game run with nothing of the cave's on the stack, so they see the
+//!   registers, flags and stack the game had at the site;
 //! - every exit is one the hook shape declares, with the stack as the game left it, or with exactly the
 //!   original return address pushed for a call;
 //! - the code never reaches the literal pool, and every literal is used;
@@ -46,7 +47,7 @@ use std::marker::PhantomData;
 use std::num::NonZeroU32;
 
 use crate::addr::{AddressError, CodeRange, Rel32, Va};
-use crate::profile::{HookKind, Profile, ReloadKind, Site, SiteId, ValidProfile};
+use crate::profile::{HookKind, Profile, Site, SiteId, ValidProfile};
 use crate::recovery::RecoveryAction;
 
 /// Bytes in one cave's page. A cave never exceeds it.
@@ -54,7 +55,7 @@ pub const PAGE: u32 = 4096;
 
 /// Where a cave and the data it uses live in the game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Layout {
+pub(crate) struct Layout {
     image: Va,
     cave: Va,
     controls: Va,
@@ -67,7 +68,7 @@ impl Layout {
     ///
     /// [`HookError::UnalignedCave`] if `cave` does not start a page, or [`HookError::UnalignedControls`] if the
     /// control word is not 4-byte aligned: caves read it with one aligned load.
-    pub const fn new(image: Va, cave: Va, controls: Va) -> Result<Self, HookError> {
+    pub(crate) const fn new(image: Va, cave: Va, controls: Va) -> Result<Self, HookError> {
         if !cave.get().is_multiple_of(PAGE as u64) {
             return Err(HookError::UnalignedCave(cave));
         }
@@ -83,19 +84,19 @@ impl Layout {
 
     /// The loaded image's base.
     #[must_use]
-    pub const fn image(self) -> Va {
+    pub(crate) const fn image(self) -> Va {
         self.image
     }
 
     /// The cave's first byte.
     #[must_use]
-    pub const fn cave(self) -> Va {
+    pub(crate) const fn cave(self) -> Va {
         self.cave
     }
 
     /// The control word.
     #[must_use]
-    pub const fn controls(self) -> Va {
+    pub(crate) const fn controls(self) -> Va {
         self.controls
     }
 }
@@ -287,6 +288,15 @@ impl Built {
         }
     }
 
+    /// The instructions alone, without the literal pool.
+    #[must_use]
+    pub const fn code(&self) -> CodeRange {
+        match self {
+            Self::Leaves(cave) => cave.code(),
+            Self::ReturnsInto(cave) => cave.code(),
+        }
+    }
+
     /// Every way control leaves the cave.
     #[must_use]
     pub fn exits(&self) -> &[Exit] {
@@ -310,7 +320,7 @@ impl Built {
 /// A [`HookError`] if the site's original bytes are not the instructions its hook shape expects, an address
 /// does not fit, the cave would exceed a page, or its proof fails. With a validated profile and the trainer's
 /// own allocation every one of these is a bug.
-pub fn build(site: &Site, profile: &Profile, layout: Layout) -> Result<Built, HookError> {
+pub(crate) fn build(site: &Site, profile: &Profile, layout: Layout) -> Result<Built, HookError> {
     let at = layout
         .image
         .at(site.rva)
@@ -325,7 +335,7 @@ pub fn build(site: &Site, profile: &Profile, layout: Layout) -> Result<Built, Ho
     }
     .map_err(|fault| fault.at(site.id))?;
     match site.kind {
-        HookKind::NoReload(ReloadKind::DirectCallbackRcx) => {
+        HookKind::NoReload(kind) if kind.returns_into_cave() => {
             draft.prove(site.id, layout).map(Built::ReturnsInto)
         }
         _ => draft.prove(site.id, layout).map(Built::Leaves),
@@ -337,7 +347,7 @@ pub fn build(site: &Site, profile: &Profile, layout: Layout) -> Result<Built, Ho
 /// # Errors
 ///
 /// [`HookError::ShortSite`] if `len` is under 5, or [`HookError::Address`] if `cave` is out of rel32 range.
-pub fn site_jump(site: SiteId, at: Va, cave: Va, len: usize) -> Result<Vec<u8>, HookError> {
+pub(crate) fn site_jump(site: SiteId, at: Va, cave: Va, len: usize) -> Result<Vec<u8>, HookError> {
     let jump_len = Rel32::JMP_LEN as usize;
     if len < jump_len {
         return Err(HookError::ShortSite { site, len });
@@ -445,7 +455,8 @@ pub fn allocation_len(profile: &Profile) -> u64 {
 ///
 /// # Errors
 ///
-/// The first [`HookError`] of any site; see [`build`] and [`site_jump`].
+/// The first [`HookError`] of any site: an unaligned allocation or control word, an address that does not
+/// fit, an original that is not its hook shape's reviewed instructions, or a cave that fails its proof.
 pub fn plan(
     profile: &ValidProfile<'_>,
     image: Va,

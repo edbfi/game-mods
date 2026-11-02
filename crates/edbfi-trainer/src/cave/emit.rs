@@ -9,7 +9,7 @@ use std::num::NonZeroU32;
 use iced_x86::code_asm::{CodeAssembler, CodeLabel, qword_ptr};
 use iced_x86::{
     BlockEncoderOptions, Code, Decoder, DecoderOptions, FlowControl, IcedError, Instruction,
-    MemoryOperand,
+    MemoryOperand, OpKind, Register,
 };
 
 use crate::addr::{AddressError, CodeRange, Va};
@@ -80,6 +80,16 @@ pub(super) fn position_independent(instruction: &Instruction) -> bool {
     instruction.flow_control() == FlowControl::Next && !instruction.is_ip_rel_memory_operand()
 }
 
+/// Whether `call` is `call qword [reg...]`: an indirect call through a memory operand with a base or index
+/// register and no segment override, which reads the same callee wherever it runs.
+pub(super) fn indirect_call(call: &Instruction) -> bool {
+    call.code() == Code::Call_rm64
+        && call.op0_kind() == OpKind::Memory
+        && !call.is_ip_rel_memory_operand()
+        && call.segment_prefix() == Register::None
+        && (call.memory_base() != Register::None || call.memory_index() != Register::None)
+}
+
 /// Refuses an original holding a branch, call or RIP-relative operand.
 pub(super) fn require_position_independent(instructions: &[Instruction]) -> Result<(), Fault> {
     if instructions.iter().all(position_independent) {
@@ -107,12 +117,14 @@ pub(super) fn imm32(value: u32, what: &'static str) -> Result<i32, Fault> {
 /// A cave being assembled.
 ///
 /// Instructions added through [`Emitter::asm`] are the cave's own; instructions added through
-/// [`Emitter::game`] or [`Emitter::replay`] are the game's, copied from the site or standing in for it. The
-/// proof holds the two to different rules.
+/// [`Emitter::game`] or [`Emitter::replay`] are the game's, copied from the site or standing in for it; an
+/// instruction added through [`Emitter::effect`] is the hook's declared effect, such as the pressure floor's
+/// store. The proof holds each to its own rules.
 pub(super) struct Emitter {
     asm: CodeAssembler,
     pool: Vec<(u64, CodeLabel)>,
     game: Vec<usize>,
+    effects: Vec<usize>,
 }
 
 impl Emitter {
@@ -122,6 +134,7 @@ impl Emitter {
             asm: CodeAssembler::new(64)?,
             pool: Vec::new(),
             game: Vec::new(),
+            effects: Vec::new(),
         })
     }
 
@@ -161,6 +174,17 @@ impl Emitter {
         Ok(())
     }
 
+    /// The hook's declared effect, emitted by `emit`: a cave instruction allowed one memory write.
+    pub(super) fn effect(
+        &mut self,
+        emit: impl FnOnce(&mut CodeAssembler) -> Result<(), IcedError>,
+    ) -> Result<(), Fault> {
+        let first = self.asm.instructions().len();
+        emit(&mut self.asm)?;
+        self.effects.extend(first..self.asm.instructions().len());
+        Ok(())
+    }
+
     /// Re-emits decoded game instructions. The assembler keys labels on instruction addresses, so each copy
     /// drops the address it was decoded at.
     pub(super) fn replay(&mut self, instructions: &[Instruction]) -> Result<(), Fault> {
@@ -189,9 +213,9 @@ impl Emitter {
     /// Pushes `ret` and jumps through the memory operand of `call`, an indirect call from the game: the callee
     /// runs as if called from the site.
     pub(super) fn tail_call_via(&mut self, call: &Instruction, ret: Va) -> Result<(), Fault> {
-        if call.code() != Code::Call_rm64 || call.is_ip_rel_memory_operand() {
+        if !indirect_call(call) {
             return Err(Fault::Original(
-                "it is not an indirect call through a register-based operand",
+                "it is not an indirect call through a register-based memory operand",
             ));
         }
         let operand = MemoryOperand::with_base_index_scale_displ_size(
@@ -237,16 +261,19 @@ impl Emitter {
                 })
             })
             .collect::<Result<_, Fault>>()?;
-        let game = self
-            .game
-            .iter()
-            .map(|&index| {
-                offsets
-                    .get(index)
-                    .copied()
-                    .ok_or(Fault::Unencodable("game instruction offset"))
-            })
-            .collect::<Result<_, Fault>>()?;
+        let tagged = |indexes: &[usize]| {
+            indexes
+                .iter()
+                .map(|&index| {
+                    offsets
+                        .get(index)
+                        .copied()
+                        .ok_or(Fault::Unencodable("instruction offset"))
+                })
+                .collect::<Result<Vec<u32>, Fault>>()
+        };
+        let game = tagged(&self.game)?;
+        let effects = tagged(&self.effects)?;
         let bytes = result.inner.code_buffer;
         Ok(Draft {
             cave,
@@ -254,6 +281,7 @@ impl Emitter {
             code_len,
             literals,
             game,
+            effects,
             exits,
         })
     }
@@ -267,6 +295,7 @@ pub(super) struct Draft {
     pub(super) code_len: u32,
     pub(super) literals: Vec<Literal>,
     pub(super) game: Vec<u32>,
+    pub(super) effects: Vec<u32>,
     pub(super) exits: Vec<Exit>,
 }
 
@@ -298,12 +327,15 @@ impl Draft {
         exits.dedup();
         let mut game = self.game;
         game.sort_unstable();
+        let mut effects = self.effects;
+        effects.sort_unstable();
         proof::prove(&Claim {
             address: self.cave,
             bytes: &self.bytes,
             code_len: self.code_len,
             literals: &self.literals,
             game: &game,
+            effects: &effects,
             controls: layout.controls(),
             returns_into_cave: R::RETURNS_INTO_CAVE,
             exits: &exits,
