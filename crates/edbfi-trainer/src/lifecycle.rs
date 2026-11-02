@@ -95,16 +95,14 @@ impl Failure {
         !self.unrestored.is_empty()
     }
 
-    /// Whether [`RuntimeCommand::Retry`] can help.
+    /// Whether [`RuntimeCommand::Retry`] can help: never while hooks remain, nor when only a different game
+    /// build or Windows version would.
     #[must_use]
     pub const fn can_retry(&self) -> bool {
         !self.left_hooks()
-            && matches!(
+            && !matches!(
                 self.recovery,
-                RecoveryAction::Retry
-                    | RecoveryAction::StartGame
-                    | RecoveryAction::CloseDuplicates
-                    | RecoveryAction::CloseOtherTrainer
+                RecoveryAction::UnsupportedBuild | RecoveryAction::UpdateWindows
             )
     }
 }
@@ -205,6 +203,7 @@ mod tests {
         assert!(!failure(RecoveryAction::Retry, vec![SiteId(3)]).can_retry());
         assert!(failure(RecoveryAction::RestartGame, vec![SiteId(3)]).left_hooks());
         assert!(!failure(RecoveryAction::UnsupportedBuild, vec![]).can_retry());
+        assert!(failure(RecoveryAction::ModifiedGameCode, vec![]).can_retry());
     }
 
     #[test]

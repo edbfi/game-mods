@@ -109,16 +109,6 @@ impl<'b> Canvas<'b> {
         self.put(right.saturating_sub(w), y, &fitted, w, style);
     }
 
-    /// Restyles `width` cells of row `y` from column `x`, keeping their symbols.
-    pub(crate) fn restyle(&mut self, x: u16, y: u16, width: u16, style: Style) {
-        if x >= self.area.width || y >= self.area.height {
-            return;
-        }
-        let width = width.min(self.area.width - x);
-        let area = Rect::new(self.area.x + x, self.area.y + y, width, 1);
-        self.buf.set_style(area, style);
-    }
-
     /// A horizontal rule across row `y` from column `x`, `width` cells long.
     pub(crate) fn rule(&mut self, x: u16, y: u16, width: u16) {
         let rule = self.glyphs().rule.repeat(usize::from(width));

@@ -94,6 +94,20 @@ pub(crate) fn pane_height(app: &App<'_>, pane: Pane) -> usize {
     }
 }
 
+/// Whether keys wait: the runtime is writing or restoring code, or the trainer is quitting.
+fn input_closed(app: &App<'_>) -> bool {
+    app.model.quitting || matches!(app.model.phase, Phase::Installing | Phase::Restoring)
+}
+
+/// The key line, or why keys wait.
+fn footer<'a>(app: &App<'_>, keys: &'a str) -> &'a str {
+    if input_closed(app) {
+        "Keys wait until this finishes"
+    } else {
+        keys
+    }
+}
+
 // ----- words -----
 
 /// The phase in one or two words, for the title and the strip.
@@ -286,11 +300,13 @@ fn details(app: &App<'_>, row: Row) -> (String, String, Vec<(String, Tone)>) {
             let toggle = app.profile.toggle(id);
             match app.status(row) {
                 Status::Via => {
-                    if let Some(cover) = app.coverer(id) {
+                    if let Some(cover) = app.acked_coverer(id) {
                         facts.push((format!("via {}", app.label(Row::Toggle(cover))), Tone::Via));
                     }
                 }
-                Status::Armed => facts.push(("applies on connect".into(), Tone::Armed)),
+                Status::Armed if !input_closed(app) => {
+                    facts.push(("applies on connect".into(), Tone::Armed));
+                }
                 _ => {}
             }
             if app.pending(row) {
@@ -323,27 +339,32 @@ fn details(app: &App<'_>, row: Row) -> (String, String, Vec<(String, Tone)>) {
         Row::Sounds => "A chime plays when the cheats in the game change.".to_owned(),
         Row::StartPaused => "Connect with every cheat paused; press P to resume.".to_owned(),
     };
-    let ids = sites(app, row);
-    if !ids.is_empty() {
-        let list: Vec<String> = ids.iter().map(ToString::to_string).collect();
-        facts.push((list.join(" "), Tone::Muted));
-    }
     if let Row::Toggle(id) = row {
         facts.push((
             checked_word(app.profile.toggle(id).gameplay).into(),
             Tone::Muted,
         ));
     }
+    // Hook sites matter least to a player, so they go last and are the first to be left out.
+    let ids = sites(app, row);
+    if !ids.is_empty() {
+        let list: Vec<String> = ids.iter().map(ToString::to_string).collect();
+        facts.push((list.join(" "), Tone::Muted));
+    }
     (label, hint, facts)
 }
 
-/// Draws `facts` separated by dots from column `x` of row `y`, within `max` cells.
+/// Draws `facts` separated by dots from column `x` of row `y`, within `max` cells. After the first, a fact
+/// that does not fit whole is left out with everything after it, so the line never ends mid-word.
 fn draw_facts(canvas: &mut Canvas<'_>, x: u16, y: u16, max: u16, facts: &[(String, Tone)]) {
     let dot = format!(" {} ", canvas.glyphs().dot);
     let end = x.saturating_add(max);
     let mut at = x;
     for (i, (fact, tone)) in facts.iter().enumerate() {
         if i > 0 {
+            if usize::from(end.saturating_sub(at)) < text::width(&dot) + text::width(fact) {
+                return;
+            }
             at = canvas.say(at, y, &dot, end.saturating_sub(at), Tone::Muted);
         }
         at = canvas.say(at, y, fact, end.saturating_sub(at), *tone);
@@ -373,17 +394,13 @@ fn draw_row(app: &App<'_>, canvas: &mut Canvas<'_>, y: u16, row: Row, columns: C
     }
     let label_end = columns.binding.unwrap_or(columns.status).saturating_sub(1);
     let label_tone = if focused { Tone::Focus } else { Tone::Text };
-    let end = canvas.say(
+    canvas.say(
         columns.label,
         y,
         app.label(row),
         label_end.saturating_sub(columns.label),
         label_tone,
     );
-    if focused && canvas.look.colour == crate::theme::Colour::Mono {
-        let style = canvas.style(Tone::Focus);
-        canvas.restyle(columns.label, y, end.saturating_sub(columns.label), style);
-    }
     if let (Some(x), Some(binding)) = (columns.binding, app.binding(row))
         && let Some(chord) = binding.0
     {
@@ -508,19 +525,19 @@ fn wide(app: &App<'_>, canvas: &mut Canvas<'_>) {
                     status,
                     end: width - 1,
                 };
-                if let Some((Item::Heading(Heading::Group(index)), rest)) = items.split_first() {
-                    let title = app.groups[*index].title.to_uppercase();
+                if let Some(group) = app.groups.iter().find(|group| group.classes) {
+                    let title = group.title.to_uppercase();
                     canvas.say(x + 2, 2, &title, width - x - 3, Tone::Accent);
-                    draw_items(
-                        app,
-                        canvas,
-                        *pane,
-                        rest,
-                        3,
-                        pane_height(app, *pane),
-                        columns,
-                    );
                 }
+                draw_items(
+                    app,
+                    canvas,
+                    *pane,
+                    items,
+                    3,
+                    pane_height(app, *pane),
+                    columns,
+                );
             }
         }
     }
@@ -553,7 +570,13 @@ fn wide(app: &App<'_>, canvas: &mut Canvas<'_>) {
     // Footer.
     canvas.rule(1, height - 3, width - 2);
     draw_status(app, canvas, 1, height - 2, width - 2);
-    canvas.say(1, height - 1, WIDE_HELP, width - 2, Tone::Muted);
+    canvas.say(
+        1,
+        height - 1,
+        footer(app, WIDE_HELP),
+        width - 2,
+        Tone::Muted,
+    );
 }
 
 fn draw_state(app: &App<'_>, canvas: &mut Canvas<'_>, left: u16, right: u16, y: u16) {
@@ -621,12 +644,11 @@ fn draw_files(app: &App<'_>, canvas: &mut Canvas<'_>, x: u16, y: u16, room: u16)
         app.model.paths.log.as_deref(),
         "not written",
     );
-    let game = app.profile.profile().game.name;
     let info = match &app.model.phase {
         Phase::Attached { attach_duration } => {
             format!("Attached in {} ms", attach_duration.as_millis())
         }
-        Phase::Waiting => format!("Start {game}; selected cheats apply on connect."),
+        Phase::Waiting => "Start the game; selections apply on connect.".into(),
         Phase::Verifying { .. } => "Nothing is changed until every check passes.".into(),
         Phase::Installing => "Installing hooks with every cheat off.".into(),
         Phase::Restoring => "Restoring the game's code.".into(),
@@ -698,7 +720,7 @@ fn draw_status(app: &App<'_>, canvas: &mut Canvas<'_>, x: u16, y: u16, room: u16
             false
         }
     };
-    if saves {
+    if saves || app.model.save == SaveState::SessionOnly {
         let (word, tone) = match app.model.save {
             SaveState::Idle => return,
             SaveState::Pending => ("saving", Tone::Muted),
@@ -790,7 +812,10 @@ fn compact(app: &App<'_>, canvas: &mut Canvas<'_>) {
         draw_status(app, canvas, 1, y, room);
         y += 1;
     }
-    let (_, hint, facts) = details(app, app.model.focus);
+    let (_, hint, mut facts) = details(app, app.model.focus);
+    if !compact_status_line(height) && app.model.save == SaveState::SessionOnly {
+        facts.insert(0, ("not saved".into(), Tone::Armed));
+    }
     let lines = compact_detail_lines(height);
     match notice {
         Some(notice) if !compact_status_line(height) => {
@@ -799,17 +824,29 @@ fn compact(app: &App<'_>, canvas: &mut Canvas<'_>) {
         _ => draw_facts(canvas, 1, y, room, &facts),
     }
     let hint = text::wrap(&text::sanitize(&hint), usize::from(room));
-    for (i, part) in hint.iter().take(lines - 1).enumerate() {
+    let shown = lines - 1;
+    for (i, part) in hint.iter().take(shown).enumerate() {
+        let part = if i + 1 == shown && hint.len() > shown {
+            format!("{part}{}", canvas.glyphs().ellipsis)
+        } else {
+            part.clone()
+        };
         canvas.say(
             1,
             y + 1 + u16::try_from(i).unwrap_or(0),
-            part,
+            &part,
             room,
             Tone::Text,
         );
     }
+    // A dialog covers the list; its own keys are in its box.
+    if app.model.modal.is_some() {
+        return;
+    }
     let y = height - u16::try_from(compact_help_lines(width)).unwrap_or(2);
-    if compact_help_lines(width) == 1 {
+    if input_closed(app) {
+        canvas.say(1, y, footer(app, ""), room, Tone::Muted);
+    } else if compact_help_lines(width) == 1 {
         let line = format!("{}  {}", COMPACT_HELP[0], COMPACT_HELP[1]);
         canvas.say(1, y, &line, room, Tone::Muted);
     } else {
@@ -1169,6 +1206,12 @@ fn help_paras(app: &App<'_>) -> Vec<Para> {
         Para::blank(),
         Para::new("Files", Tone::Accent),
     ];
+    if let Some(reason) = &app.model.save_error {
+        paras.push(Para::new(
+            format!("The last save failed: {reason}. S retries."),
+            Tone::Error,
+        ));
+    }
     if let Some(kept) = &app.model.kept {
         paras.push(Para::new(
             format!(
@@ -1227,7 +1270,11 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
             *scroll,
             HELP_ACTIONS.to_owned(),
         ),
-        Modal::Capture { target, refusal } => {
+        Modal::Capture {
+            target,
+            candidate,
+            refusal,
+        } => {
             let mut paras = Vec::new();
             if let Some(refusal) = refusal {
                 paras.push(Para::new(refusal.clone(), Tone::Error));
@@ -1240,16 +1287,25 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
                 ),
                 Tone::Text,
             ));
-            paras.push(Para::new(
-                "Press the new hotkey. Letters and digits need Ctrl or Alt; F1-F24 and Num0-Num9 work alone.",
-                Tone::Muted,
-            ));
+            let actions = if let Some(candidate) = candidate {
+                paras.push(Para::new(
+                    format!("New: {}", binding_text(*candidate)),
+                    Tone::Armed,
+                ));
+                "Enter set  Esc cancel  Bksp remove"
+            } else {
+                paras.push(Para::new(
+                    "Press a hotkey. Letters and digits need Ctrl or Alt.",
+                    Tone::Muted,
+                ));
+                "Esc cancel  Backspace remove"
+            };
             (
                 "Set a hotkey".to_owned(),
                 Tone::Accent,
                 paras,
                 0,
-                "Esc cancel  Backspace remove".to_owned(),
+                actions.to_owned(),
             )
         }
         Modal::Conflict {
@@ -1286,20 +1342,15 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
                 "Enter swap  Esc cancel".to_owned(),
             )
         }
-        Modal::Quit { quit, interrupted } => {
-            let glyphs = canvas.glyphs();
-            let (stay, leave) = if *quit {
-                ("  Stay  ".to_owned(), format!("{} Quit ", glyphs.focus))
-            } else {
-                (format!("{} Stay ", glyphs.focus), "  Quit  ".to_owned())
-            };
+        Modal::Quit { interrupted, .. } => {
+            // The buttons are drawn on the blank line after the text, below.
             let mut paras = vec![
                 Para::new(
                     "Every cheat turns off and the game's code is restored. The game keeps running.",
                     Tone::Text,
                 ),
                 Para::blank(),
-                Para::new(format!("{stay}   {leave}"), Tone::Text),
+                Para::blank(),
             ];
             if *interrupted {
                 paras.push(Para::new("Ctrl+C again quits.", Tone::Muted));
@@ -1321,20 +1372,31 @@ fn draw_modal(app: &App<'_>, canvas: &mut Canvas<'_>, modal: &Modal) {
     ));
     draw_box(canvas, area, &title, tone, &lines, scroll, &actions);
     if let Modal::Quit { quit, .. } = modal {
-        // Highlight the focused button.
-        let glyphs = canvas.glyphs();
-        let target = format!("{} {} ", glyphs.focus, if *quit { "Quit" } else { "Stay" });
-        let row = lines.iter().position(|(line, _)| line.contains(&target));
-        if let Some(row) = row {
-            let line = &lines[row].0;
-            let offset = line.find(&target).map_or(0, |at| text::width(&line[..at]));
-            let y = area.y + 1 + u16::try_from(row).unwrap_or(0);
-            let x = area.x + 2 + u16::try_from(offset).unwrap_or(0);
-            let w = u16::try_from(text::width(&target)).unwrap_or(0);
-            let style = canvas
-                .style(Tone::Focus)
-                .add_modifier(ratatui::style::Modifier::REVERSED);
-            canvas.restyle(x, y, w, style);
+        let row = wrap_paras(&paras[..2], inner).len();
+        let y = area.y + 1 + u16::try_from(row).unwrap_or(0);
+        let focus = canvas.glyphs().focus;
+        let mut x = area.x + 2;
+        for (label, chosen) in [("Stay", !*quit), ("Quit", *quit)] {
+            let button = if chosen {
+                format!("{focus} {label} ")
+            } else {
+                format!("  {label} ")
+            };
+            let style = if chosen {
+                canvas
+                    .style(Tone::Focus)
+                    .add_modifier(ratatui::style::Modifier::REVERSED)
+            } else {
+                canvas.style(Tone::Text)
+            };
+            let end = canvas.put(
+                x,
+                y,
+                &button,
+                area.width.saturating_sub(x - area.x + 2),
+                style,
+            );
+            x = end + 3;
         }
     }
 }

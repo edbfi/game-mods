@@ -13,23 +13,23 @@ e fg=LightRed bg=Reset mod=NONE
 abbbbbbbbbbbbbbbbaaaaaccccccccdddcccccca
 ┌─ Set a hotkey ───────────────────────┐|
 dddbbbbbbbbbbbbddddddddddddddddddddddddd
-│ G can't be used: it would fire while │|
-daeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeead
-│ typing; add Ctrl or Alt              │|
-daeeeeeeeeeeeeeeeeeeeeeeeaaaaaaaaaaaaaad
+│ G: it would fire while typing; add   │|
+daeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeaaad
+│ Ctrl or Alt                          │|
+daeeeeeeeeeeeaaaaaaaaaaaaaaaaaaaaaaaaaad
 │ Unlimited ammo: Alt+F1               │|
 daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
-│ Press the new hotkey. Letters and    │|
-dadddddddddddddddddddddddddddddddddaaaad
-│ digits need Ctrl or Alt; F1-F24 and  │|
-dadddddddddddddddddddddddddddddddddddaad
-│ Num0-Num9 work alone.                │|
-dadddddddddddddddddddddaaaaaaaaaaaaaaaad
+│ Press a hotkey. Letters and digits   │|
+daddddddddddddddddddddddddddddddddddaaad
+│ need Ctrl or Alt.                    │|
+dadddddddddddddddddaaaaaaaaaaaaaaaaaaaad
 │                                      │|
 daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad
 │ Esc cancel  Backspace remove         │|
 dabbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaad
 └──────────────────────────────────────┘|
 dddddddddddddddddddddddddddddddddddddddd
- Space toggle  P pause  ? help  Q quit  |
-adddddddddddddddddddddddddddddddddddddaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                        |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

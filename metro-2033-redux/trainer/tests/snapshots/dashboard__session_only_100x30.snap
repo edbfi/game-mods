@@ -54,7 +54,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aabbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Keeps reserve ammo; you still reload.         │   abzac                                  OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
-  Alt+F1 · S1 S2 · gameplay partial             │   hellbreath                             OFF      |
+  Alt+F1 · gameplay partial · S1 S2             │   hellbreath                             OFF      |
 aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
                                                 │   hellshock                              OFF      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
@@ -62,8 +62,8 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaccccccccaccccccccccccccccccccccaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
   Log      …ументы\edbfi\?]0;pwned?\trainer.log │  ●Hellsing                               ARMED    |
 aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddaaaa
-  Start Metro 2033 Redux; selected cheats appl… │   flamethrower                           OFF      |
-aacccccccccccccccccccccccccccccccccccccccccccccacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
+  Start the game; selections apply on connect.  │   flamethrower                           OFF      |
+aaccccccccccccccccccccccccccccccccccccccccccccaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaa
  ────────────────────────────────────────────────────────────────────────────────────────────────── |
 acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
  Last: Unlimited ammo OFF · not saved this session                                                  |

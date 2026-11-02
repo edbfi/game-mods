@@ -178,6 +178,8 @@ pub(crate) enum Modal {
     },
     Capture {
         target: Target,
+        /// The chord or removal pressed so far, applied on Enter.
+        candidate: Option<Binding>,
         refusal: Option<String>,
     },
     Conflict {
@@ -238,6 +240,11 @@ pub(crate) struct Model {
     pub(crate) notice: Option<Notice>,
     /// Where the latest outside edit of the settings file was kept; Help shows it for the session.
     pub(crate) kept: Option<PathBuf>,
+    /// Why the latest save failed; Help shows it until a save succeeds.
+    pub(crate) save_error: Option<String>,
+    /// Set while the settings problem is unresolved, so the defaults shown meanwhile are never saved over the
+    /// user's file; [`Msg::Loaded`] clears it.
+    pub(crate) awaiting_load: bool,
     pub(crate) save: SaveState,
     pub(crate) size: (u16, u16),
     pub(crate) appearance: Appearance,
@@ -295,9 +302,8 @@ fn is_char(press: Press, c: char) -> bool {
 }
 
 impl<'p> App<'p> {
-    /// A dashboard for `profile`, starting from `startup`. Set the window title from [`App::title`]; any
-    /// effect of the starting phase, such as the first publication when starting attached, comes with the first
-    /// [`App::update`].
+    /// A dashboard for `profile`, starting from `startup`. Set the window title from [`App::title`], then carry
+    /// out [`App::take_effects`].
     ///
     /// # Panics
     ///
@@ -353,6 +359,8 @@ impl<'p> App<'p> {
                 last: None,
                 notice: None,
                 kept: None,
+                save_error: None,
+                awaiting_load: false,
                 save,
                 size: startup.size,
                 appearance: startup.appearance,
@@ -380,7 +388,8 @@ impl<'p> App<'p> {
             Msg::Runtime(RuntimeEvent::Phase(phase)) => self.enter(phase),
             Msg::Runtime(RuntimeEvent::Ack(ack)) => self.acknowledge(ack),
             Msg::Runtime(RuntimeEvent::Journal(entry)) => {
-                if entry.event.severity >= Severity::Warning {
+                let failed_save = self.model.notice.as_ref().is_some_and(|n| n.until_saved);
+                if entry.event.severity >= Severity::Warning && !failed_save {
                     let tone = if entry.event.severity == Severity::Error {
                         Tone::Error
                     } else {
@@ -405,6 +414,7 @@ impl<'p> App<'p> {
                 };
                 self.model.settings = settings;
                 self.model.paths.settings = path;
+                self.model.awaiting_load = false;
                 self.effects.push(Effect::Bindings);
                 self.publish();
             }
@@ -428,6 +438,11 @@ impl<'p> App<'p> {
             self.title = title;
             self.effects.push(Effect::Title);
         }
+        std::mem::take(&mut self.effects)
+    }
+
+    /// Effects queued outside [`App::update`]: those of the starting phase. Call once after [`App::new`].
+    pub fn take_effects(&mut self) -> Vec<Effect> {
         std::mem::take(&mut self.effects)
     }
 
@@ -500,6 +515,9 @@ impl<'p> App<'p> {
             self.model.card_scroll = 0;
         }
         self.model.phase = phase;
+        if matches!(self.model.phase, Phase::Settings(_)) {
+            self.model.awaiting_load = true;
+        }
         // A failure while quitting, such as a failed restore, must stay readable and answerable.
         if matches!(self.model.phase, Phase::Failed(_)) {
             self.model.quitting = false;
@@ -543,7 +561,8 @@ impl<'p> App<'p> {
     }
 
     fn publish(&mut self) {
-        if !self.model.phase.is_attached() {
+        // After Quit nothing but the runtime's own zero may reach the game.
+        if !self.model.phase.is_attached() || self.model.quitting {
             return;
         }
         let mask = self.profile.effective(&self.desired());
@@ -561,6 +580,7 @@ impl<'p> App<'p> {
         match result {
             Ok(saved) => {
                 self.model.save = SaveState::Saved;
+                self.model.save_error = None;
                 if self.model.notice.as_ref().is_some_and(|n| n.until_saved) {
                     self.model.notice = None;
                 }
@@ -595,8 +615,9 @@ impl<'p> App<'p> {
                 // The cause says what to fix; the path is in the help and the log.
                 let reason = std::error::Error::source(&error)
                     .map_or_else(|| error.to_string(), ToString::to_string);
+                self.model.save_error = Some(reason);
                 self.model.notice = Some(Notice {
-                    text: format!("Settings not saved: {reason}"),
+                    text: "Settings not saved; S retries, ? shows why".into(),
                     tone: Tone::Error,
                     until_saved: true,
                 });
@@ -663,7 +684,8 @@ impl<'p> App<'p> {
     fn interrupt(&mut self) {
         match self.model.phase {
             Phase::Restoring | Phase::Finished(_) => {}
-            _ if self.quit_open() => self.quit(),
+            // A plain console cannot show a dialog, so the first interrupt quits.
+            _ if self.quit_open() || self.model.plain => self.quit(),
             Phase::Attached { .. } | Phase::Installing => {
                 if self.capturing() {
                     self.effects.push(Effect::Bindings);
@@ -678,6 +700,9 @@ impl<'p> App<'p> {
     }
 
     fn quit(&mut self) {
+        if self.capturing() {
+            self.effects.push(Effect::Bindings);
+        }
         self.model.quitting = true;
         self.model.modal = None;
         self.effects.push(Effect::Runtime(RuntimeCommand::Quit));
@@ -695,6 +720,9 @@ impl<'p> App<'p> {
     }
 
     fn card_scroll_press(&mut self, press: Press) -> bool {
+        if !press.modifiers.is_empty() {
+            return false;
+        }
         let step = match press.key {
             ConsoleKey::Up => -1,
             ConsoleKey::Down => 1,
@@ -764,6 +792,9 @@ impl<'p> App<'p> {
             _ if is_key(press, KEY_Q) => self.quit_request(),
             _ if is_key(press, KEY_R) => self.capture(),
             _ if is_key(press, KEY_P) => self.toggle_master(),
+            _ if is_key(press, KEY_S) && self.model.save == SaveState::Failed => {
+                self.request_save()
+            }
             _ if is_key(press, KEY_H) || is_char(press, '?') => {
                 self.model.modal = Some(Modal::Help { scroll: 0 });
             }
@@ -775,6 +806,7 @@ impl<'p> App<'p> {
         match modal {
             Modal::Help { scroll } => {
                 let step = match press.key {
+                    _ if !press.modifiers.is_empty() && !is_char(press, '?') => return,
                     ConsoleKey::Up => -1,
                     ConsoleKey::Down => 1,
                     ConsoleKey::Key(Key::PAGE_UP) => -5,
@@ -797,7 +829,9 @@ impl<'p> App<'p> {
                 let scroll = scroll.saturating_add_signed(step).min(max);
                 self.model.modal = Some(Modal::Help { scroll });
             }
-            Modal::Capture { target, .. } => self.capture_press(target, press),
+            Modal::Capture {
+                target, candidate, ..
+            } => self.capture_press(target, candidate, press),
             Modal::Conflict {
                 target,
                 chord,
@@ -810,6 +844,8 @@ impl<'p> App<'p> {
                     self.effects.push(Effect::Bindings);
                 }
             }
+            // Alt+Enter toggles full screen in a Windows console; only unmodified keys answer.
+            Modal::Quit { .. } if !press.modifiers.is_empty() => {}
             Modal::Quit { quit, interrupted } => match press.key {
                 ConsoleKey::Left | ConsoleKey::Right | ConsoleKey::Tab => {
                     self.model.modal = Some(Modal::Quit {
@@ -851,7 +887,7 @@ impl<'p> App<'p> {
             let mut right = Vec::new();
             for (index, group) in self.groups.iter().enumerate() {
                 if group.classes {
-                    right.push(Item::Heading(Heading::Group(index)));
+                    // The wide view pins this group's title above the pane.
                     right.extend(rows(group));
                 } else {
                     left.push(Item::Heading(Heading::Group(index)));
@@ -1027,7 +1063,7 @@ impl<'p> App<'p> {
     }
 
     fn request_save(&mut self) {
-        if self.model.paths.settings.is_some() {
+        if self.model.paths.settings.is_some() && !self.model.awaiting_load {
             self.model.save = SaveState::Pending;
             self.effects.push(Effect::Save);
         }
@@ -1047,51 +1083,52 @@ impl<'p> App<'p> {
         };
         self.model.modal = Some(Modal::Capture {
             target,
+            candidate: None,
             refusal: None,
         });
         self.effects.push(Effect::Bindings);
     }
 
-    fn capture_press(&mut self, target: Target, press: Press) {
+    /// A pressed chord is only previewed; Enter applies it, Escape discards it.
+    fn capture_press(&mut self, target: Target, candidate: Option<Binding>, press: Press) {
+        let preview = |candidate, refusal| Modal::Capture {
+            target,
+            candidate,
+            refusal,
+        };
         if is_plain(press, ConsoleKey::Escape) {
             self.model.modal = None;
             self.effects.push(Effect::Bindings);
-            return;
-        }
-        let binding = if is_plain(press, ConsoleKey::Backspace) {
-            Binding(None)
+        } else if is_plain(press, ConsoleKey::Enter) {
+            match candidate {
+                Some(Binding(Some(chord)))
+                    if self
+                        .model
+                        .settings
+                        .bindings
+                        .holder(chord)
+                        .is_some_and(|holder| holder != target) =>
+                {
+                    let holder = self.model.settings.bindings.holder(chord).unwrap_or(target);
+                    self.model.modal = Some(Modal::Conflict {
+                        target,
+                        chord,
+                        holder,
+                    });
+                }
+                Some(binding) => self.bind(target, binding),
+                None => {}
+            }
+        } else if is_plain(press, ConsoleKey::Backspace) {
+            self.model.modal = Some(preview(Some(Binding(None)), None));
         } else if let Some(chord) = press.chord() {
-            Binding(Some(chord))
-        } else {
-            self.model.modal = Some(Modal::Capture {
-                target,
-                refusal: Some(
-                    "That key can't be a hotkey. Use F1-F24, a letter, a digit or Num0-Num9, with Ctrl or Alt for letters and digits"
-                        .into(),
-                ),
+            self.model.modal = Some(match chord.check_policy() {
+                Ok(()) => preview(Some(Binding(Some(chord))), None),
+                Err(refusal) => preview(None, Some(format!("{chord}: {refusal}"))),
             });
-            return;
-        };
-        if let Some(chord) = binding.0 {
-            if let Err(refusal) = chord.check_policy() {
-                self.model.modal = Some(Modal::Capture {
-                    target,
-                    refusal: Some(format!("{chord} can't be used: {refusal}")),
-                });
-                return;
-            }
-            if let Some(holder) = self.model.settings.bindings.holder(chord)
-                && holder != target
-            {
-                self.model.modal = Some(Modal::Conflict {
-                    target,
-                    chord,
-                    holder,
-                });
-                return;
-            }
+        } else {
+            self.model.modal = Some(preview(None, Some("That key can't be a hotkey.".into())));
         }
-        self.bind(target, binding);
     }
 
     fn bind(&mut self, target: Target, binding: Binding) {
@@ -1159,6 +1196,23 @@ impl<'p> App<'p> {
             .map(|(other, _)| other)
     }
 
+    /// A toggle other than `id` whose bits include all of `id`'s and are all acknowledged, if any: what the
+    /// game is applying `id` through, whatever the selection now says.
+    pub(crate) fn acked_coverer(&self, id: ToggleId) -> Option<ToggleId> {
+        let bits = self.profile.toggle(id).controls.word();
+        let acked = self.model.acked.unwrap_or(ControlSet::EMPTY).word();
+        if bits == 0 || acked & bits != bits {
+            return None;
+        }
+        self.profile
+            .toggles()
+            .find(|(other, toggle)| {
+                let own = toggle.controls.word();
+                *other != id && own & bits == bits && acked & own == own
+            })
+            .map(|(other, _)| other)
+    }
+
     /// What `row` shows in its status column.
     pub(crate) fn status(&self, row: Row) -> Status {
         let attached = self.model.phase.is_attached();
@@ -1181,7 +1235,7 @@ impl<'p> App<'p> {
                 let acked = self.model.acked.unwrap_or(ControlSet::EMPTY).word();
                 let covered = self.coverer(id).is_some();
                 if bits != 0 && acked & bits == bits {
-                    if !selected && covered {
+                    if !selected && self.acked_coverer(id).is_some() {
                         Status::Via
                     } else {
                         Status::On
@@ -1197,12 +1251,13 @@ impl<'p> App<'p> {
 
     /// Whether `row`'s status still waits for an acknowledgement.
     pub(crate) fn pending(&self, row: Row) -> bool {
-        let Row::Toggle(id) = row else {
-            return false;
-        };
         if !self.model.phase.is_attached() {
             return false;
         }
+        let Row::Toggle(id) = row else {
+            let wanted = self.profile.effective(&self.desired()).bits();
+            return row == Row::Master && self.model.acked != Some(wanted);
+        };
         let wanted = self.model.master == Master::Active
             && (self.model.settings.selection.contains(id) || self.coverer(id).is_some());
         let shown = matches!(self.status(row), Status::On | Status::Via);

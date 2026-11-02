@@ -34,27 +34,27 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
  ●No reload, all w┌─ Set a hotkey ───────────────────────────────────────────────┐         VIA      |
 abaaaaaaaaaaaaaaaacccbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaeeeaaaaaa
-  God mode        │ G can't be used: it would fire while typing; add Ctrl or Alt │         VIA      |
-aaaaaaaaaaaaaaaaaacaffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffacaaaaaaaaaeeeaaaaaa
+  God mode        │ G: it would fire while typing; add Ctrl or Alt               │         VIA      |
+aaaaaaaaaaaaaaaaaacaffffffffffffffffffffffffffffffffffffffffffffffaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
   Unlimited flashl│ Unlimited ammo: Alt+F1                                       │         VIA      |
 aaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-                  │ Press the new hotkey. Letters and digits need Ctrl or Alt;   │         VIA      |
-aaaaaaaaaaaaaaaaaacaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaacaaaaaaaaaeeeaaaaaa
-  OPTIONS         │ F1-F24 and Num0-Num9 work alone.                             │         VIA      |
-aabbbbbbbaaaaaaaaacaccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
- ●Keep Hellsing pr│                                                              │         VIA      |
-abaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
- ●Chimes          │ Esc cancel  Backspace remove                                 │         VIA      |
+                  │ Press a hotkey. Letters and digits need Ctrl or Alt.         │         VIA      |
+aaaaaaaaaaaaaaaaaacaccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaacaaaaaaaaaeeeaaaaaa
+  OPTIONS         │                                                              │         VIA      |
+aabbbbbbbaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
+ ●Keep Hellsing pr│ Esc cancel  Backspace remove                                 │         VIA      |
 abaaaaaaaaaaaaaaaacabbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaeeeaaaaaa
-  Start paused    └──────────────────────────────────────────────────────────────┘         VIA      |
-aaaaaaaaaaaaaaaaaaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaeeeaaaaaa
+ ●Chimes          └──────────────────────────────────────────────────────────────┘         VIA      |
+abaaaaaaaaaaaaaaaaccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaeeeaaaaaa
+  Start paused                    OFF           │   bigun                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
                                                 │   duplet                                 VIA      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
   Unlimited ammo                                │   Revolver                               VIA      |
 aabbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
   Keeps reserve ammo; you still reload.         │   abzac                                  VIA      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
-  Alt+F1 · S1 S2 · gameplay partial             │   hellbreath                             VIA      |
+  Alt+F1 · gameplay partial · S1 S2             │   hellbreath                             VIA      |
 aaaaaaaacccccccccccccccccccccccccccaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
                                                 │   hellshock                              VIA      |
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa

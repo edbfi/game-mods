@@ -8,65 +8,66 @@ a fg=Reset bg=Reset mod=NONE
 b fg=Yellow bg=Reset mod=NONE
 c fg=DarkGray bg=Reset mod=NONE
 d fg=LightGreen bg=Reset mod=NONE
-e fg=Yellow bg=Reset mod=BOLD
-f fg=LightYellow bg=Reset mod=NONE
+e fg=Cyan bg=Reset mod=NONE
+f fg=Yellow bg=Reset mod=BOLD
+g fg=LightYellow bg=Reset mod=NONE
  edbfi · Metro 2033 Redux                                         ATTACHED · ACTIVE · Alt+F8 pauses |
 abbbbbcccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddcccddddddcccccccccccccccca
  ────────────────────────────────────────────────────────────────────────────────────────────────── |
 acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
   TRAINER                                       │  NO RELOAD BY WEAPON                              |
 aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
- ●All cheats              Alt+F8  ACTIVE        │   Kalash                                 ON       |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-                                                │   aksu                                   ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  CHEATS                                        │   rpk                                    ON       |
-aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
- ●Unlimited ammo          Alt+F1  ON            │   ashot                                  ON       |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Unlimited throwables    Alt+F2  OFF           │   vsv                                    ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Unlimited medkits       Alt+F3  OFF           │   ventil                                 ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Unlimited filters       Alt+F6  OFF           │   padonag                                ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Indestructible mask     Alt+F5  OFF           │   preved                                 ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-► No reload, all weapons  Alt+1   ON            │   vyhlop                                 ON       |
-eaeeeeeeeeeeeeeeeeeeeeeeaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  God mode                Alt+2   OFF           │   saiga                                  ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Unlimited flashlight    Alt+3   OFF           │   tumak                                  ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-                                                │   2012                                   ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  OPTIONS                                       │   gatling                                ON       |
-aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
- ●Keep Hellsing pressure          ON            │   ubludok                                ON       |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
- ●Chimes                          ON            │   Shambler                               ON       |
-abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Start paused                    OFF           │   bigun                                  ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-                                                │   duplet                                 ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  No reload, all weapons                        │   Revolver                               ON       |
-aabbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Keeps loaded rounds for every weapon class.   │   abzac                                  ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Alt+1 · waiting for the game · S11 S12 S13 S… │   hellbreath                             ON       |
-aaaaaaacccffffffffffffffffffffcccccccccccccccccacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-                                                │   hellshock                              ON       |
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Settings …ro-2033-redux\trainer\settings.toml │   tihar                                  ON       |
-aaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
+ ●All cheats              Alt+F8  ACTIVE        │   Kalash                                 VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   aksu                                   VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  CHEATS                                        │   rpk                                    VIA      |
+aabbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ●Unlimited ammo          Alt+F1  ON            │   ashot                                  VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited throwables    Alt+F2  OFF           │   vsv                                    VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited medkits       Alt+F3  OFF           │   ventil                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited filters       Alt+F6  OFF           │   padonag                                VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Indestructible mask     Alt+F5  OFF           │   preved                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+► No reload, all weapons  Alt+1   ON            │   vyhlop                                 VIA      |
+faffffffffffffffffffffffaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  God mode                Alt+2   OFF           │   saiga                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Unlimited flashlight    Alt+3   OFF           │   tumak                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   2012                                   VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  OPTIONS                                       │   gatling                                VIA      |
+aabbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ●Keep Hellsing pressure          ON            │   ubludok                                VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+ ●Chimes                          ON            │   Shambler                               VIA      |
+abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Start paused                    OFF           │   bigun                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   duplet                                 VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  No reload, all weapons                        │   Revolver                               VIA      |
+aabbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Keeps loaded rounds for every weapon class.   │   abzac                                  VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Alt+1 · waiting for the game                  │   hellbreath                             VIA      |
+aaaaaaacccggggggggggggggggggggaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+                                                │   hellshock                              VIA      |
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
+  Settings …ro-2033-redux\trainer\settings.toml │   tihar                                  VIA      |
+aaccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
   Log      …etro-2033-redux\trainer\trainer.log │  ●Hellsing                               ON       |
 aacccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
-  Attached in 42 ms                             │   flamethrower                           ON       |
-aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddaaaaaaa
+  Attached in 42 ms                             │   flamethrower                           VIA      |
+aacccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaeeeaaaaaa
  ────────────────────────────────────────────────────────────────────────────────────────────────── |
 acccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccca
  Last: No reload, all weapons ON · waiting for the game · saving                                    |
-accccccaaaaaaaaaaaaaaaaaaaaaaaddcccffffffffffffffffffffcccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+accccccaaaaaaaaaaaaaaaaaaaaaaaddcccggggggggggggggggggggcccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
  Up/Down move  Tab section  Space toggle  R bind  P pause  ? help  Q quit                           |
 accccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccaaaaaaaaaaaaaaaaaaaaaaaaaaa

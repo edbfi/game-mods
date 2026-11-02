@@ -348,8 +348,46 @@ fn conflict() {
         let mut app = live(size, Appearance::default());
         app.update(letter(b'R'));
         app.update(chord(Modifiers::ALT, Key::function(2).unwrap()));
+        app.update(press(ConsoleKey::Enter));
         app
     });
+}
+
+#[test]
+fn capture_preview() {
+    both("capture_preview", |size| {
+        let mut app = live(size, Appearance::default());
+        app.update(letter(b'R'));
+        app.update(chord(Modifiers::ALT, Key::function(9).unwrap()));
+        app
+    });
+}
+
+#[test]
+fn capture_long_chord_refused_fits_40x12() {
+    // A long current chord plus a refusal still fits the compact dialog without hiding its instructions.
+    let mut app = live(SMALL, Appearance::default());
+    for _ in 0..5 {
+        app.update(press(ConsoleKey::Down));
+    }
+    let page_down = Chord::new(
+        Modifiers::CTRL
+            .union(Modifiers::ALT)
+            .union(Modifiers::SHIFT),
+        Key::PAGE_DOWN,
+    );
+    app.update(letter(b'R'));
+    app.update(chord(page_down.modifiers(), page_down.key()));
+    app.update(press(ConsoleKey::Enter));
+    app.update(letter(b'R'));
+    app.update(press(ConsoleKey::Up));
+    snap("capture_long_chord_40x12", &app, SMALL);
+    let buffer = render(&app, SMALL);
+    let shown: String = (0..SMALL.1)
+        .flat_map(|y| (0..SMALL.0).map(move |x| (x, y)))
+        .map(|at| buffer[at].symbol().to_owned())
+        .collect();
+    assert!(!shown.contains('▼'), "nothing hidden");
 }
 
 #[test]
@@ -510,6 +548,7 @@ fn rebinding_swaps_on_conflict() {
     app.update(letter(b'R'));
     assert!(app.capturing());
     app.update(chord(Modifiers::ALT, Key::function(2).unwrap()));
+    app.update(press(ConsoleKey::Enter));
     let effects = app.update(press(ConsoleKey::Enter));
     assert!(effects.contains(&Effect::Save) && effects.contains(&Effect::Bindings));
     assert!(!app.capturing());
@@ -518,6 +557,7 @@ fn rebinding_swaps_on_conflict() {
     // Num5 alone is allowed.
     app.update(letter(b'R'));
     app.update(chord(Modifiers::NONE, Key::numpad(5).unwrap()));
+    app.update(press(ConsoleKey::Enter));
     assert_eq!(
         app.settings().bindings.get(ammo).0,
         Some(Chord::new(Modifiers::NONE, Key::numpad(5).unwrap()))

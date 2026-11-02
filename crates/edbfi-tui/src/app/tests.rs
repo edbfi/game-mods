@@ -265,6 +265,19 @@ fn capture_refuses_typing_keys_and_swaps_on_conflict() {
         key: ConsoleKey::Key(Key::function(2).unwrap()),
         modifiers: Modifiers::ALT,
     })));
+    // A pressed chord is only a preview until Enter.
+    assert!(matches!(
+        app.model.modal,
+        Some(Modal::Capture {
+            candidate: Some(_),
+            ..
+        })
+    ));
+    assert_eq!(
+        app.settings().bindings.get(target("alpha")).0,
+        Some(Chord::new(Modifiers::ALT, Key::function(1).unwrap()))
+    );
+    app.update(press(ConsoleKey::Enter));
     assert!(matches!(app.model.modal, Some(Modal::Conflict { .. })));
     let effects = app.update(press(ConsoleKey::Enter));
     assert!(effects.contains(&Effect::Save) && effects.contains(&Effect::Bindings));
@@ -277,6 +290,15 @@ fn capture_refuses_typing_keys_and_swaps_on_conflict() {
     // Backspace removes a hotkey.
     app.update(letter(b'R'));
     app.update(press(ConsoleKey::Backspace));
+    app.update(press(ConsoleKey::Escape));
+    assert_eq!(
+        app.settings().bindings.get(target("alpha")).0,
+        Some(f2),
+        "Escape discards"
+    );
+    app.update(letter(b'R'));
+    app.update(press(ConsoleKey::Backspace));
+    app.update(press(ConsoleKey::Enter));
     assert_eq!(app.settings().bindings.get(target("alpha")).0, None);
     // Options take no hotkey.
     app.model.focus = Row::Sounds;
@@ -378,10 +400,21 @@ fn saves_report_failures_until_the_next_success() {
         path: PathBuf::from("settings.toml"),
         source: std::io::Error::other("disk full"),
     })));
-    let notice = app.model.notice.clone().unwrap();
-    assert!(notice.text.contains("disk full"));
+    assert_eq!(app.model.save_error.as_deref(), Some("disk full"));
     app.update(press(ConsoleKey::Down));
     assert!(app.model.notice.is_some(), "navigation keeps a failure");
+    let mut journal = edbfi_trainer::journal::Journal::memory();
+    journal.record(edbfi_trainer::journal::Event::warning(
+        edbfi_trainer::journal::EntryKind::Settings,
+        "save failed",
+    ));
+    let entry = journal.activity().last().unwrap().clone();
+    app.update(Msg::Runtime(RuntimeEvent::Journal(entry)));
+    assert!(
+        app.model.notice.as_ref().unwrap().until_saved,
+        "a journal line does not hide it"
+    );
+    assert_eq!(app.update(letter(b'S')), [Effect::Save], "S retries");
     app.update(Msg::Saved(Ok(Saved::Written { external: None })));
     assert!(app.model.notice.is_none());
 }
@@ -434,4 +467,75 @@ fn a_failed_restore_after_quitting_stays_answerable() {
         app.update(letter(b'Q'))
             .contains(&Effect::Runtime(RuntimeCommand::Quit))
     );
+}
+
+#[test]
+fn via_follows_the_acknowledged_cover_while_a_change_is_pending() {
+    let mut app = live();
+    let effects = app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
+    ack(&mut app, 2, published(&effects).unwrap());
+    assert_eq!(app.status(id("red")), Status::Via);
+    // Clear the global; until the game acknowledges it, red is still applied through it, never ON.
+    app.update(Msg::Input(Command::Hotkey(target("all_colours"))));
+    assert_eq!(app.status(id("red")), Status::Via);
+    assert!(app.pending(id("red")));
+}
+
+#[test]
+fn defaults_shown_behind_a_settings_problem_are_never_saved() {
+    let profile = profile();
+    let error = Settings::parse(&profile, b"schema = 99\n").unwrap_err();
+    let mut app = app(Phase::Settings(SettingsProblem::Invalid {
+        path: PathBuf::from("settings.toml"),
+        error,
+    }));
+    // The runtime leaves the card without sending the settings first.
+    app.update(Msg::Runtime(RuntimeEvent::Phase(Phase::Waiting)));
+    assert!(
+        !app.update(press(ConsoleKey::Key(Key::SPACE)))
+            .contains(&Effect::Save)
+    );
+    app.update(Msg::Loaded {
+        settings: Settings::defaults(&profile),
+        path: Some(PathBuf::from("settings.toml")),
+    });
+    assert!(
+        app.update(press(ConsoleKey::Key(Key::SPACE)))
+            .contains(&Effect::Save)
+    );
+}
+
+#[test]
+fn a_plain_console_quits_on_the_first_interrupt_and_nothing_publishes_after() {
+    let mut app = live();
+    app.update(Msg::ConsoleLost);
+    let effects = app.update(Msg::Input(Command::Interrupt));
+    assert!(effects.contains(&Effect::Runtime(RuntimeCommand::Quit)));
+    let mut waiting = app_waiting_quit();
+    waiting.update(letter(b'Q'));
+    let effects = waiting.update(Msg::Runtime(RuntimeEvent::Phase(attached())));
+    assert_eq!(
+        published(&effects),
+        None,
+        "a connection racing Quit publishes nothing"
+    );
+}
+
+#[test]
+fn modified_keys_do_not_answer_the_quit_dialog() {
+    let mut app = live();
+    app.update(letter(b'Q'));
+    app.update(press(ConsoleKey::Right));
+    let alt_enter = Msg::Input(Command::Press(Press {
+        key: ConsoleKey::Enter,
+        modifiers: Modifiers::ALT,
+    }));
+    assert!(
+        app.update(alt_enter).is_empty(),
+        "Alt+Enter toggles full screen"
+    );
+    assert!(matches!(
+        app.model.modal,
+        Some(Modal::Quit { quit: true, .. })
+    ));
 }

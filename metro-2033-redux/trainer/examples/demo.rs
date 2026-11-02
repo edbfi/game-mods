@@ -45,6 +45,8 @@ struct Sim {
     next: Option<Instant>,
     quitting: bool,
     done: Option<Finish>,
+    /// Set once a simulated restore left hooks, so the exit message never claims the game is clean.
+    hooks_left: bool,
     /// Whether a terminal shows the dashboard; plain output never gets escape sequences.
     terminal: bool,
 }
@@ -166,14 +168,17 @@ impl Sim {
                 ),
                 queue,
             ),
-            KeyCode::Char('t') => self.enter(
+            KeyCode::Char('t') => {
+                self.hooks_left = true;
+                self.enter(
                 failure(
                     RecoveryAction::RestartGame,
                     "Restoring the game's code failed: WriteProcessMemory was denied (OS error 5).",
                     vec![SiteId(3), SiteId(7)],
                 ),
                 queue,
-            ),
+            );
+            }
             KeyCode::Char('s') => {
                 let profile = profile()?;
                 let error =
@@ -223,7 +228,7 @@ fn command(app: &App<'_>, key: &KeyEvent) -> Option<Command> {
         KeyCode::Right => ConsoleKey::Right,
         KeyCode::Tab => ConsoleKey::Tab,
         KeyCode::BackTab => {
-            modifiers = Modifiers::SHIFT;
+            modifiers = modifiers.union(Modifiers::SHIFT);
             ConsoleKey::Tab
         }
         KeyCode::Enter => ConsoleKey::Enter,
@@ -234,6 +239,7 @@ fn command(app: &App<'_>, key: &KeyEvent) -> Option<Command> {
         KeyCode::PageUp => ConsoleKey::Key(Key::PAGE_UP),
         KeyCode::PageDown => ConsoleKey::Key(Key::PAGE_DOWN),
         KeyCode::Delete => ConsoleKey::Key(Key::DELETE),
+        KeyCode::Pause => ConsoleKey::Key(Key::PAUSE),
         KeyCode::F(n) => ConsoleKey::Key(Key::function(n)?),
         KeyCode::Char(' ') => ConsoleKey::Key(Key::SPACE),
         KeyCode::Char(c) if c.is_ascii_alphabetic() => {
@@ -294,6 +300,7 @@ fn startup(size: (u16, u16)) -> Startup {
 
 fn new_sim(terminal: bool) -> Sim {
     Sim {
+        hooks_left: false,
         terminal,
         phase: Phase::Waiting,
         revision: 0,
@@ -316,13 +323,17 @@ fn drain(app: &mut App<'_>, sim: &mut Sim, queue: &mut VecDeque<Msg>) -> io::Res
     clippy::disallowed_methods,
     reason = "the demo reads terminal events itself; the trainer reads its console through the input layer"
 )]
-fn interactive() -> io::Result<Option<Finish>> {
+fn interactive() -> io::Result<(Option<Finish>, bool)> {
     let mut out = io::stdout();
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let size = terminal.size()?;
     let mut app = App::new(profile()?, startup((size.width, size.height)));
     let mut sim = new_sim(true);
     let mut queue = VecDeque::new();
+    execute!(out, terminal::SetTitle(app.title()))?;
+    for effect in app.take_effects() {
+        sim.effect(effect, &app, &mut queue)?;
+    }
     queue.push_back(Msg::Resize {
         width: size.width,
         height: size.height,
@@ -357,7 +368,7 @@ fn interactive() -> io::Result<Option<Finish>> {
         }
     }
     execute!(out, terminal::SetTitle(""))?;
-    Ok(sim.done)
+    Ok((sim.done, sim.hooks_left))
 }
 
 /// Plays a short script and prints the plain report, for redirected output.
@@ -417,8 +428,11 @@ fn main() -> io::Result<()> {
     terminal::disable_raw_mode()?;
     execute!(io::stdout(), terminal::LeaveAlternateScreen, cursor::Show)?;
     match result? {
-        Some(Finish::Restored) => println!("The game's code is restored and no cheats remain."),
-        Some(Finish::Untouched) | None => println!("The game was not changed."),
+        (_, true) => println!("Restart the game: some of its code still holds trainer hooks."),
+        (Some(Finish::Restored), false) => {
+            println!("The game's code is restored and no cheats remain.");
+        }
+        (Some(Finish::Untouched) | None, false) => println!("The game was not changed."),
     }
     Ok(())
 }
