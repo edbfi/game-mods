@@ -715,3 +715,24 @@ fn cheats_are_locked_until_the_trainer_hooks_the_game() {
         );
     }
 }
+
+#[test]
+fn the_lock_notice_keeps_a_save_failure_and_clears_once_hooked() {
+    let mut app = app(Phase::Waiting);
+    app.update(Msg::Input(Command::Hotkey(target("alpha"))));
+    assert!(app.model.notice.is_some());
+    app.update(Msg::Runtime(RuntimeEvent::Phase(attached())));
+    assert!(app.model.notice.is_none(), "cheats are unlocked now");
+    let mut app = self::app(Phase::Waiting);
+    app.model.focus = Row::Sounds;
+    app.update(press(ConsoleKey::Key(Key::SPACE)));
+    app.update(Msg::Saved(Err(StoreError::Write {
+        path: PathBuf::from("settings.toml"),
+        source: std::io::Error::other("disk full"),
+    })));
+    app.update(Msg::Input(Command::Hotkey(target("alpha"))));
+    assert!(
+        app.model.notice.as_ref().unwrap().until_saved,
+        "the failed save stays visible"
+    );
+}

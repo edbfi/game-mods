@@ -218,6 +218,8 @@ pub(crate) struct Notice {
     pub(crate) tone: Tone,
     /// Cleared by the next save that succeeds; otherwise by the next console action.
     pub(crate) until_saved: bool,
+    /// Also cleared once the trainer hooks the game: it explains why a cheat could not change before that.
+    pub(crate) until_hooked: bool,
 }
 
 /// Everything visible. Any change marks the frame for redrawing.
@@ -405,6 +407,7 @@ impl<'p> App<'p> {
                         text: entry.event.message,
                         tone,
                         until_saved: false,
+                        until_hooked: false,
                     });
                 }
             }
@@ -538,6 +541,11 @@ impl<'p> App<'p> {
             }
             self.model.modal = None;
         }
+        if self.model.phase.is_attached()
+            && self.model.notice.as_ref().is_some_and(|n| n.until_hooked)
+        {
+            self.model.notice = None;
+        }
         if self.model.phase.is_attached() && !was_attached {
             self.model.master = self.model.settings.master_on_connect();
             self.model.acked = None;
@@ -629,6 +637,7 @@ impl<'p> App<'p> {
                             text: format!("Outside edit kept as {name}; ? shows where"),
                             tone: Tone::Armed,
                             until_saved: false,
+                            until_hooked: false,
                         });
                     }
                     Some(External::Deleted) => {
@@ -636,6 +645,7 @@ impl<'p> App<'p> {
                             text: "The settings file had been deleted; it was written again".into(),
                             tone: Tone::Armed,
                             until_saved: false,
+                            until_hooked: false,
                         });
                     }
                     None => {}
@@ -651,6 +661,7 @@ impl<'p> App<'p> {
                     text: "Save failed; S retries, ? shows why".into(),
                     tone: Tone::Error,
                     until_saved: true,
+                    until_hooked: false,
                 });
             }
         }
@@ -1077,12 +1088,15 @@ impl<'p> App<'p> {
         if self.model.phase.is_attached() {
             return false;
         }
-        // A notice, so even 40×12 without a status line shows why nothing changed.
-        self.model.notice = Some(Notice {
-            text: LOCKED.into(),
-            tone: Tone::Armed,
-            until_saved: false,
-        });
+        // A notice, so even 40×12 without a status line shows why nothing changed; a failed save stays first.
+        if !self.model.notice.as_ref().is_some_and(|n| n.until_saved) {
+            self.model.notice = Some(Notice {
+                text: LOCKED.into(),
+                tone: Tone::Armed,
+                until_saved: false,
+                until_hooked: true,
+            });
+        }
         true
     }
 
