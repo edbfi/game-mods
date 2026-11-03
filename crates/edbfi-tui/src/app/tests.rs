@@ -351,10 +351,10 @@ fn the_settings_card_blocks_hotkeys_and_offers_its_commands() {
         app.update(letter(b'S')),
         [Effect::Runtime(RuntimeCommand::SessionOnly)]
     );
-    let effects = app.update(Msg::Loaded {
+    let effects = app.update(Msg::Runtime(RuntimeEvent::Loaded {
         settings: Settings::defaults(&profile),
         path: None,
-    });
+    }));
     assert_eq!(effects, [Effect::Bindings]);
     app.update(Msg::Runtime(RuntimeEvent::Phase(Phase::Waiting)));
     let effects = app.update(press(ConsoleKey::Key(Key::SPACE)));
@@ -493,10 +493,10 @@ fn defaults_shown_behind_a_settings_problem_are_never_saved() {
         !app.update(press(ConsoleKey::Key(Key::SPACE)))
             .contains(&Effect::Save)
     );
-    app.update(Msg::Loaded {
+    app.update(Msg::Runtime(RuntimeEvent::Loaded {
         settings: Settings::defaults(&profile),
         path: Some(PathBuf::from("settings.toml")),
-    });
+    }));
     assert!(
         app.update(press(ConsoleKey::Key(Key::SPACE)))
             .contains(&Effect::Save)
@@ -574,10 +574,10 @@ fn loading_settings_clears_a_stale_save_failure() {
         path: PathBuf::from("settings.toml"),
         source: std::io::Error::other("disk full"),
     })));
-    app.update(Msg::Loaded {
+    app.update(Msg::Runtime(RuntimeEvent::Loaded {
         settings: Settings::defaults(&profile()),
         path: Some(PathBuf::from("settings.toml")),
-    });
+    }));
     assert!(app.model.notice.is_none() && app.model.save_error.is_none());
 }
 

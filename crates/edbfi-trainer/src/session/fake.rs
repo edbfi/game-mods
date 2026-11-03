@@ -46,6 +46,8 @@ pub(crate) struct Info {
     pub(crate) finished: Cell<u32>,
     pub(crate) controls_live: Cell<bool>,
     pub(crate) stop: Cell<bool>,
+    /// Whether this trainer was asked to shut down.
+    pub(crate) interrupted: Cell<bool>,
     /// Whether the game's view of the control word was unmapped.
     pub(crate) withdrawn: Cell<bool>,
     /// Where the control word was mapped.
@@ -127,6 +129,7 @@ impl FakeGame {
             finished: Cell::new(0),
             controls_live: Cell::new(false),
             stop: Cell::new(false),
+            interrupted: Cell::new(false),
             withdrawn: Cell::new(false),
             controls_at: Cell::new(0),
             deny: Cell::new(false),
@@ -237,7 +240,7 @@ impl Game for FakeGame {
     }
 
     fn interrupted(&self) -> bool {
-        false
+        self.info.interrupted.get()
     }
 
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError> {

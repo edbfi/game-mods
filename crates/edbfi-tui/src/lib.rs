@@ -7,7 +7,9 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod driver;
 pub mod layout;
+pub mod outcome;
 pub mod plain;
 pub mod text;
 pub mod theme;

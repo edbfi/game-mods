@@ -89,6 +89,11 @@ pub(crate) trait Game: Process {
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError>;
     /// Takes this process's owner and stop objects for `slug`.
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError>;
+    /// The process handle, signalled once the process exits, to wait on with other handles.
+    #[cfg(windows)]
+    fn handle(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
+        None
+    }
 }
 
 /// The main module of a process.
@@ -126,6 +131,11 @@ pub(crate) trait Controls {
 pub(crate) trait Owner {
     /// Whether someone asked this trainer to stop.
     fn stop_requested(&self) -> bool;
+    /// The stop event, signalled once someone asks this trainer to stop, to wait on with other handles.
+    #[cfg(windows)]
+    fn stop_event(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
+        None
+    }
 }
 
 /// Read access only: a `check`.
@@ -745,8 +755,15 @@ impl Session<Prepared> {
 impl Session<Installed> {
     /// Stores `mask` in the control word, unless it is already there, and acknowledges it.
     ///
-    /// This is one local interlocked store. It never freezes the game or touches code.
+    /// This is one local interlocked store. It never freezes the game or touches code. Once this trainer was
+    /// asked to shut down or stop, it stores and acknowledges zero instead: a shutdown callback zeroed the
+    /// word, and a late publication must not undo that.
     pub fn publish(&mut self, mask: DesiredMask) -> Ack {
+        let mask = if self.core.game.interrupted() || self.state.owner.stop_requested() {
+            DesiredMask::ZERO
+        } else {
+            mask
+        };
         let state = &mut self.state;
         // Compared with the word itself, not the last publication: a panic or close may have zeroed it.
         if state.hooks.controls.load() != mask.bits().word() {

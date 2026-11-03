@@ -11,6 +11,13 @@
 //! through the lease it found, and stops reading when done. A session retiring its lease empties the slot,
 //! then waits for the reader count to drop to zero before unmapping, so no callback ever touches an unmapped
 //! view. All of it is lock-free and allocation-free on the callback side.
+//!
+//! Ctrl+C and Ctrl+Break ask for shutdown too, until the owner routes them: from then on each is counted and
+//! signals an interrupt event of its own, so the dashboard can offer an interactive quit.
+//!
+//! While the dashboard is on the console's alternate screen, the panic hook also leaves it, so the panic
+//! message lands on the normal screen. The bridge keeps the console output handle and its original mode for
+//! that in atomics, counted like the lease.
 
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::{self, NonNull};
@@ -21,7 +28,7 @@ use std::time::Duration;
 use windows_sys::Win32::Foundation::{FALSE, HANDLE, TRUE, WAIT_OBJECT_0};
 use windows_sys::Win32::System::Console::{
     CTRL_BREAK_EVENT, CTRL_C_EVENT, CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT,
-    SetConsoleCtrlHandler,
+    SetConsoleCtrlHandler, SetConsoleMode, WriteConsoleA,
 };
 use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent, WaitForSingleObject};
 use windows_sys::core::BOOL;
@@ -74,6 +81,12 @@ pub(crate) struct Bridge {
     shutdown: OwnedHandle,
     slot: AtomicPtr<Lease>,
     readers: AtomicUsize,
+    /// The auto-reset event a routed Ctrl+C or Ctrl+Break signals.
+    interrupt: OwnedHandle,
+    /// Routed interrupts not yet taken.
+    interrupts: AtomicU32,
+    /// Whether Ctrl+C and Ctrl+Break are routed to the interrupt event instead of asking for shutdown.
+    routed: AtomicBool,
 }
 
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
@@ -103,6 +116,39 @@ impl Bridge {
     pub(crate) fn borrowed(&'static self) -> std::os::windows::io::BorrowedHandle<'static> {
         use std::os::windows::io::AsHandle as _;
         self.shutdown.as_handle()
+    }
+
+    /// From now on Ctrl+C and Ctrl+Break are counted and signal the returned event instead of asking for
+    /// shutdown.
+    pub(crate) fn route_interrupts(&'static self) -> std::os::windows::io::BorrowedHandle<'static> {
+        use std::os::windows::io::AsHandle as _;
+        self.routed.store(true, Ordering::SeqCst);
+        self.interrupt.as_handle()
+    }
+
+    /// The routed interrupts since the last call.
+    pub(crate) fn take_interrupts(&self) -> u32 {
+        self.interrupts.swap(0, Ordering::SeqCst)
+    }
+
+    /// Ctrl+C or Ctrl+Break: counted and signalled if routed, otherwise a shutdown request. The count goes up
+    /// before the event is set, so an owner woken by it finds the interrupt.
+    fn interrupted(&self) {
+        if !self.routed.load(Ordering::SeqCst) {
+            self.request();
+            return;
+        }
+        let mut count = self.interrupts.load(Ordering::SeqCst);
+        while let Err(now) = self.interrupts.compare_exchange_weak(
+            count,
+            count.saturating_add(1),
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            count = now;
+        }
+        // SAFETY: the interrupt event lives for the whole process.
+        let _set = unsafe { SetEvent(self.interrupt.as_raw_handle()) };
     }
 
     /// Runs `with` on the current lease, if any, as a counted reader.
@@ -168,9 +214,9 @@ pub(crate) fn retire(lease: NonNull<Lease>) {
     }
 }
 
-/// The console control handler. Ctrl+C and Ctrl+Break ask for a normal exit; a closing window, logoff or
-/// shutdown also zero the controls and wait for restoration, since Windows ends the process when this
-/// returns.
+/// The console control handler. Ctrl+C and Ctrl+Break ask for a normal exit, or once routed, signal the
+/// interrupt event; a closing window, logoff or shutdown also zero the controls and wait for restoration,
+/// since Windows ends the process when this returns.
 unsafe extern "system" fn console(kind: u32) -> BOOL {
     let handled = std::panic::catch_unwind(|| {
         let Some(bridge) = get() else {
@@ -178,7 +224,7 @@ unsafe extern "system" fn console(kind: u32) -> BOOL {
         };
         match kind {
             CTRL_C_EVENT | CTRL_BREAK_EVENT => {
-                bridge.request();
+                bridge.interrupted();
                 TRUE
             }
             CTRL_CLOSE_EVENT | CTRL_LOGOFF_EVENT | CTRL_SHUTDOWN_EVENT => {
@@ -196,7 +242,7 @@ unsafe extern "system" fn console(kind: u32) -> BOOL {
     })
 }
 
-/// Clears a shutdown request left by an earlier test.
+/// Clears a shutdown request and the interrupts left by an earlier test, and stops routing interrupts.
 #[cfg(test)]
 pub(crate) fn reset_for_tests() {
     if let Some(bridge) = get() {
@@ -204,6 +250,12 @@ pub(crate) fn reset_for_tests() {
         let _reset = unsafe {
             windows_sys::Win32::System::Threading::ResetEvent(bridge.shutdown.as_raw_handle())
         };
+        // SAFETY: the interrupt event lives for the whole process.
+        let _reset = unsafe {
+            windows_sys::Win32::System::Threading::ResetEvent(bridge.interrupt.as_raw_handle())
+        };
+        bridge.routed.store(false, Ordering::SeqCst);
+        bridge.interrupts.store(0, Ordering::SeqCst);
     }
 }
 
@@ -214,13 +266,83 @@ pub(crate) fn console_notice(kind: u32) -> bool {
     (unsafe { console(kind) }) != FALSE
 }
 
+/// The console output handle the panic hook writes the screen reset to, while armed; zero otherwise.
+static SCREEN: AtomicUsize = AtomicUsize::new(0);
+/// The console output mode the panic hook restores.
+static SCREEN_MODE: AtomicU32 = AtomicU32::new(0);
+/// Panic hooks using [`SCREEN`] now.
+static SCREEN_READERS: AtomicUsize = AtomicUsize::new(0);
+
+/// Resets colours, shows the cursor and leaves the alternate screen.
+const SCREEN_RESET: &[u8] = b"\x1b[0m\x1b[?25h\x1b[?1049l";
+
+/// Has the panic hook leave the alternate screen on `output` and restore its `mode`. `output` must stay open
+/// until [`disarm_screen`] returns.
+pub(crate) fn arm_screen(output: HANDLE, mode: u32) {
+    SCREEN_MODE.store(mode, Ordering::SeqCst);
+    SCREEN.store(output as usize, Ordering::SeqCst);
+}
+
+/// Stops the panic hook from touching the console output, and waits until no hook is using it.
+pub(crate) fn disarm_screen() {
+    SCREEN.store(0, Ordering::SeqCst);
+    while SCREEN_READERS.load(Ordering::SeqCst) != 0 {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// Leaves the alternate screen and restores the output mode, if armed. Safe from a panic hook: no
+/// allocation, lock or formatting.
+fn reset_screen() {
+    SCREEN_READERS.fetch_add(1, Ordering::SeqCst);
+    let output = SCREEN.load(Ordering::SeqCst);
+    if output != 0 {
+        let output = output as HANDLE;
+        let len = u32::try_from(SCREEN_RESET.len()).unwrap_or(0);
+        let mut written = 0;
+        // SAFETY: an armed handle stays open until `disarm_screen` has seen this reader leave; the reset is
+        // static and `written` is writable.
+        let _written = unsafe {
+            WriteConsoleA(
+                output,
+                SCREEN_RESET.as_ptr(),
+                len,
+                &raw mut written,
+                std::ptr::null(),
+            )
+        };
+        // SAFETY: as above; the mode is one the console reported for this handle.
+        let _restored = unsafe { SetConsoleMode(output, SCREEN_MODE.load(Ordering::SeqCst)) };
+    }
+    SCREEN_READERS.fetch_sub(1, Ordering::SeqCst);
+}
+
 /// Which parts of the bridge are in place; an install that failed part-way retries only the rest.
 static HANDLER: AtomicBool = AtomicBool::new(false);
 static HOOK: AtomicBool = AtomicBool::new(false);
 static WINDOW: AtomicBool = AtomicBool::new(false);
 
-/// Installs the bridge once per process: the shutdown event, the console handler, a panic hook that zeroes
-/// the controls, and the hidden window that hears about session end. A failed part is tried again by the
+/// Installs the panic hook once per process. It zeroes the controls, then, unless a game is frozen, leaves
+/// the alternate screen if armed and runs the previous hook, which prints the panic.
+pub(crate) fn hook() {
+    if !HOOK.swap(true, Ordering::SeqCst) {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if let Some(bridge) = get() {
+                bridge.emergency_zero();
+            }
+            // While a game is frozen the hook does nothing else: the previous hook may allocate, format and
+            // lock, and the patch code catching this panic must roll back and resume the game first.
+            if !crate::patch::freeze::holding() {
+                reset_screen();
+                previous(info);
+            }
+        }));
+    }
+}
+
+/// Installs the bridge once per process: the shutdown and interrupt events, the console handler, the panic
+/// hook, and the hidden window that hears about session end. A failed part is tried again by the
 /// next call; only a complete install returns the bridge.
 pub(crate) fn install() -> Result<&'static Bridge, OsError> {
     let _once = INSTALL
@@ -232,10 +354,16 @@ pub(crate) fn install() -> Result<&'static Bridge, OsError> {
             // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
             let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
             let shutdown = owned(raw, "CreateEventW")?;
+            // SAFETY: as above, for an auto-reset event.
+            let raw = unsafe { CreateEventW(none(), FALSE, FALSE, none()) };
+            let interrupt = owned(raw, "CreateEventW")?;
             BRIDGE.get_or_init(|| Bridge {
                 shutdown,
                 slot: AtomicPtr::new(ptr::null_mut()),
                 readers: AtomicUsize::new(0),
+                interrupt,
+                interrupts: AtomicU32::new(0),
+                routed: AtomicBool::new(false),
             })
         }
     };
@@ -246,19 +374,7 @@ pub(crate) fn install() -> Result<&'static Bridge, OsError> {
         }
         HANDLER.store(true, Ordering::SeqCst);
     }
-    if !HOOK.swap(true, Ordering::SeqCst) {
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            if let Some(bridge) = get() {
-                bridge.emergency_zero();
-            }
-            // While a game is frozen the hook does nothing else: the previous hook may allocate, format and
-            // lock, and the patch code catching this panic must roll back and resume the game first.
-            if !crate::patch::freeze::holding() {
-                previous(info);
-            }
-        }));
-    }
+    hook();
     if !WINDOW.load(Ordering::SeqCst) {
         super::window::start(bridge)?;
         WINDOW.store(true, Ordering::SeqCst);

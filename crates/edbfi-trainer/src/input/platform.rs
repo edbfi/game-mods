@@ -15,7 +15,7 @@ use crate::patch::OsError;
 use crate::shutdown::Shutdown;
 use crate::win32::{console, input};
 
-use super::{Batch, ConsoleFocus, Epoch, Probe};
+use super::{Batch, ConsoleFocus, Epoch, Probe, Wakes};
 
 /// The keyboard and foreground notices.
 #[derive(Clone, Copy)]
@@ -25,20 +25,6 @@ impl std::fmt::Debug for Keyboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Keyboard").finish_non_exhaustive()
     }
-}
-
-/// What happened since the last [`Keyboard::take`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Wakes {
-    /// A key went down, repeated or went up somewhere: call [`Arbiter::physical`](super::Arbiter::physical).
-    pub keyboard: bool,
-    /// A keyboard arrived or was removed: call [`Arbiter::devices`](super::Arbiter::devices).
-    pub devices: bool,
-    /// The foreground window changed: call [`Arbiter::foreground`](super::Arbiter::foreground), then read
-    /// the console once.
-    pub foreground: bool,
-    /// The newest barrier acknowledged: call [`Arbiter::barrier`](super::Arbiter::barrier).
-    pub barrier: Option<Epoch>,
 }
 
 impl Keyboard {

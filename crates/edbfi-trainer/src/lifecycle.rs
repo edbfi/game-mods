@@ -12,7 +12,7 @@ use crate::control::{Ack, DesiredMask};
 use crate::journal::Entry;
 use crate::profile::SiteId;
 use crate::recovery::RecoveryAction;
-use crate::settings::{SettingsError, StoreError};
+use crate::settings::{Settings, SettingsError, StoreError};
 
 /// Where the runtime is.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,6 +169,13 @@ pub enum RuntimeEvent {
     Ack(Ack),
     /// Something was recorded in the journal.
     Journal(Entry),
+    /// A [`Phase::Settings`] problem was resolved: these settings now apply.
+    Loaded {
+        /// The settings.
+        settings: Settings,
+        /// The settings file, or `None` if these settings are never saved.
+        path: Option<PathBuf>,
+    },
 }
 
 /// Something the dashboard asks the runtime to do.

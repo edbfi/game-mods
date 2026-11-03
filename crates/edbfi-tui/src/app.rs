@@ -65,13 +65,6 @@ pub enum Msg {
     },
     /// The driver finished an [`Effect::Save`].
     Saved(Result<Saved, StoreError>),
-    /// The runtime resolved a [`Phase::Settings`] problem; these settings now apply.
-    Loaded {
-        /// The settings.
-        settings: Settings,
-        /// The settings file, or `None` if these settings are never saved.
-        path: Option<PathBuf>,
-    },
     /// The console can no longer be read or drawn; the driver switched to plain output.
     ConsoleLost,
 }
@@ -244,7 +237,7 @@ pub(crate) struct Model {
     /// Why the latest save failed; Help shows it until a save succeeds.
     pub(crate) save_error: Option<String>,
     /// Set while the settings problem is unresolved, so the defaults shown meanwhile are never saved over the
-    /// user's file; [`Msg::Loaded`] clears it.
+    /// user's file; [`RuntimeEvent::Loaded`] clears it.
     pub(crate) awaiting_load: bool,
     pub(crate) save: SaveState,
     pub(crate) size: (u16, u16),
@@ -414,7 +407,7 @@ impl<'p> App<'p> {
             Msg::Input(command) => self.input(command),
             Msg::Resize { width, height } => self.model.size = (width, height),
             Msg::Saved(result) => self.saved(result),
-            Msg::Loaded { settings, path } => {
+            Msg::Runtime(RuntimeEvent::Loaded { settings, path }) => {
                 let _ = settings.selection.contains(self.first_toggle());
                 self.model.save = if path.is_some() {
                     SaveState::Idle

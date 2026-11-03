@@ -79,3 +79,16 @@ pub enum ConsoleKey {
     /// Any other key that types this character, such as `?`.
     Char(char),
 }
+
+/// What the keyboard and foreground notices reported since they were last taken.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Wakes {
+    /// A key went down, repeated or went up somewhere: call [`Arbiter::physical`].
+    pub keyboard: bool,
+    /// A keyboard arrived or was removed: call [`Arbiter::devices`].
+    pub devices: bool,
+    /// The foreground window changed: call [`Arbiter::foreground`], then read the console once.
+    pub foreground: bool,
+    /// The newest barrier acknowledged: call [`Arbiter::barrier`].
+    pub barrier: Option<Epoch>,
+}
