@@ -44,38 +44,49 @@ print(bins[0]["name"])
 exe="$files/$program/$program.exe"
 [[ ${#exes[@]} -eq 1 && -f "$exe" ]] || die "$dir must ship exactly one .exe, $program/$program.exe; found ${exes[*]:-none}"
 
-# The PE's resource types must include VERSIONINFO (16) and MANIFEST (24), and its FileVersion must be the version.
+# The PE must carry a VERSIONINFO (type 16) whose FileVersion is the version, and an application manifest (type 24).
 python3 - "$exe" "$version" <<'PY'
 import re, struct, sys
 path, version = sys.argv[1], sys.argv[2]
 data = open(path, "rb").read()
 def fail(why):
     sys.exit(f"::error::{path}: {why}")
-pe = struct.unpack_from("<I", data, 0x3C)[0]
+def u16(at): return struct.unpack_from("<H", data, at)[0]
+def u32(at): return struct.unpack_from("<I", data, at)[0]
+pe = u32(0x3C)
 if data[pe:pe + 4] != b"PE\0\0":
     fail("not a PE image")
-sections, optional_size = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
 optional = pe + 24
-if struct.unpack_from("<H", data, optional)[0] != 0x20B:
+if u16(optional) != 0x20B:
     fail("not a PE32+ image")
-rva = struct.unpack_from("<I", data, optional + 128)[0]  # data directory 2: resources
-offset = None
-for i in range(sections):
-    header = optional + optional_size + 40 * i
-    size, start, raw_size, raw = struct.unpack_from("<IIII", data, header + 8)
-    if start <= rva < start + max(size, raw_size):
-        offset = raw + rva - start
-if not rva or offset is None:
-    fail("no resources")
-named, ids = struct.unpack_from("<HH", data, offset + 12)
-entries = offset + 16 + 8 * named
-types = {struct.unpack_from("<I", data, entries + 8 * i)[0] for i in range(ids)}
-for kind, label in ((16, "VERSIONINFO"), (24, "MANIFEST")):
-    if kind not in types:
+sections = [struct.unpack_from("<IIII", data, optional + u16(pe + 20) + 40 * i + 8) for i in range(u16(pe + 6))]
+def offset(rva):
+    for _, start, raw_size, raw in sections:
+        if start <= rva < start + raw_size:
+            return raw + rva - start
+    fail(f"RVA {rva:#x} is in no section")
+root = offset(u32(optional + 128))  # data directory 2: resources
+def entries(directory):
+    named, ids = u16(directory + 12), u16(directory + 14)
+    return [struct.unpack_from("<II", data, directory + 16 + 8 * i) for i in range(named + ids)]
+def payload(kind, label):
+    # Type, then name, then language: take the first resource of the type.
+    link = next((link for name, link in entries(root) if name == kind), None)
+    for _ in range(2):
+        if link is None or not link & 0x80000000:
+            fail(f"no {label} resource")
+        link = next((link for _, link in entries(root + (link & 0x7FFFFFFF))), None)
+    if link is None or link & 0x80000000:
         fail(f"no {label} resource")
-text = data[offset:].decode("utf-16-le", errors="replace")
-if not re.search("FileVersion\0+" + re.escape(version) + "\0", text):
-    fail(f"its VERSIONINFO FileVersion is not {version}")
+    rva, size = struct.unpack_from("<II", data, root + link)
+    if not size:
+        fail(f"an empty {label} resource")
+    return data[offset(rva):offset(rva) + size]
+if b"<assembly" not in payload(24, "MANIFEST"):
+    fail("a MANIFEST resource that is not a manifest")
+info = payload(16, "VERSIONINFO").decode("utf-16-le", errors="replace")
+if not re.search("FileVersion\0+" + re.escape(version) + "\0", info):
+    fail(f"a VERSIONINFO whose FileVersion is not {version}")
 PY
 
 # run <expected status> <args...>: runs the trainer and requires that exit status.

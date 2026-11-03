@@ -11,13 +11,13 @@ that cheat `gameplay partial`. That was different code, so none of it passes a r
 
 Only the owner's machine has the game, the overlays and the hardware, so these stay PENDING until the owner records
 them. Record the date, the SHA-256 of the `metro-trainer.exe` used and the commit it was built from, and what was
-seen. The trainer ships, as a nightly or a release, only after the check, gameplay pass, hotkeys, overlay and
-terminal rows pass.
+seen. This trainer replaces the C++ one on main only after the check, gameplay pass, hotkeys, overlay and terminal
+rows pass.
 
 | Check | Status | Scope |
 | --- | --- | --- |
 | `metro-trainer check` against the supported game | PENDING | Exits 0 and reports the build, the code and every hook site as expected, with the game unchanged. |
-| Gameplay pass | PENDING | Connect, toggle each cheat, quit; the game's code restored. Then the [runtime acceptance](#runtime-acceptance) rows. |
+| Gameplay pass | PENDING | Connect, toggle each cheat on and off in play, quit; the game's code restored. The per-feature rows below track the full [runtime acceptance](#runtime-acceptance). |
 | Hook sites in a `.text` capture | PENDING | `EDBFI_TEXT_CAPTURE=<file> cargo test --locked -p metro-2033-redux-trainer --test profile -- --ignored` passes. |
 | Attach from any install folder | PENDING | The game installed outside the default Steam library connects. |
 | Unlimited ammo | PARTIAL | Worked in shooting-range challenges with the C++ trainer. The Rust trainer and currency isolation are unchecked. |
