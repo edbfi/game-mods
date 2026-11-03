@@ -342,10 +342,14 @@ impl Runtime {
         if !self.forced {
             self.record(Event::info(EntryKind::Session, "shutting down"));
         }
-        if !self.deadline && self.options.verify == VerifyRestore::Text {
+        if !self.deadline
+            && self.options.verify == VerifyRestore::Text
+            && self.done.is_none()
+            && matches!(self.slot, Slot::Attached(_) | Slot::Pinned(_))
+        {
             self.record(Event::info(
                 EntryKind::Hooks,
-                "the whole-code check is skipped: shutting down leaves no time for it",
+                "the whole-code check is skipped: the trainer is shutting down",
             ));
         }
         self.deadline = true;
@@ -799,8 +803,15 @@ impl Runtime {
             }
             Err(failure) => {
                 let error = failure.error;
-                // A stop request or shutdown ended the wait to freeze the game: once restored, exit.
-                if failure.session.stop_requested() || matches!(error, TrainerError::Stopped) {
+                // A shutdown pending now leaves no time for the optional whole-code check.
+                let interrupted = failure.session.interrupted();
+                self.deadline |= interrupted;
+                // A stop request or shutdown ended the wait to freeze the game, or is pending: once
+                // restored, exit.
+                if interrupted
+                    || failure.session.stop_requested()
+                    || matches!(error, TrainerError::Stopped)
+                {
                     self.record(Event::info(
                         EntryKind::Session,
                         "asked to stop while the hooks were being written",
@@ -817,14 +828,14 @@ impl Runtime {
     /// Claiming or preparing failed with nothing written: the game exited, a stop was asked for, or `error`
     /// is shown.
     fn abandon(&mut self, exited: bool, stop: bool, error: &TrainerError) {
-        if exited {
-            self.record(Event::info(EntryKind::Game, "the game exited"));
-            self.waiting();
-        } else if stop {
+        if stop {
             self.record(Event::info(EntryKind::Session, "asked to stop"));
             self.quitting = true;
             self.forced = true;
             self.finish(Finish::Untouched);
+        } else if exited {
+            self.record(Event::info(EntryKind::Game, "the game exited"));
+            self.waiting();
         } else {
             self.fail(
                 EntryKind::Hooks,
@@ -836,11 +847,36 @@ impl Runtime {
     }
 
     /// Restores a failed install's leftovers, then shows `error`, or exits if quitting.
+    /// After a restore that put every site back: if the whole-code check found other changes, shows that
+    /// failure (and ends the run if quitting) and returns `true`. A mismatch is never reported as restored.
+    fn differs(&mut self, text: TextCheck) -> bool {
+        if text != TextCheck::Differs {
+            return false;
+        }
+        let failure = Failure {
+            recovery: RecoveryAction::ModifiedGameCode,
+            message: "every hooked site was restored, but the game's code differs from the supported build \
+                      elsewhere"
+                .to_owned(),
+            unrestored: Vec::new(),
+        };
+        self.record(Event::error(EntryKind::Hooks, failure.message.clone()));
+        if self.quitting {
+            self.due = None;
+            self.done = Some(Done::Failed(failure.clone()));
+        }
+        self.enter(Phase::Failed(failure));
+        true
+    }
+
     fn recover(&mut self, session: Session<Recovery>, error: &TrainerError) {
         match session.restore(self.verify()) {
             Ok(detached) => {
+                let text = detached.report().text;
                 drop(detached);
-                if self.quitting {
+                if self.differs(text) {
+                    // Reported as a modified game, not as the install's failure.
+                } else if self.quitting {
                     self.finish(Finish::Untouched);
                 } else {
                     self.fail(
@@ -916,23 +952,8 @@ impl Runtime {
                 // restoration finished.
                 drop(detached);
                 self.record(Event::info(EntryKind::Hooks, message));
-                if report.text == TextCheck::Differs {
-                    // Every site is back, but something else changed the game's code: say so, never
-                    // claim it verified.
-                    let failure = Failure {
-                        recovery: RecoveryAction::ModifiedGameCode,
-                        message:
-                            "every hooked site was restored, but the game's code differs from the \
-                                  supported build elsewhere"
-                                .to_owned(),
-                        unrestored: Vec::new(),
-                    };
-                    self.record(Event::error(EntryKind::Hooks, failure.message.clone()));
-                    if self.quitting {
-                        self.due = None;
-                        self.done = Some(Done::Failed(failure.clone()));
-                    }
-                    self.enter(Phase::Failed(failure));
+                if self.differs(report.text) {
+                    // Reported as a modified game, not as restored.
                 } else if self.quitting {
                     self.finish(Finish::Restored);
                 } else {

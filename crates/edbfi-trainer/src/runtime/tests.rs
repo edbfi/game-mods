@@ -102,6 +102,18 @@ fn mask(bits: &[u8]) -> DesiredMask {
     }))
 }
 
+/// How many writes preparing the pretend game takes, counted on a twin.
+fn preparing() -> usize {
+    let (twin, profile) = FakeGame::new();
+    let _prepared = crate::session::identify(Candidate::new(Box::new(twin.clone())), &profile)
+        .unwrap()
+        .claim()
+        .unwrap()
+        .prepare()
+        .unwrap();
+    twin.fake.calls("write")
+}
+
 fn attached(phase: &Phase) -> bool {
     phase.is_attached()
 }
@@ -409,8 +421,9 @@ fn a_failed_install_rolls_back_and_can_be_retried() {
     let code = game.code();
     let games = Games::running(&game);
     let mut h = start(&games, &profile, Options::default());
+    // The install writes one site, then fails.
     game.fake
-        .fault_next("write", 1, crate::patch::fake::Fault::Fail);
+        .fault_next("write", preparing() + 1, crate::patch::fake::Fault::Fail);
     let phases = settle(&mut h.runtime);
     let Some(Phase::Failed(failure)) = phases.last() else {
         panic!("{phases:?}");
@@ -609,4 +622,53 @@ fn a_stop_or_shutdown_while_hooks_are_written_exits_untouched() {
         assert_eq!(game.code(), code);
         assert!(!game.info.controls_live.get());
     }
+}
+
+#[test]
+fn a_whole_code_mismatch_after_a_stopped_install_is_still_a_failure() {
+    let (game, profile) = FakeGame::new();
+    let games = Games::running(&game);
+    let mut h = start(
+        &games,
+        &profile,
+        Options {
+            verify: VerifyRestore::Text,
+            ..Options::default()
+        },
+    );
+    h.runtime.step();
+    h.runtime.step();
+    // The install writes one site, then fails.
+    game.fake
+        .fault_next("write", preparing() + 1, crate::patch::fake::Fault::Fail);
+    game.info.stop.set(true);
+    game.fake.poke(BASE + 0x1A00, &[0x90]);
+    h.runtime.step();
+    let Some(Done::Failed(failure)) = h.runtime.done() else {
+        panic!("{:?}", h.runtime.done());
+    };
+    assert_eq!(failure.recovery, RecoveryAction::ModifiedGameCode);
+}
+
+#[test]
+fn a_shutdown_pending_when_an_install_fails_skips_the_whole_code_check() {
+    let (game, profile) = FakeGame::new();
+    let games = Games::running(&game);
+    let mut h = start(
+        &games,
+        &profile,
+        Options {
+            verify: VerifyRestore::Text,
+            ..Options::default()
+        },
+    );
+    h.runtime.step();
+    h.runtime.step();
+    game.fake
+        .fault_next("write", preparing() + 1, crate::patch::fake::Fault::Fail);
+    // A close notice arrived during the install; the owner has not heard it yet.
+    game.info.interrupted.set(true);
+    game.fake.poke(BASE + 0x1A00, &[0x90]);
+    h.runtime.step();
+    assert_eq!(h.runtime.done(), Some(&Done::Finished(Finish::Untouched)));
 }

@@ -92,13 +92,17 @@ impl Win {
     /// did.
     fn exit(output: &Output) {
         if output.disarm() {
-            let _left = execute!(
-                io::stdout(),
-                SetAttribute(Attribute::Reset),
-                cursor::Show,
-                terminal::LeaveAlternateScreen
-            );
+            Self::leave_screen();
         }
+    }
+
+    fn leave_screen() {
+        let _left = execute!(
+            io::stdout(),
+            SetAttribute(Attribute::Reset),
+            cursor::Show,
+            terminal::LeaveAlternateScreen
+        );
     }
 }
 
@@ -159,9 +163,13 @@ impl Host for Win {
 
     fn leave(&mut self) {
         if let Some(terminal) = self.terminal.take() {
-            drop(terminal);
-            if let Some(output) = &self.output {
-                Self::exit(output);
+            if self.output.as_ref().is_some_and(Output::disarm) {
+                drop(terminal);
+                Self::leave_screen();
+            } else {
+                // A panic already left the screen and turned terminal processing off: dropping the
+                // terminal would print its cursor escape as text.
+                std::mem::forget(terminal);
             }
         }
         // A console that failed is not read again; dropping it restores its modes.
@@ -414,12 +422,8 @@ fn pump(
                 .map(|keyboard| Wake::Keyboard(keyboard.take())),
             Ok(Some(Source::Console)) => Some(Wake::Console),
             Ok(None) => None,
-            Err(error) => {
-                // Without its wait the owner cannot hear anything: restore and exit at once.
-                driver.wake(Wake::Shutdown);
-                finish(driver.backend_mut());
-                return Some(format!("cannot wait for events: {error}"));
-            }
+            // Without its wait the owner cannot hear anything: `run` restores and exits at once.
+            Err(error) => return Some(format!("cannot wait for events: {error}")),
         };
         if let Some(wake) = wake {
             driver.wake(wake);

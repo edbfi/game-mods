@@ -333,6 +333,12 @@ impl<S: State, A: Access> Session<S, A> {
         &self.core.profile
     }
 
+    /// Whether this trainer was asked to shut down, by a closing window, logoff or a panic.
+    #[must_use]
+    pub fn interrupted(&self) -> bool {
+        self.core.game.interrupted()
+    }
+
     /// Proof that the game has exited, if it has.
     #[must_use]
     pub fn exit_proof(&self) -> Option<ProcessExited> {
