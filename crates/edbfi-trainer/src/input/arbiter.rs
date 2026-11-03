@@ -128,6 +128,8 @@ enum Hold {
         spent: bool,
         /// The console has seen a record of this press; later records are autorepeat.
         recorded: bool,
+        /// The press scrolled the dashboard, so its autorepeat keeps scrolling.
+        repeats: bool,
     },
 }
 
@@ -138,6 +140,14 @@ struct Candidate {
     modifiers: Modifiers,
     target: Target,
     released: bool,
+    cancelled: bool,
+}
+
+/// One command of a batch, in record order: ready, or a hotkey decided when the batch ends.
+#[derive(Clone, Copy, Debug)]
+enum Slot {
+    Ready(Command),
+    Candidate(Candidate),
 }
 
 /// Decides which key events become [`Command`]s. See the module documentation for the rules.
@@ -299,6 +309,7 @@ impl Arbiter {
                     self.holds[usize::from(vk)] = Hold::Down {
                         spent,
                         recorded: false,
+                        repeats: false,
                     };
                     commands.extend(target.map(Command::Hotkey));
                 }
@@ -318,13 +329,12 @@ impl Arbiter {
         // Records read while the game's window is in front were not typed into the console just now.
         let live = !(self.game.is_some() && probe.foreground() == self.game);
         let mut unbroken = true;
-        let mut candidates: Vec<Candidate> = Vec::new();
+        let mut slots: Vec<Slot> = Vec::new();
         let mut seen = [false; 256];
-        let mut commands = Vec::new();
         for record in &batch.records {
             let key = match record {
                 Record::Focus => {
-                    candidates.clear();
+                    cancel(&mut slots, |_| true);
                     unbroken = false;
                     self.prime(probe);
                     continue;
@@ -335,64 +345,92 @@ impl Arbiter {
                 continue;
             };
             // A modifier change cancels a chord still held; a completed tap survives it.
-            candidates.retain(|c| c.released || c.modifiers == key.modifiers);
+            cancel(&mut slots, |c| !c.released && c.modifiers != key.modifiers);
             if !key.down {
-                for candidate in candidates.iter_mut().filter(|c| c.vk == vk) {
-                    candidate.released = true;
+                for slot in &mut slots {
+                    if let Slot::Candidate(candidate) = slot
+                        && candidate.vk == vk
+                    {
+                        candidate.released = true;
+                    }
                 }
                 if !probe.down(vk) {
                     self.holds[usize::from(vk)] = Hold::Up;
                 }
                 continue;
             }
-            let (fresh, spent) = match self.holds[usize::from(vk)] {
-                Hold::Up => (true, false),
-                Hold::Down { spent, recorded } => (!recorded, spent),
+            let (fresh, spent, mut repeats) = match self.holds[usize::from(vk)] {
+                Hold::Up => (true, false, false),
+                Hold::Down {
+                    spent,
+                    recorded,
+                    repeats,
+                } => (!recorded, spent, repeats),
             };
+            seen[usize::from(vk)] = true;
+            if self.is_open() && live {
+                let target = if self.capturing {
+                    None
+                } else {
+                    self.target(key.modifiers, vk)
+                };
+                match target {
+                    Some(target) => {
+                        if fresh && !spent && unbroken {
+                            slots.push(Slot::Candidate(Candidate {
+                                vk,
+                                modifiers: key.modifiers,
+                                target,
+                                released: false,
+                                cancelled: false,
+                            }));
+                        }
+                    }
+                    None => {
+                        // A press that acted or was primed yields nothing until it is released, except that
+                        // a scrolling press keeps scrolling.
+                        if let Some((command, scrolls)) = command(key, vk)
+                            && ((fresh && !spent) || (!fresh && repeats && scrolls))
+                        {
+                            repeats = scrolls;
+                            slots.push(Slot::Ready(command));
+                        }
+                    }
+                }
+            }
             self.holds[usize::from(vk)] = Hold::Down {
                 spent,
                 recorded: true,
+                repeats,
             };
-            seen[usize::from(vk)] = true;
-            if !self.is_open() || !live {
-                continue;
-            }
-            let target = if self.capturing {
-                None
-            } else {
-                self.target(key.modifiers, vk)
-            };
-            match target {
-                Some(target) => {
-                    if fresh && !spent && unbroken {
-                        candidates.push(Candidate {
-                            vk,
-                            modifiers: key.modifiers,
-                            target,
-                            released: false,
-                        });
-                    }
-                }
-                None => commands.extend(command(key, vk, fresh)),
-            }
         }
-        if batch.complete {
-            let win_free = probe.modifiers().is_some();
-            for candidate in candidates {
-                let physical = !candidate.released && probe.down(candidate.vk);
-                if win_free && (established || (focus != ConsoleFocus::Front && physical)) {
-                    commands.push(Command::Hotkey(candidate.target));
+        if !batch.complete {
+            cancel(&mut slots, |_| true);
+        }
+        let win_free = probe.modifiers().is_some();
+        let commands = slots
+            .into_iter()
+            .filter_map(|slot| match slot {
+                Slot::Ready(command) => Some(command),
+                Slot::Candidate(candidate) => {
+                    let physical = !candidate.released && probe.down(candidate.vk);
+                    (!candidate.cancelled
+                        && win_free
+                        && (established || (focus != ConsoleFocus::Front && physical)))
+                        .then_some(Command::Hotkey(candidate.target))
                 }
-            }
+            })
+            .collect();
+        if batch.complete {
             // Every press the console has seen is decided now; one already released needs no hold.
             for vk in (0..=u8::MAX).filter(|vk| seen[usize::from(*vk)]) {
-                self.holds[usize::from(vk)] = if probe.down(vk) {
-                    Hold::Down {
+                self.holds[usize::from(vk)] = match self.holds[usize::from(vk)] {
+                    Hold::Down { repeats, .. } if probe.down(vk) => Hold::Down {
                         spent: true,
                         recorded: true,
-                    }
-                } else {
-                    Hold::Up
+                        repeats,
+                    },
+                    _ => Hold::Up,
                 };
             }
             self.established = focus == ConsoleFocus::Front && unbroken;
@@ -423,6 +461,7 @@ impl Arbiter {
                 Hold::Down {
                     spent: true,
                     recorded: true,
+                    repeats: false,
                 }
             } else {
                 Hold::Up
@@ -431,11 +470,22 @@ impl Arbiter {
     }
 }
 
-/// The dashboard command for a key that is not a hotkey: autorepeat only for scrolling keys, nothing for
+/// Cancels every hotkey candidate in `slots` that `which` selects.
+fn cancel(slots: &mut [Slot], which: impl Fn(&Candidate) -> bool) {
+    for slot in slots {
+        if let Slot::Candidate(candidate) = slot
+            && which(candidate)
+        {
+            candidate.cancelled = true;
+        }
+    }
+}
+
+/// The dashboard command for a key that is not a hotkey, and whether its autorepeat scrolls; nothing for
 /// modifiers or keys the dashboard has no name for.
-fn command(key: &KeyRecord, vk: u8, fresh: bool) -> Option<Command> {
+fn command(key: &KeyRecord, vk: u8) -> Option<(Command, bool)> {
     if vk == VK_C && key.modifiers == Modifiers::CTRL {
-        return fresh.then_some(Command::Interrupt);
+        return Some((Command::Interrupt, false));
     }
     let console_key = match vk {
         0x08 => ConsoleKey::Backspace,
@@ -451,14 +501,15 @@ fn command(key: &KeyRecord, vk: u8, fresh: bool) -> Option<Command> {
             None => ConsoleKey::Char(key.text.filter(|c| !c.is_control())?),
         },
     };
-    let repeats = matches!(
+    let scrolls = matches!(
         console_key,
         ConsoleKey::Up | ConsoleKey::Down | ConsoleKey::Key(Key::PAGE_UP | Key::PAGE_DOWN)
     );
-    (fresh || repeats).then_some(Command::Press(Press {
+    let press = Press {
         key: console_key,
         modifiers: key.modifiers,
-    }))
+    };
+    Some((Command::Press(press), scrolls))
 }
 
 #[cfg(test)]

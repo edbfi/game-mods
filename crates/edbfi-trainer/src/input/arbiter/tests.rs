@@ -523,6 +523,49 @@ fn keys_that_are_not_hotkeys_become_presses() {
 }
 
 #[test]
+fn a_press_that_acted_in_the_game_is_not_a_dashboard_key_later() {
+    let mut rig = Rig::new();
+    rig.game_front();
+    assert_eq!(rig.press(&[ALT, F1]), [alpha()]);
+    rig.set(&[ALT], false);
+    // The focus moves to the console before its notice arrives; F1 autorepeats there, now without Alt.
+    rig.world.foreground = Some(OTHER);
+    assert_eq!(rig.batch(&[key(F1, true, Modifiers::NONE)]), []);
+}
+
+#[test]
+fn a_scrolling_key_held_through_a_barrier_does_not_scroll() {
+    let mut rig = Rig::new();
+    rig.set(&[DOWN], true);
+    rig.arbiter.close();
+    rig.reopen();
+    assert_eq!(rig.batch(&[key(DOWN, true, Modifiers::NONE)]), []);
+    rig.release(&[DOWN]);
+    rig.set(&[DOWN], true);
+    let down = Command::Press(Press::plain(ConsoleKey::Down));
+    assert_eq!(rig.batch(&[key(DOWN, true, Modifiers::NONE)]), [down]);
+    assert_eq!(
+        rig.batch(&[key(DOWN, true, Modifiers::NONE)]),
+        [down],
+        "it scrolls on"
+    );
+}
+
+#[test]
+fn console_commands_keep_record_order() {
+    let mut rig = Rig::new();
+    rig.classic_front();
+    let records = [
+        alt_down(F1),
+        alt_up(F1),
+        key(ALT, false, Modifiers::NONE),
+        key(0x52, true, Modifiers::NONE),
+    ];
+    let r = Command::Press(Press::plain(ConsoleKey::Key(Key::letter(b'R').unwrap())));
+    assert_eq!(rig.batch(&records), [alpha(), r]);
+}
+
+#[test]
 fn a_capture_turns_bound_chords_into_presses() {
     let mut rig = Rig::new();
     let epoch = rig.arbiter.rebind(&Bindings::defaults(&profile()), true);
