@@ -278,6 +278,34 @@ fn a_failed_preparation_frees_the_caves_and_keeps_the_claim() {
 }
 
 #[test]
+fn a_publication_after_a_shutdown_or_stop_request_publishes_zero() {
+    for request in [
+        |game: &FakeGame| game.info.interrupted.set(true),
+        |game: &FakeGame| game.info.stop.set(true),
+    ] {
+        let (game, profile) = FakeGame::new();
+        let mut session = installed(&game, &profile);
+        session.publish(mask(&[0, 3]));
+        assert_eq!(game.info.word.get(), 0b1001);
+        // A shutdown callback zeroes the word, then the owner publishes a change it was already making.
+        request(&game);
+        game.info.word.set(0);
+        let ack = session.publish(mask(&[0, 3, 5]));
+        assert_eq!(game.info.word.get(), 0);
+        assert_eq!(ack.mask().bits(), DesiredMask::ZERO.bits());
+        assert_eq!(session.published(), DesiredMask::ZERO);
+        session.restore(VerifyRestore::Sites).unwrap();
+    }
+    // The notice lands between the publication's check and its store: the publication zeroes again.
+    let (game, profile) = FakeGame::new();
+    let mut session = installed(&game, &profile);
+    game.info.interrupt_on_store.set(true);
+    let ack = session.publish(mask(&[0, 3]));
+    assert_eq!(game.info.word.get(), 0);
+    assert_eq!(ack.mask().bits(), DesiredMask::ZERO.bits());
+}
+
+#[test]
 fn a_busy_thread_is_waited_for_and_a_stop_ends_the_wait() {
     let (game, profile) = FakeGame::new();
     let session = prepared(&game, &profile);

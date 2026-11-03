@@ -62,6 +62,27 @@ pub struct Appearance {
     pub glyphs: Glyphs,
 }
 
+impl Appearance {
+    /// The appearance for the terminal the environment describes, read through `var`: no colour when
+    /// `NO_COLOR` is set and not empty, 24-bit colour in Windows Terminal (`WT_SESSION`), otherwise the 16
+    /// standard colours. Glyphs are always WGL4; a font that lacks them needs an explicit override.
+    #[must_use]
+    pub fn detect(var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Self {
+        let set = |name| var(name).is_some_and(|value| !value.is_empty());
+        let colour = if set("NO_COLOR") {
+            Colour::Mono
+        } else if set("WT_SESSION") {
+            Colour::TrueColour
+        } else {
+            Colour::Ansi16
+        };
+        Self {
+            colour,
+            glyphs: Glyphs::Unicode,
+        }
+    }
+}
+
 /// The characters one [`Glyphs`] set draws with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GlyphSet {
@@ -163,6 +184,25 @@ impl Appearance {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_environment_picks_a_conservative_colour_depth() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .map(|(_, value)| std::ffi::OsString::from(value))
+            }
+        };
+        assert_eq!(Appearance::detect(env(&[])), Appearance::default());
+        let wt = Appearance::detect(env(&[("WT_SESSION", "x")]));
+        assert_eq!(wt.colour, Colour::TrueColour);
+        let mono = Appearance::detect(env(&[("WT_SESSION", "x"), ("NO_COLOR", "1")]));
+        assert_eq!(mono.colour, Colour::Mono);
+        let empty = Appearance::detect(env(&[("NO_COLOR", "")]));
+        assert_eq!(empty.colour, Colour::Ansi16);
+    }
 
     #[test]
     fn every_tone_is_distinct_within_a_colour_mode() {

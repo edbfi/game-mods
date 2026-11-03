@@ -89,6 +89,11 @@ pub(crate) trait Game: Process {
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError>;
     /// Takes this process's owner and stop objects for `slug`.
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError>;
+    /// The process handle, signalled once the process exits, to wait on with other handles.
+    #[cfg(windows)]
+    fn handle(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
+        None
+    }
 }
 
 /// The main module of a process.
@@ -126,6 +131,11 @@ pub(crate) trait Controls {
 pub(crate) trait Owner {
     /// Whether someone asked this trainer to stop.
     fn stop_requested(&self) -> bool;
+    /// The stop event, signalled once someone asks this trainer to stop, to wait on with other handles.
+    #[cfg(windows)]
+    fn stop_event(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
+        None
+    }
 }
 
 /// Read access only: a `check`.
@@ -323,6 +333,12 @@ impl<S: State, A: Access> Session<S, A> {
         &self.core.profile
     }
 
+    /// Whether this trainer was asked to shut down, by a closing window, logoff or a panic.
+    #[must_use]
+    pub fn interrupted(&self) -> bool {
+        self.core.game.interrupted()
+    }
+
     /// Proof that the game has exited, if it has.
     #[must_use]
     pub fn exit_proof(&self) -> Option<ProcessExited> {
@@ -430,6 +446,12 @@ impl Session<Identified, Write> {
 }
 
 impl Session<Claimed> {
+    /// Whether someone asked this trainer to stop.
+    #[must_use]
+    pub fn stop_requested(&self) -> bool {
+        self.state.owner.stop_requested()
+    }
+
     /// Maps the zeroed control word and writes every cave, protected and checked, where every site can reach
     /// it.
     ///
@@ -745,13 +767,23 @@ impl Session<Prepared> {
 impl Session<Installed> {
     /// Stores `mask` in the control word, unless it is already there, and acknowledges it.
     ///
-    /// This is one local interlocked store. It never freezes the game or touches code.
+    /// This is one local interlocked store. It never freezes the game or touches code. Once this trainer was
+    /// asked to shut down or stop, it stores and acknowledges zero instead: a shutdown callback zeroed the
+    /// word, and a late publication must not undo that.
     pub fn publish(&mut self, mask: DesiredMask) -> Ack {
-        let state = &mut self.state;
+        let ending = || self.core.game.interrupted() || self.state.owner.stop_requested();
+        let mut mask = if ending() { DesiredMask::ZERO } else { mask };
         // Compared with the word itself, not the last publication: a panic or close may have zeroed it.
-        if state.hooks.controls.load() != mask.bits().word() {
-            state.hooks.controls.store(mask.bits().word());
+        if self.state.hooks.controls.load() != mask.bits().word() {
+            self.state.hooks.controls.store(mask.bits().word());
         }
+        // A close notice requests shutdown before it zeroes the word. If it ran between the check above and
+        // the store, its zero may have been overwritten: the request is visible now, so zero again.
+        if !mask.bits().is_empty() && ending() {
+            mask = DesiredMask::ZERO;
+            self.state.hooks.controls.store(0);
+        }
+        let state = &mut self.state;
         state.published = mask;
         state.revision += 1;
         Ack::new(state.revision, ControlMask::published(mask))
@@ -785,6 +817,12 @@ impl Session<Installed> {
 }
 
 impl Session<Recovery> {
+    /// Whether someone asked this trainer to stop.
+    #[must_use]
+    pub fn stop_requested(&self) -> bool {
+        self.state.owner.stop_requested()
+    }
+
     /// The sites the game may still hold the trainer's jumps in.
     #[must_use]
     pub fn hooked(&self) -> Vec<SiteId> {

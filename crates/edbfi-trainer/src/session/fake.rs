@@ -46,6 +46,11 @@ pub(crate) struct Info {
     pub(crate) finished: Cell<u32>,
     pub(crate) controls_live: Cell<bool>,
     pub(crate) stop: Cell<bool>,
+    /// Whether this trainer was asked to shut down.
+    pub(crate) interrupted: Cell<bool>,
+    /// The next nonzero store is interrupted, as if a close notice ran between a publication's check and
+    /// its store.
+    pub(crate) interrupt_on_store: Cell<bool>,
     /// Whether the game's view of the control word was unmapped.
     pub(crate) withdrawn: Cell<bool>,
     /// Where the control word was mapped.
@@ -127,6 +132,8 @@ impl FakeGame {
             finished: Cell::new(0),
             controls_live: Cell::new(false),
             stop: Cell::new(false),
+            interrupted: Cell::new(false),
+            interrupt_on_store: Cell::new(false),
             withdrawn: Cell::new(false),
             controls_at: Cell::new(0),
             deny: Cell::new(false),
@@ -237,7 +244,7 @@ impl Game for FakeGame {
     }
 
     fn interrupted(&self) -> bool {
-        false
+        self.info.interrupted.get()
     }
 
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError> {
@@ -329,6 +336,11 @@ impl Controls for FakeControls {
 
     fn store(&self, word: u32) {
         let info = &self.0;
+        if word != 0 && info.interrupt_on_store.take() {
+            // The notice requests shutdown, then zeroes the word, before this store lands.
+            info.interrupted.set(true);
+            info.word.set(0);
+        }
         info.word.set(word);
         info.stores.set(info.stores.get() + 1);
     }

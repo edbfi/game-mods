@@ -6,6 +6,9 @@
 //! then asks the owner thread to restore and exit through one event, and the close, logoff and shutdown
 //! notices wait a bounded time for the session to finish restoring. The owner waits on [`Shutdown::event`]
 //! with its other handles, restores, and lets its session drop.
+//!
+//! Ctrl+C and Ctrl+Break request shutdown too, until [`Shutdown::route_interrupts`] gives them an event of
+//! their own.
 #![forbid(unsafe_code)]
 
 use std::time::Duration;
@@ -60,5 +63,22 @@ impl Shutdown {
     #[must_use]
     pub fn event(&self) -> std::os::windows::io::BorrowedHandle<'static> {
         self.0.borrowed()
+    }
+
+    /// From now on Ctrl+C and Ctrl+Break no longer request shutdown: each is counted and signals the returned
+    /// event, for an interactive quit. Closing the window, logoff and shutdown still request shutdown and wait
+    /// for restoration.
+    ///
+    /// The event resets itself when a wait returns it, and stays valid for the whole process; read the count
+    /// with [`Shutdown::take_interrupts`].
+    #[must_use]
+    pub fn route_interrupts(&self) -> std::os::windows::io::BorrowedHandle<'static> {
+        self.0.route_interrupts()
+    }
+
+    /// Interrupts counted since the last call.
+    #[must_use]
+    pub fn take_interrupts(&self) -> u32 {
+        self.0.take_interrupts()
     }
 }

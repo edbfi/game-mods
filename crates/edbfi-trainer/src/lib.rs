@@ -8,6 +8,8 @@ pub mod addr;
 pub mod aob;
 pub mod cave;
 pub mod chord;
+#[cfg(windows)]
+pub mod console;
 pub mod control;
 pub mod identity;
 pub mod input;
@@ -18,12 +20,16 @@ pub mod patch;
 pub mod pe;
 pub mod profile;
 pub mod recovery;
+pub mod runtime;
 pub mod session;
 pub mod settings;
 #[cfg(windows)]
 pub mod shutdown;
+pub mod sound;
 #[cfg(test)]
 mod testdir;
+#[cfg(windows)]
+pub mod wait;
 #[cfg(windows)]
 #[allow(unsafe_code)]
 mod win32;

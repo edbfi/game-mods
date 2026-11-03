@@ -6,7 +6,7 @@ use std::fs::OpenOptions;
 use std::io::Read as _;
 use std::mem::{size_of, zeroed};
 use std::os::windows::fs::OpenOptionsExt as _;
-use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
+use std::os::windows::io::{AsHandle as _, AsRawHandle as _, BorrowedHandle, OwnedHandle};
 use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::Arc;
@@ -438,6 +438,11 @@ impl Game for WinGame {
 
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {
         Ok(Box::new(super::owner::claim(slug, self.pid)?))
+    }
+
+    /// Opened with `SYNCHRONIZE`, so a wait on it ends when the game exits.
+    fn handle(&self) -> Option<BorrowedHandle<'_>> {
+        Some(self.handle.as_handle())
     }
 }
 

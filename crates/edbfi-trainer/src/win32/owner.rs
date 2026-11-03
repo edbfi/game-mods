@@ -6,7 +6,7 @@
 //! exclude each other. Either object already existing means another trainer owns the game. Named objects
 //! are per logon session (`Local\`).
 
-use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
+use std::os::windows::io::{AsHandle as _, AsRawHandle as _, BorrowedHandle, OwnedHandle};
 
 use windows_sys::Win32::Foundation::{
     ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, FALSE, TRUE, WAIT_OBJECT_0,
@@ -41,6 +41,10 @@ impl Owner for WinOwner {
     fn stop_requested(&self) -> bool {
         // SAFETY: the stop event is a live handle this owner holds.
         unsafe { WaitForSingleObject(self.stop.as_raw_handle(), 0) == WAIT_OBJECT_0 }
+    }
+
+    fn stop_event(&self) -> Option<BorrowedHandle<'_>> {
+        Some(self.stop.as_handle())
     }
 }
 

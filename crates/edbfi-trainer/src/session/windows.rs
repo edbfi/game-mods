@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Finding and opening the game on Windows, and asking a running trainer to stop.
+//! Finding and opening the game on Windows, asking a running trainer to stop, and the handles the owner
+//! waits on: the game's process, signalled when it exits, and the stop event, signalled when another trainer
+//! process asks this one to restore and exit.
 #![forbid(unsafe_code)]
+
+use std::os::windows::io::BorrowedHandle;
 
 use crate::patch::OsError;
 use crate::profile::Profile;
@@ -8,7 +12,7 @@ use crate::recovery::RecoveryAction;
 use crate::win32::owner;
 use crate::win32::process::{self, WinGame};
 
-use super::{Candidate, ReadOnly, StopOutcome, Write};
+use super::{Access, Candidate, Installed, ReadOnly, Recovery, Session, State, StopOutcome, Write};
 
 /// The ids of every running process with the profile's executable name.
 ///
@@ -72,6 +76,38 @@ impl Candidate<ReadOnly> {
     /// The [`OsError`] if it cannot be opened.
     pub fn open(pid: u32) -> Result<Self, OsError> {
         Ok(Self::new(Box::new(WinGame::open(pid, false)?)))
+    }
+}
+
+impl<A: Access> Candidate<A> {
+    /// The process handle, signalled once the game exits.
+    #[must_use]
+    pub fn process_handle(&self) -> Option<BorrowedHandle<'_>> {
+        self.game.handle()
+    }
+}
+
+impl<S: State, A: Access> Session<S, A> {
+    /// The process handle, signalled once the game exits.
+    #[must_use]
+    pub fn process_handle(&self) -> Option<BorrowedHandle<'_>> {
+        self.core.game.handle()
+    }
+}
+
+impl Session<Installed> {
+    /// The stop event, signalled once another trainer process asks this one to restore and exit.
+    #[must_use]
+    pub fn stop_handle(&self) -> Option<BorrowedHandle<'_>> {
+        self.state.owner.stop_event()
+    }
+}
+
+impl Session<Recovery> {
+    /// The stop event, signalled once another trainer process asks this one to restore and exit.
+    #[must_use]
+    pub fn stop_handle(&self) -> Option<BorrowedHandle<'_>> {
+        self.state.owner.stop_event()
     }
 }
 

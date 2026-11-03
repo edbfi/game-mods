@@ -137,7 +137,7 @@ fn stage_number(stage: VerifyStage) -> usize {
         .map_or(0, |at| at + 1)
 }
 
-fn recovery_text(action: RecoveryAction) -> &'static str {
+pub(crate) fn recovery_text(action: RecoveryAction) -> &'static str {
     match action {
         RecoveryAction::StartGame => "Start the game; the trainer connects by itself.",
         RecoveryAction::CloseDuplicates => "Close the extra copies of the game so only one runs.",

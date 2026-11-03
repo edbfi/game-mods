@@ -49,6 +49,10 @@ pub enum EntryKind {
     Session,
     /// The settings file.
     Settings,
+    /// Finding and checking the game.
+    Game,
+    /// Writing and restoring the game's hooks.
+    Hooks,
 }
 
 impl EntryKind {
@@ -56,6 +60,8 @@ impl EntryKind {
         match self {
             Self::Session => "session",
             Self::Settings => "settings",
+            Self::Game => "game",
+            Self::Hooks => "hooks",
         }
     }
 }

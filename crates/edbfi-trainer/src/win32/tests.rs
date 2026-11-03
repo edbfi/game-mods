@@ -38,10 +38,13 @@ use super::process::WinGame;
 /// The bridge, its shutdown event and its lease slot are process-wide, so these tests take turns.
 static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Takes this test's turn, with no shutdown request or interrupt routing left by an earlier test.
 fn serial() -> std::sync::MutexGuard<'static, ()> {
-    SERIAL
+    let turn = SERIAL
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    bridge::reset_for_tests();
+    turn
 }
 
 fn dummy_path() -> PathBuf {
@@ -774,4 +777,348 @@ fn the_console_reader_turns_records_into_batches() {
     queue(&console, &many[..3]);
     console.flush().unwrap();
     assert!(console.read().unwrap().records.is_empty(), "flushed");
+}
+
+// ----- waiting on several handles, interrupts, console output, session handles -----
+
+/// A new unnamed event, unsignalled.
+fn event(manual: bool) -> std::os::windows::io::OwnedHandle {
+    use std::os::windows::io::FromRawHandle as _;
+    use windows_sys::Win32::System::Threading::CreateEventW;
+    // SAFETY: an unnamed event takes no pointers but the null ones.
+    let raw = unsafe { CreateEventW(std::ptr::null(), i32::from(manual), 0, std::ptr::null()) };
+    assert!(!raw.is_null());
+    // SAFETY: `raw` is a new event handle nothing else owns.
+    unsafe { std::os::windows::io::OwnedHandle::from_raw_handle(raw) }
+}
+
+fn set(event: &std::os::windows::io::OwnedHandle) {
+    use std::os::windows::io::AsRawHandle as _;
+    // SAFETY: `event` is a live event handle.
+    let set = unsafe { windows_sys::Win32::System::Threading::SetEvent(event.as_raw_handle()) };
+    assert_ne!(set, 0);
+}
+
+#[test]
+fn a_wait_on_several_handles_prefers_the_earliest_and_times_out() {
+    use std::os::windows::io::{
+        AsHandle as _, AsRawHandle as _, BorrowedHandle, FromRawHandle as _, OwnedHandle, RawHandle,
+    };
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+    let first = event(true);
+    let second = event(false);
+    let handles = [first.as_handle(), second.as_handle()];
+    assert_eq!(
+        crate::wait::any(&handles, Some(Duration::from_micros(100))),
+        Ok(None)
+    );
+    set(&second);
+    set(&first);
+    assert_eq!(crate::wait::any(&handles, None), Ok(Some(0)));
+    assert_eq!(
+        crate::wait::any(&handles, Some(Duration::ZERO)),
+        Ok(Some(0))
+    );
+    // The auto-reset event was never consumed while the first one won; alone, it is taken once.
+    assert_eq!(
+        crate::wait::any(&handles[1..], Some(Duration::ZERO)),
+        Ok(Some(0))
+    );
+    assert_eq!(
+        crate::wait::any(&handles[1..], Some(Duration::ZERO)),
+        Ok(None)
+    );
+
+    assert!(crate::wait::any(&[], Some(Duration::ZERO)).is_err());
+    let many = vec![first.as_handle(); crate::wait::MAX_HANDLES + 1];
+    assert!(crate::wait::any(&many, Some(Duration::ZERO)).is_err());
+
+    // A mutex whose owner thread ended without releasing it counts as signalled.
+    // SAFETY: an unnamed, unowned mutex takes no pointers but the null ones.
+    let raw = unsafe { CreateMutexW(std::ptr::null(), 0, std::ptr::null()) };
+    assert!(!raw.is_null());
+    // SAFETY: `raw` is a new mutex handle nothing else owns.
+    let mutex = unsafe { OwnedHandle::from_raw_handle(raw) };
+    let raw_mutex = mutex.as_raw_handle() as usize;
+    // A plain thread, joined: a scoped thread counts as finished before its OS thread ends, and only the
+    // end of the OS thread abandons the mutex.
+    std::thread::spawn(move || {
+        // SAFETY: the mutex outlives this thread, which is joined below.
+        let borrowed = unsafe { BorrowedHandle::borrow_raw(raw_mutex as RawHandle) };
+        assert_eq!(crate::wait::any(&[borrowed], None), Ok(Some(0)), "taken");
+    })
+    .join()
+    .unwrap();
+    assert_eq!(
+        crate::wait::any(&[mutex.as_handle()], Some(Duration::ZERO)),
+        Ok(Some(0)),
+        "abandoned"
+    );
+}
+
+#[test]
+fn interrupts_request_shutdown_until_routed_then_count_and_signal() {
+    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    let _serial = serial();
+    let shutdown = crate::shutdown::install().unwrap();
+    bridge::reset_for_tests();
+    assert!(bridge::console_notice(CTRL_C_EVENT));
+    assert!(shutdown.requested(), "unrouted, Ctrl+C asks for shutdown");
+    assert_eq!(shutdown.take_interrupts(), 0);
+
+    bridge::reset_for_tests();
+    let interrupt = shutdown.route_interrupts();
+    assert_eq!(
+        crate::wait::any(&[interrupt], Some(Duration::ZERO)),
+        Ok(None)
+    );
+    assert!(bridge::console_notice(CTRL_C_EVENT));
+    assert!(bridge::console_notice(CTRL_C_EVENT));
+    assert!(bridge::console_notice(CTRL_BREAK_EVENT));
+    assert!(
+        !shutdown.requested(),
+        "routed, Ctrl+C no longer asks for shutdown"
+    );
+    let handles = [shutdown.event(), interrupt];
+    assert_eq!(
+        crate::wait::any(&handles, Some(Duration::ZERO)),
+        Ok(Some(1))
+    );
+    assert_eq!(
+        crate::wait::any(&handles, Some(Duration::ZERO)),
+        Ok(None),
+        "the interrupt event resets itself"
+    );
+    assert_eq!(shutdown.take_interrupts(), 3);
+    assert_eq!(shutdown.take_interrupts(), 0);
+
+    // A closing window still asks for shutdown, with no session to wait for.
+    assert!(bridge::console_notice(CTRL_CLOSE_EVENT));
+    assert!(shutdown.requested());
+    bridge::reset_for_tests();
+}
+
+/// The console output, allocating a console if the test process has none; `None` if there is still none or
+/// it has no virtual-terminal processing.
+fn output() -> Option<crate::console::Output> {
+    crate::console::Output::open()
+        .or_else(|_| {
+            // SAFETY: allocating a console takes no arguments; it fails harmlessly if one exists.
+            let _allocated = unsafe { windows_sys::Win32::System::Console::AllocConsole() };
+            crate::console::Output::open()
+        })
+        .inspect_err(|error| eprintln!("skipped: no console output to test: {error}"))
+        .ok()
+}
+
+#[test]
+fn the_console_output_sets_and_restores_its_mode_code_page_and_title() {
+    use windows_sys::Win32::System::Console::{
+        ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, ENABLE_WRAP_AT_EOL_OUTPUT,
+    };
+    let _serial = serial();
+    let Some(probe) = output() else {
+        return;
+    };
+    drop(probe);
+    // A known starting point: no virtual-terminal processing, the US code page, a known title.
+    let plain = ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT;
+    super::screen::set_mode(plain).unwrap();
+    super::screen::set_code_page(437).unwrap();
+    super::screen::set_title_for_tests("edbfi before").unwrap();
+    let before = super::screen::current().unwrap();
+    assert_eq!(before, (plain, 437, "edbfi before".to_owned()));
+
+    let output = crate::console::Output::open().unwrap();
+    assert!(
+        crate::console::Output::open().is_err(),
+        "only one output at a time"
+    );
+    let (mode, code_page, _) = super::screen::current().unwrap();
+    let vt = ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    assert_eq!(mode & vt, vt, "{mode:#x}");
+    assert_eq!(mode & ENABLE_WRAP_AT_EOL_OUTPUT, ENABLE_WRAP_AT_EOL_OUTPUT);
+    assert_eq!(code_page, 65_001);
+    output.set_title("edbfi — dashboard").unwrap();
+    assert_eq!(super::screen::current().unwrap().2, "edbfi — dashboard");
+    let (width, height) = output.size().unwrap();
+    assert!(width > 0 && height > 0, "{width}x{height}");
+
+    // Armed, a panic leaves the alternate screen and restores the mode found; disarmed, it does not.
+    crate::shutdown::install().unwrap();
+    bridge::reset_for_tests();
+    output.arm();
+    assert!(output.armed());
+    let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
+    assert_eq!(
+        super::screen::current().unwrap().0,
+        plain,
+        "the hook restored the mode"
+    );
+    super::screen::set_mode(mode).unwrap();
+    assert!(!output.armed(), "the panic used the arming up");
+    assert!(!output.disarm());
+    let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
+    assert_eq!(
+        super::screen::current().unwrap().0,
+        mode,
+        "disarmed, the hook leaves it"
+    );
+
+    drop(output);
+    assert_eq!(
+        super::screen::current().unwrap(),
+        before,
+        "dropping restores all three"
+    );
+    // Standard output of a test is captured, not the console; either answer is fine, without failing.
+    let _ = crate::console::stdout_is_console();
+}
+
+#[test]
+fn the_process_and_stop_handles_signal_an_exit_and_a_stop_request() {
+    use std::os::windows::io::BorrowedHandle;
+    let _serial = serial();
+    let shutdown = crate::shutdown::install().unwrap();
+    bridge::reset_for_tests();
+    let mut dummy = Dummy::start();
+    let profile = profile(&dummy);
+    let candidate = Candidate::<ReadOnly>::open(dummy.pid()).unwrap();
+    let process = candidate.process_handle().unwrap();
+    assert_eq!(crate::wait::any(&[process], Some(Duration::ZERO)), Ok(None));
+    drop(candidate);
+
+    let mut session = attach(&dummy, &profile);
+    let quiet = |session: &Session<Installed>| {
+        let handles: [BorrowedHandle<'_>; 2] = [
+            session.stop_handle().unwrap(),
+            session.process_handle().unwrap(),
+        ];
+        crate::wait::any(&handles, Some(Duration::ZERO))
+    };
+    assert_eq!(quiet(&session), Ok(None));
+
+    // After a shutdown request a publication stores zero, whatever it asked for.
+    session.publish(mask(&[0]));
+    assert_eq!(dummy.ask("alpha"), "alpha 1");
+    shutdown.request();
+    session.publish(mask(&[0]));
+    assert_eq!(session.published(), DesiredMask::ZERO);
+    assert_eq!(dummy.ask("alpha"), "alpha 0");
+    bridge::reset_for_tests();
+
+    let outcomes = request_stop(profile.profile(), Some(dummy.pid())).unwrap();
+    assert_eq!(outcomes, [(dummy.pid(), StopOutcome::Requested)]);
+    assert_eq!(quiet(&session), Ok(Some(0)), "the stop event is signalled");
+    let detached = session.restore(VerifyRestore::Sites).unwrap();
+
+    dummy.child.kill().unwrap();
+    dummy.child.wait().unwrap();
+    assert_eq!(
+        crate::wait::any(
+            &[detached.process_handle().unwrap()],
+            Some(Duration::from_secs(5))
+        ),
+        Ok(Some(0)),
+        "the process handle is signalled once the game exits"
+    );
+}
+
+/// Discovery that sees only one process, so other games on the machine never interfere.
+struct Only(u32);
+
+impl crate::runtime::Discover for Only {
+    fn find(&self) -> Result<Vec<u32>, crate::patch::OsError> {
+        Ok(vec![self.0])
+    }
+
+    fn open(&self, pid: u32) -> Result<Candidate<Write>, crate::patch::OsError> {
+        Candidate::<Write>::open(pid)
+    }
+}
+
+/// Runs the runtime's due steps until `until` holds, for at most ten seconds.
+fn drive(runtime: &mut crate::runtime::Runtime, until: impl Fn(&crate::runtime::Runtime) -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !until(runtime) {
+        assert!(Instant::now() < deadline, "{runtime:?}");
+        match runtime.due() {
+            Some(at) => {
+                std::thread::sleep(at.saturating_duration_since(Instant::now()));
+                runtime.step();
+            }
+            None => panic!("nothing is due: {runtime:?}"),
+        }
+    }
+}
+
+#[test]
+fn the_runtime_attaches_to_a_real_process_and_hears_its_stop_and_exit() {
+    use crate::lifecycle::{Finish, Phase, RuntimeCommand};
+    use crate::runtime::{Done, Options, Runtime};
+    let _serial = serial();
+    let _shutdown = crate::shutdown::install().unwrap();
+    bridge::reset_for_tests();
+    let dir = crate::testdir::TestDir::new("win-runtime");
+    let locations = crate::location::Locations {
+        settings: dir.path().join("config"),
+        logs: dir.path().join("logs"),
+    };
+    let mut dummy = Dummy::start();
+    let profile = profile(&dummy);
+    let start = |dummy: &Dummy| {
+        Runtime::start(
+            profile.clone(),
+            Box::new(Only(dummy.pid())),
+            Ok(locations.clone()),
+            crate::journal::Journal::memory(),
+            Options::default(),
+        )
+        .0
+    };
+
+    // Attach, publish, then a stop request from another process: woken by the stop event, it restores.
+    let mut runtime = start(&dummy);
+    drive(&mut runtime, |runtime| runtime.phase().is_attached());
+    runtime.command(RuntimeCommand::Publish(mask(&[0])));
+    assert_eq!(dummy.ask("alpha"), "alpha 1");
+    let quiet = |runtime: &Runtime| {
+        let handles = [
+            runtime.stop_handle().unwrap(),
+            runtime.process_handle().unwrap(),
+        ];
+        crate::wait::any(&handles, Some(Duration::ZERO))
+    };
+    assert_eq!(quiet(&runtime), Ok(None));
+    let outcomes = request_stop(profile.profile(), Some(dummy.pid())).unwrap();
+    assert_eq!(outcomes, [(dummy.pid(), StopOutcome::Requested)]);
+    assert_eq!(
+        quiet(&runtime),
+        Ok(Some(0)),
+        "the stop event wakes the owner"
+    );
+    runtime.stop();
+    drive(&mut runtime, |runtime| runtime.done().is_some());
+    assert_eq!(runtime.done(), Some(&Done::Finished(Finish::Restored)));
+    let image = Candidate::<ReadOnly>::open(dummy.pid())
+        .map(|candidate| identify(candidate, &profile).unwrap().image())
+        .unwrap();
+    assert_eq!(sites(&dummy, &profile, image), originals(&profile));
+    assert_eq!(dummy.ask("alpha"), "alpha 0");
+    drop(runtime);
+
+    // Attach again; the game exits: woken by its process handle, the runtime waits for the next one.
+    let mut runtime = start(&dummy);
+    drive(&mut runtime, |runtime| runtime.phase().is_attached());
+    dummy.child.kill().unwrap();
+    dummy.child.wait().unwrap();
+    let process = runtime.process_handle().unwrap();
+    assert_eq!(
+        crate::wait::any(&[process], Some(Duration::from_secs(5))),
+        Ok(Some(0))
+    );
+    runtime.exited();
+    assert_eq!(*runtime.phase(), Phase::Waiting);
+    assert_eq!(runtime.game(), None);
+    assert!(runtime.process_handle().is_none());
 }

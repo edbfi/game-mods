@@ -9,6 +9,9 @@ pub(crate) mod fs;
 pub(crate) mod input;
 pub(crate) mod owner;
 pub(crate) mod process;
+pub(crate) mod screen;
+pub(crate) mod sound;
+pub(crate) mod wait;
 pub(crate) mod window;
 
 use std::os::windows::io::{HandleOrInvalid, HandleOrNull, OwnedHandle};

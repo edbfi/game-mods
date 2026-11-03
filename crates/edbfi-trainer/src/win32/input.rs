@@ -26,7 +26,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_INPUT, WM_INPUT_DEVICE_CHANGE,
 };
 
-use crate::input::platform::Wakes;
+use crate::input::Wakes;
 use crate::input::{ConsoleFocus, Epoch};
 use crate::patch::OsError;
 

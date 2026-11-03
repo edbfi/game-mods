@@ -120,10 +120,10 @@ impl Sim {
                 if let Phase::Settings(_) = self.phase {
                     let profile = profile()?;
                     let path = (command != RuntimeCommand::SessionOnly).then(settings_path);
-                    queue.push_back(Msg::Loaded {
+                    queue.push_back(Msg::Runtime(RuntimeEvent::Loaded {
                         settings: Settings::defaults(&profile),
                         path,
-                    });
+                    }));
                 }
                 self.enter(Phase::Waiting, queue);
             }
