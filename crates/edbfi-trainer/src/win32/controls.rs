@@ -13,6 +13,7 @@
 use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::NonNull;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use windows_sys::Win32::Foundation::{
@@ -50,30 +51,44 @@ type MapRemote = unsafe extern "system" fn(
     node: u32,
 ) -> *mut c_void;
 
-/// Finds `MapViewOfFileNuma2`, or explains that this Windows is too old.
-fn map_remote() -> Result<MapRemote, OsError> {
+/// `UnmapViewOfFile2`.
+type UnmapRemote = unsafe extern "system" fn(process: HANDLE, base: *mut c_void, flags: u32) -> i32;
+
+/// Finds `name` in `kernelbase.dll`, then `kernel32.dll`, or explains that this Windows is too old.
+fn export(name: &std::ffi::CStr) -> Result<unsafe extern "system" fn() -> isize, OsError> {
     for module in ["kernelbase.dll", "kernel32.dll"] {
-        let name = wide(module);
-        // SAFETY: `name` is a NUL-terminated UTF-16 string; both modules are loaded in every process.
-        let handle = unsafe { GetModuleHandleW(name.as_ptr()) };
+        let module = wide(module);
+        // SAFETY: `module` is a NUL-terminated UTF-16 string; both modules are loaded in every process.
+        let handle = unsafe { GetModuleHandleW(module.as_ptr()) };
         if handle.is_null() {
             continue;
         }
         // SAFETY: `handle` is a loaded module and the name is a NUL-terminated ANSI string.
-        let found = unsafe { GetProcAddress(handle, c"MapViewOfFileNuma2".as_ptr().cast()) };
-        if let Some(found) = found {
-            // SAFETY: the export has this documented signature; both are `extern "system"` function pointers
-            // of the same size.
-            return Ok(unsafe {
-                std::mem::transmute::<unsafe extern "system" fn() -> isize, MapRemote>(found)
-            });
+        if let Some(found) = unsafe { GetProcAddress(handle, name.as_ptr().cast()) } {
+            return Ok(found);
         }
     }
     Err(OsError::new("MapViewOfFileNuma2", ERROR_PROC_NOT_FOUND))
 }
 
+/// Finds `MapViewOfFileNuma2`.
+fn map_remote() -> Result<MapRemote, OsError> {
+    let found = export(c"MapViewOfFileNuma2")?;
+    // SAFETY: the export has this documented signature; both are `extern "system"` function pointers of the
+    // same size.
+    Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, MapRemote>(found) })
+}
+
+/// Finds `UnmapViewOfFile2`, which the same Windows versions export.
+fn unmap_remote() -> Result<UnmapRemote, OsError> {
+    let found = export(c"UnmapViewOfFile2")?;
+    // SAFETY: as in `map_remote`, for `UnmapViewOfFile2`'s documented signature.
+    Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, UnmapRemote>(found) })
+}
+
 /// The control word, shared with one game.
 pub(crate) struct Mapping {
+    process: Arc<OwnedHandle>,
     _section: OwnedHandle,
     word: NonNull<AtomicU32>,
     remote: Va,
@@ -83,7 +98,7 @@ pub(crate) struct Mapping {
 
 impl Mapping {
     /// Maps a zeroed control word into the trainer, and into `process` at exactly `at`.
-    pub(crate) fn new(process: HANDLE, at: Va) -> Result<Self, OsError> {
+    pub(crate) fn new(process: Arc<OwnedHandle>, at: Va) -> Result<Self, OsError> {
         let map = map_remote()?;
         // SAFETY: a pagefile-backed section takes no pointers but the null attributes and name.
         let raw = unsafe {
@@ -143,7 +158,7 @@ impl Mapping {
         let remote = unsafe {
             map(
                 section.as_raw_handle(),
-                process,
+                process.as_raw_handle(),
                 0,
                 at.get() as usize as *const c_void,
                 SIZE,
@@ -167,6 +182,7 @@ impl Mapping {
             return Err(error);
         }
         Ok(Self {
+            process,
             _section: section,
             word,
             remote: Va::new(remote as usize as u64),
@@ -193,6 +209,24 @@ impl Controls for Mapping {
 
     fn store(&self, word: u32) {
         self.word().store(word, Ordering::SeqCst);
+    }
+
+    fn load(&self) -> u32 {
+        self.word().load(Ordering::SeqCst)
+    }
+
+    fn withdraw(&self) {
+        if let Ok(unmap) = unmap_remote() {
+            // SAFETY: `remote` is this mapping's view in the game, which no cave can reach yet; the process
+            // handle is live with `PROCESS_VM_OPERATION`.
+            let _unmapped = unsafe {
+                unmap(
+                    self.process.as_raw_handle(),
+                    self.remote.get() as usize as *mut c_void,
+                    0,
+                )
+            };
+        }
     }
 }
 

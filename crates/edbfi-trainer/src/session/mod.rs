@@ -12,7 +12,7 @@
 //! - [`Session::prepare`] maps the zeroed control word into the game, places the cave block within jump range
 //!   of every site, and writes, checks and protects every cave. Nothing can reach the caves yet, so a failure
 //!   here frees them.
-//! - [`Session::install`] freezes the game and writes the 17 site jumps with every cheat off. Before the first
+//! - [`Session::install`] freezes the game and writes every site's jump with every cheat off. Before the first
 //!   write the cave block is given up for good: from then on a game thread may run it, so it stays until the
 //!   game exits.
 //! - [`Session::publish`] stores a mask in the control word. It never freezes the game or touches code.
@@ -113,6 +113,10 @@ pub(crate) trait Controls {
     fn remote(&self) -> Va;
     /// Stores `word` with one interlocked 32-bit store.
     fn store(&self, word: u32);
+    /// The word the game sees now, which a shutdown callback may have zeroed behind the session's back.
+    fn load(&self) -> u32;
+    /// Unmaps the game's view. Only for controls no cave can read: a cave block never published.
+    fn withdraw(&self);
     // Dropping the controls zeroes them, tells a close request waiting on the session that nothing more will be
     // restored, and unmaps the trainer's view; the game's view stays. A failed restoration does not tell it, so
     // a close request keeps waiting while the owner tries again.
@@ -241,6 +245,16 @@ struct Hooks {
     unpublished: Option<Box<dyn Allocation>>,
     /// Game threads this session suspended that would not resume, each owing one resume.
     stuck: Stuck,
+}
+
+impl Drop for Hooks {
+    /// While the caves were never published nothing in the game can read the control word, so its view goes
+    /// too; once they were, it stays until the game exits.
+    fn drop(&mut self) {
+        if self.unpublished.is_some() {
+            self.controls.withdraw();
+        }
+    }
 }
 
 impl Hooks {
@@ -554,7 +568,7 @@ fn frozen_change(
                     return not_held(attempts, TrainerError::Freeze(failure.error));
                 }
             }
-            Err(_) => return not_held(attempts, TrainerError::Panicked),
+            Err(payload) => return not_held(attempts, TrainerError::Panicked(message(&*payload))),
         }
         game.wait(RETRY_WAIT);
         if game.exited() {
@@ -567,7 +581,7 @@ fn frozen_change(
     let acquire = started.elapsed();
     let held = Instant::now();
     let caught = |result: std::thread::Result<Result<(), TrainerError>>| {
-        result.unwrap_or(Err(TrainerError::Panicked))
+        result.unwrap_or_else(|payload| Err(TrainerError::Panicked(message(&*payload))))
     };
     let mut outcome = caught(catch_unwind(AssertUnwindSafe(|| change(&frozen, hooks))));
     let mut last = None;
@@ -633,6 +647,15 @@ fn frozen_change(
         timing,
         text,
     }
+}
+
+/// A panic payload's message, when it has one.
+fn message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|text| (*text).to_owned())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "a panic without a message".to_owned())
 }
 
 /// Hashes the code section, relocations undone, and compares it with the supported build.
@@ -719,10 +742,11 @@ impl Session<Installed> {
     /// This is one local interlocked store. It never freezes the game or touches code.
     pub fn publish(&mut self, mask: DesiredMask) -> Ack {
         let state = &mut self.state;
-        if mask != state.published {
+        // Compared with the word itself, not the last publication: a panic or close may have zeroed it.
+        if state.hooks.controls.load() != mask.bits().word() {
             state.hooks.controls.store(mask.bits().word());
-            state.published = mask;
         }
+        state.published = mask;
         state.revision += 1;
         Ack::new(state.revision, ControlMask::published(mask))
     }
@@ -915,9 +939,9 @@ pub enum TrainerError {
     /// Game threads could not be resumed.
     #[error(transparent)]
     Resume(ResumeError),
-    /// A code change panicked; what it owned was rolled back where possible.
-    #[error("the trainer failed while changing the game's code")]
-    Panicked,
+    /// A code change panicked, with the panic's message; what it owned was rolled back where possible.
+    #[error("the trainer failed while changing the game's code: {0}")]
+    Panicked(String),
     /// A stop request ended the wait to freeze the game; nothing was written.
     #[error("stopped before the hooks were written")]
     Stopped,
@@ -941,7 +965,7 @@ impl TrainerError {
             },
             Self::Restore(error) => error.recovery(),
             Self::Resume(_) => RecoveryAction::RestartGame,
-            Self::Panicked => RecoveryAction::ReportBug,
+            Self::Panicked(_) => RecoveryAction::ReportBug,
             Self::Stopped => RecoveryAction::Retry,
             Self::Exited => RecoveryAction::StartGame,
         }

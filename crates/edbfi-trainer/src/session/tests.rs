@@ -81,11 +81,17 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
     assert_eq!(again.revision(), 2);
     assert_eq!(again.mask().bits(), mask(&[0, 31]).bits());
     assert_eq!(session.published(), mask(&[0, 31]));
+    // A shutdown callback zeroed the word behind the session's back: the same mask is stored again.
+    game.info.word.set(0);
+    session.publish(mask(&[0, 31]));
+    assert_eq!(game.info.word.get(), 0x8000_0001);
 
     let detached = session.restore(VerifyRestore::Text).unwrap();
     assert_eq!(game.code(), code);
     assert_eq!(game.info.word.get(), 0);
     assert_eq!(game.info.finished.get(), 1);
+    // The caves were published, so the game keeps its view of the control word.
+    assert!(!game.info.withdrawn.get());
     assert_eq!(detached.report().text, TextCheck::Identical);
     assert_eq!(game.fake.suspend_counts(), [0, 0]);
     // The caves outlive the hooks; the trainer's own view of the controls does not.
@@ -111,6 +117,8 @@ fn a_dropped_prepared_session_frees_its_caves() {
     assert_eq!(game.blocks(), [Block::Live]);
     drop(session);
     assert_eq!(game.blocks(), [Block::Freed]);
+    // Nothing could read the control word, so its view left the game too.
+    assert!(game.info.withdrawn.get());
 }
 
 #[test]
@@ -252,6 +260,7 @@ fn a_failed_preparation_frees_the_caves_and_keeps_the_claim() {
         let failure = claimed.prepare().unwrap_err();
         assert!(matches!(failure.error, TrainerError::Prepare(_)), "{call}");
         assert_eq!(game.blocks(), [Block::Freed], "{call}");
+        assert!(game.info.withdrawn.get(), "{call}");
         game.fake.clear_faults();
         failure.session.prepare().unwrap();
     }

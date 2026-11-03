@@ -430,7 +430,10 @@ impl Game for WinGame {
     }
 
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
-        Ok(Box::new(super::controls::Mapping::new(self.raw(), at)?))
+        Ok(Box::new(super::controls::Mapping::new(
+            Arc::clone(&self.handle),
+            at,
+        )?))
     }
 
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {

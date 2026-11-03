@@ -35,6 +35,43 @@ pub(super) fn prepare(
     image: Va,
 ) -> Result<Hooks, PrepareError> {
     let controls = map_controls(game, image)?;
+    let built = write_caves(game, profile, image, &*controls).and_then(|(plan, block)| {
+        let patches = plan
+            .hooks()
+            .iter()
+            .map(|hook| Patch {
+                site: hook.site().id,
+                range: hook.range(),
+                original: hook.original().to_vec(),
+                replacement: hook.jump().to_vec(),
+            })
+            .collect();
+        let journal = PatchJournal::new(patches).map_err(PrepareError::Patches)?;
+        Ok((plan, journal, block))
+    });
+    match built {
+        Ok((plan, journal, block)) => Ok(Hooks {
+            controls,
+            plan,
+            journal,
+            unpublished: Some(block),
+            stuck: crate::patch::Stuck::default(),
+        }),
+        Err(error) => {
+            // Nothing can read the control word yet: take the game's view back out.
+            controls.withdraw();
+            Err(error)
+        }
+    }
+}
+
+/// Places the cave block and writes, checks, protects and flushes every cave.
+fn write_caves(
+    game: &dyn Game,
+    profile: &ValidProfile<'static>,
+    image: Va,
+    controls: &dyn Controls,
+) -> Result<(cave::HookPlan, Box<dyn Allocation>), PrepareError> {
     let reach = Reach::new(profile.profile(), image).ok_or(PrepareError::NoReach)?;
     let block = place(game, reach)?;
     let plan = cave::plan(profile, image, block.base(), controls.remote())?;
@@ -58,27 +95,8 @@ pub(super) fn prepare(
     let len = reach.size();
     game.protect(block.base(), len, Protection::EXECUTE_READ)
         .map_err(PrepareError::Protect)?;
-    game.flush(block.base(), len)
-        .map_err(PrepareError::Protect)?;
-    let journal = PatchJournal::new(
-        plan.hooks()
-            .iter()
-            .map(|hook| Patch {
-                site: hook.site().id,
-                range: hook.range(),
-                original: hook.original().to_vec(),
-                replacement: hook.jump().to_vec(),
-            })
-            .collect(),
-    )
-    .map_err(PrepareError::Patches)?;
-    Ok(Hooks {
-        controls,
-        plan,
-        journal,
-        unpublished: Some(block),
-        stuck: crate::patch::Stuck::default(),
-    })
+    game.flush(block.base(), len).map_err(PrepareError::Flush)?;
+    Ok((plan, block))
 }
 
 /// The lowest base the control word may take: more than 64 KiB above every zero-extended 32-bit immediate a
@@ -233,6 +251,9 @@ pub enum PrepareError {
         /// Where.
         at: Va,
     },
+    /// The instruction cache could not be flushed over the caves.
+    #[error("cannot flush the instruction cache over the caves: {0}")]
+    Flush(OsError),
     /// The caves could not be made executable.
     #[error("cannot make the caves executable: {0}")]
     Protect(OsError),
@@ -250,13 +271,16 @@ impl PrepareError {
             Self::Controls(error) if error.code == ERROR_PROC_NOT_FOUND => {
                 RecoveryAction::UpdateWindows
             }
-            Self::Controls(_) | Self::Read { .. } | Self::Allocate(_) => RecoveryAction::Retry,
             Self::NoReach | Self::Hook(_) | Self::Patches(_) => RecoveryAction::ReportBug,
-            Self::Query(_)
+            Self::Controls(_)
+            | Self::Read { .. }
+            | Self::Allocate(_)
+            | Self::Query(_)
             | Self::NoSpace
             | Self::Write { .. }
             | Self::Readback { .. }
-            | Self::Protect(_) => RecoveryAction::Retry,
+            | Self::Protect(_)
+            | Self::Flush(_) => RecoveryAction::Retry,
         }
     }
 }

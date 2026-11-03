@@ -33,6 +33,7 @@ use crate::profile::SiteId;
 use crate::recovery::RecoveryAction;
 
 pub(crate) use freeze::{Freeze, Stuck};
+pub use freeze::{FreezeError, FreezeKind, ResumeError};
 
 /// A Windows memory protection, one of the `PAGE_*` values.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

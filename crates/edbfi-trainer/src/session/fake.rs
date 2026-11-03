@@ -46,6 +46,8 @@ pub(crate) struct Info {
     pub(crate) finished: Cell<u32>,
     pub(crate) controls_live: Cell<bool>,
     pub(crate) stop: Cell<bool>,
+    /// Whether the game's view of the control word was unmapped.
+    pub(crate) withdrawn: Cell<bool>,
     /// Where the control word was mapped.
     pub(crate) controls_at: Cell<u64>,
     /// Allocation fails with access denied.
@@ -125,6 +127,7 @@ impl FakeGame {
             finished: Cell::new(0),
             controls_live: Cell::new(false),
             stop: Cell::new(false),
+            withdrawn: Cell::new(false),
             controls_at: Cell::new(0),
             deny: Cell::new(false),
             blocks: RefCell::new(Vec::new()),
@@ -314,6 +317,14 @@ struct FakeControls(Rc<Info>);
 impl Controls for FakeControls {
     fn remote(&self) -> Va {
         Va::new(self.0.controls_at.get())
+    }
+
+    fn load(&self) -> u32 {
+        self.0.word.get()
+    }
+
+    fn withdraw(&self) {
+        self.0.withdrawn.set(true);
     }
 
     fn store(&self, word: u32) {
