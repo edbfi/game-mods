@@ -31,13 +31,14 @@ ammo or a no-reload cheat covers it; turn it off to keep pumping by hand.
 2. Run `metro-trainer.exe` in Windows Terminal or a console window, then start the game through Steam as usual.
    Starting the trainer after the game works too.
 3. Once the dashboard says **ATTACHED · ACTIVE**, the cheats you picked are on.
-4. Press **Q** (or Esc) to quit. The trainer puts the game's code back as it was before it exits. Closing its window,
+4. To quit, press **Q** (or Esc); while the trainer is connected, choose **Quit** and press Enter. The trainer puts
+   the game's code back as it was before it exits. Closing its window,
    signing out and shutting down restore it too, within the few seconds Windows allows. When the game closes, the
    trainer waits for it to start again.
 
 The dashboard fits windows down to 40×12 characters; smaller ones get a status line. **Up/Down** moves, **Tab**
 switches section, **Space** toggles the row, **R** sets the row's hotkey, **P** pauses every cheat and **?** shows the
-rest. While the trainer is connected, Ctrl+C asks before it quits.
+rest. Ctrl+C opens the same quit dialog, and a second Ctrl+C quits.
 
 ## Hotkeys
 
@@ -54,8 +55,7 @@ rest. While the trainer is connected, Ctrl+C asks before it quits.
 | Alt+3 | Unlimited flashlight |
 
 The per-weapon no-reload switches start unbound. Press **R** on any row, then the new chord: a key with any of Ctrl,
-Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. A binding names the key Windows reports, not the
-character it types. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
+Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
 would fire while you type.
 
 Hotkeys act while the game or the trainer is in front. The game still sees every key, and an overlay such as

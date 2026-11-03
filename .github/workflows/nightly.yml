@@ -102,10 +102,11 @@ jobs:
           MODS: ${{ needs.mods.outputs.mods }}
         run: |
           set -euo pipefail
+          # Read first, so a failed jq fails the step instead of verifying nothing. Windows jq ends lines with CRLF.
+          rows="$(jq -r '.[] | [.game, .mod] | @tsv' <<<"$MODS" | tr -d '\r')"
           while IFS=$'\t' read -r game mod; do
             bash scripts/verify-mod-artifact.sh "$game/$mod" 0.0.0 "$RUNNER_TEMP/nightly/$game-$mod-nightly" </dev/null
-          # Windows jq ends lines with CRLF.
-          done < <(jq -r '.[] | [.game, .mod] | @tsv' <<<"$MODS" | tr -d '\r')
+          done <<<"$rows"
 
   scan:
     needs: [mods, build, verify]
