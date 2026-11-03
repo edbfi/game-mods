@@ -4,7 +4,8 @@
 //! The reader opens `CONIN$`, so it reads the console even when standard input is redirected. It turns off
 //! QuickEdit, mouse, line, echo and virtual-terminal input, so keys arrive as virtual-key records the moment
 //! they are typed and a click cannot freeze the trainer by selecting text; it keeps processed input (Ctrl+C
-//! stays a control notice) and window input (size changes). Dropping it restores the exact modes it found.
+//! stays a control notice) and window input (size changes). Dropping it restores the modes it found; where
+//! those did not say whether QuickEdit was on, it comes back on, the console default.
 
 use std::os::windows::io::{AsHandle as _, AsRawHandle as _, BorrowedHandle, OwnedHandle};
 
@@ -28,7 +29,8 @@ use crate::patch::OsError;
 use super::process::none;
 use super::{last_error, owned_or_invalid, wide};
 
-/// The most records one read takes; more waiting makes the batch partial.
+/// The most console input records one read takes; more waiting makes the batch partial. A key record's
+/// repeat count can expand it into several [`Record`]s.
 pub(crate) const BATCH: usize = 64;
 
 /// The most copies one record's repeat count expands to.
@@ -156,7 +158,14 @@ impl Reader {
 
 impl Drop for Reader {
     fn drop(&mut self) {
-        let _restored = self.set(self.original);
+        // A mode without the extended flags leaves QuickEdit untouched, and the reader turned it off. Its
+        // earlier state could not be read then, so it goes back to the console default, on.
+        let original = if self.original & ENABLE_EXTENDED_FLAGS == 0 {
+            self.original | ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE
+        } else {
+            self.original
+        };
+        let _restored = self.set(original);
     }
 }
 

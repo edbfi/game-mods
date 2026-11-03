@@ -88,7 +88,8 @@ impl std::fmt::Debug for Console {
 }
 
 impl Console {
-    /// The most records one [`Console::read`] returns.
+    /// The most console input records one [`Console::read`] takes. A repeat count can expand one into several
+    /// [`Record`](super::Record)s.
     pub const BATCH: usize = console::BATCH;
 
     /// Opens the console's input, even when standard input is redirected, and sets its modes: no QuickEdit,

@@ -330,7 +330,7 @@ fn a_record_arriving_after_the_physical_release_cannot_act() {
     let mut rig = Rig::new();
     rig.press(&[ALT, F1]);
     rig.release(&[F1]);
-    assert_eq!(rig.batch(&[alt_down(F1)]), []);
+    assert_eq!(rig.batch(&[alt_down(F1), alt_up(F1)]), []);
     // Nor does it wait for the next press.
     assert_eq!(rig.press(&[F1]), []);
     assert_eq!(
@@ -470,12 +470,71 @@ fn classic_paired_bindings_each_act_and_modifiers_match_exactly() {
 }
 
 #[test]
-fn a_focus_record_cancels_a_classic_tap_and_the_next_batch() {
+fn a_focus_record_cancels_a_classic_tap_around_it() {
     let mut rig = Rig::new();
     rig.classic_front();
     assert_eq!(rig.batch(&[alt_down(F1), Record::Focus, alt_up(F1)]), []);
-    assert_eq!(rig.batch(&[alt_down(F1), alt_up(F1)]), [], "entry batch");
     assert_eq!(rig.batch(&[alt_down(F1), alt_up(F1)]), [alpha()]);
+}
+
+#[test]
+fn a_focus_record_read_on_the_way_in_establishes_the_window() {
+    let mut rig = Rig::new();
+    rig.world.console = ConsoleFocus::Front;
+    rig.arbiter.foreground(&rig.world);
+    // The console queues a focus record as it gains the focus; the next tap is the user's.
+    assert_eq!(rig.batch(&[Record::Focus]), []);
+    assert_eq!(rig.batch(&[alt_down(F1), alt_up(F1)]), [alpha()]);
+}
+
+#[test]
+fn an_autorepeat_record_read_after_the_release_does_not_act_again() {
+    let mut rig = Rig::new();
+    rig.classic_front();
+    rig.set(&[ALT, F1], true);
+    assert_eq!(rig.batch(&[alt_down(F1)]), [alpha()]);
+    rig.release(&[F1]);
+    assert_eq!(rig.batch(&[alt_down(F1), alt_up(F1)]), []);
+    // Nor after the keyboard was primed instead.
+    rig.set(&[F1], true);
+    assert_eq!(rig.batch(&[alt_down(F1)]), [alpha()]);
+    rig.set(&[F1], false);
+    rig.arbiter.devices(&rig.world);
+    assert_eq!(rig.batch(&[alt_down(F1)]), []);
+}
+
+#[test]
+fn a_dashboard_autorepeat_read_after_the_release_does_nothing() {
+    let mut rig = Rig::new();
+    let space = Command::Press(Press::plain(ConsoleKey::Key(Key::SPACE)));
+    rig.set(&[0x20], true);
+    assert_eq!(rig.batch(&[key(0x20, true, Modifiers::NONE)]), [space]);
+    rig.release(&[0x20]);
+    let late = [
+        key(0x20, true, Modifiers::NONE),
+        key(0x20, false, Modifiers::NONE),
+    ];
+    assert_eq!(rig.batch(&late), []);
+    assert_eq!(
+        rig.batch(&[key(0x20, true, Modifiers::NONE)]),
+        [space],
+        "a real press"
+    );
+}
+
+#[test]
+fn a_press_and_a_repress_read_together_each_count() {
+    let mut rig = Rig::new();
+    rig.classic_front();
+    rig.set(&[ALT, F1], true);
+    let records = [alt_down(F1), alt_up(F1), alt_down(F1)];
+    assert_eq!(rig.batch(&records), [alpha(), alpha()]);
+    // In a pseudo console the tap is lost, but the held press still acts.
+    rig.release(&[F1]);
+    assert_eq!(rig.batch(&[alt_up(F1)]), []);
+    rig.world.console = ConsoleFocus::Hidden;
+    rig.set(&[F1], true);
+    assert_eq!(rig.batch(&records), [alpha()]);
 }
 
 #[test]
@@ -541,6 +600,7 @@ fn a_scrolling_key_held_through_a_barrier_does_not_scroll() {
     rig.reopen();
     assert_eq!(rig.batch(&[key(DOWN, true, Modifiers::NONE)]), []);
     rig.release(&[DOWN]);
+    assert_eq!(rig.batch(&[key(DOWN, false, Modifiers::NONE)]), []);
     rig.set(&[DOWN], true);
     let down = Command::Press(Press::plain(ConsoleKey::Down));
     assert_eq!(rig.batch(&[key(DOWN, true, Modifiers::NONE)]), [down]);
@@ -692,6 +752,8 @@ enum Op {
     Wake(usize, bool),
     /// A key changes and the console records it, in a batch with these extra records.
     Typed(Vec<(usize, bool)>, bool, bool),
+    /// The console reads an autorepeat record of a key it saw go down, queued before anything since.
+    Stale(usize),
     Foreground(u8),
     /// The foreground changes and the notice has not arrived yet.
     Drift(u8),
@@ -713,6 +775,7 @@ fn op() -> impl Strategy<Value = Op> {
             prop::bool::weighted(0.9)
         )
             .prop_map(|(keys, focus, complete)| Op::Typed(keys, focus, complete)),
+        3 => (0..KEYS.len()).prop_map(Op::Stale),
         2 => (0u8..6).prop_map(Op::Foreground),
         2 => (0u8..6).prop_map(Op::Drift),
         1 => Just(Op::Devices),
@@ -724,22 +787,24 @@ fn op() -> impl Strategy<Value = Op> {
 
 /// What a generated trace must never break.
 struct Oracle {
-    /// The key went down since it last acted or was primed.
-    armed: [bool; 256],
+    /// Presses of the key since it was last primed that have not acted yet.
+    armed: [u32; 256],
+    /// The console read the key's down record and not yet its up record.
+    console_down: [bool; 256],
 }
 
 impl Oracle {
     fn prime(&mut self, world: &World) {
         for vk in KEYS {
             if world.down[usize::from(vk)] {
-                self.armed[usize::from(vk)] = false;
+                self.armed[usize::from(vk)] = 0;
             }
         }
     }
 
     fn change(&mut self, world: &mut World, vk: u8, down: bool) {
         if down && !world.down[usize::from(vk)] {
-            self.armed[usize::from(vk)] = true;
+            self.armed[usize::from(vk)] += 1;
         }
         world.down[usize::from(vk)] = down;
     }
@@ -747,14 +812,23 @@ impl Oracle {
     fn check(&mut self, commands: &[Command], open: bool, capturing: bool) {
         let bindings = Bindings::defaults(&profile());
         for command in commands {
-            if let Command::Hotkey(target) = command {
-                assert!(open && !capturing, "a hotkey acted through a closed gate");
-                let vk = bindings.get(*target).0.unwrap().key().vk();
-                assert!(
-                    std::mem::take(&mut self.armed[usize::from(vk)]),
-                    "{vk:#04x} acted twice for one press, or while primed"
-                );
-            }
+            let vk = match command {
+                Command::Hotkey(target) => {
+                    assert!(open && !capturing, "a hotkey acted through a closed gate");
+                    bindings.get(*target).0.unwrap().key().vk()
+                }
+                Command::Press(Press {
+                    key: ConsoleKey::Key(key),
+                    ..
+                }) => key.vk(),
+                _ => continue,
+            };
+            let armed = &mut self.armed[usize::from(vk)];
+            assert!(
+                *armed > 0,
+                "{vk:#04x} acted twice for one press, or while primed"
+            );
+            *armed -= 1;
         }
     }
 }
@@ -784,7 +858,8 @@ fn the_trace_oracle_sees_a_game_press_replayed_by_the_console() {
 fn run(ops: Vec<Op>) {
     let mut rig = Rig::new();
     let mut oracle = Oracle {
-        armed: [false; 256],
+        armed: [0; 256],
+        console_down: [false; 256],
     };
     let mut capturing = false;
     for op in ops {
@@ -802,11 +877,13 @@ fn run(ops: Vec<Op>) {
                 let mut records = Vec::new();
                 for (k, down) in keys {
                     oracle.change(&mut rig.world, KEYS[k], down);
+                    oracle.console_down[usize::from(KEYS[k])] = down;
                     let modifiers = rig.world.modifiers().unwrap_or_default();
                     records.push(key(KEYS[k], down, modifiers));
                 }
                 if focus {
                     records.push(Record::Focus);
+                    oracle.console_down = [false; 256];
                 }
                 let commands = rig.read(&records, complete);
                 if focus || !complete {
@@ -815,6 +892,14 @@ fn run(ops: Vec<Op>) {
                     continue;
                 }
                 commands
+            }
+            Op::Stale(k) => {
+                let vk = KEYS[k];
+                if !oracle.console_down[usize::from(vk)] {
+                    continue;
+                }
+                let modifiers = rig.world.modifiers().unwrap_or_default();
+                rig.batch(&[key(vk, true, modifiers)])
             }
             Op::Foreground(which) | Op::Drift(which) => {
                 rig.world.foreground = Some(if which % 2 == 0 { GAME } else { OTHER });
@@ -841,6 +926,7 @@ fn run(ops: Vec<Op>) {
             Op::Reopen => {
                 rig.reopen();
                 oracle.prime(&rig.world);
+                oracle.console_down = [false; 256];
                 Vec::new()
             }
             Op::Capture(on) => {
@@ -849,6 +935,7 @@ fn run(ops: Vec<Op>) {
                     let flush = rig.arbiter.barrier(epoch).unwrap();
                     rig.arbiter.open(flush, &rig.world);
                     oracle.prime(&rig.world);
+                    oracle.console_down = [false; 256];
                 }
                 Vec::new()
             }

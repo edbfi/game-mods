@@ -126,8 +126,8 @@ enum Hold {
     Down {
         /// The press acted or was primed; only its release rearms the key.
         spent: bool,
-        /// The console has seen a record of this press; later records are autorepeat.
-        recorded: bool,
+        /// The key was down when the trainer primed; its records are autorepeat until it is released.
+        primed: bool,
         /// The press scrolled the dashboard, so its autorepeat keeps scrolling.
         repeats: bool,
     },
@@ -161,6 +161,11 @@ pub struct Arbiter {
     holds: [Hold; 256],
     /// The console window was in front for the last batch, with no focus change since.
     established: bool,
+    /// The console has read a down record for the key and not its up record. Only console records and a
+    /// flush change it, never a probe: an autorepeat record still queued behind a release the probe already
+    /// saw stays autorepeat. If the up record goes elsewhere, the key's next console press is taken for
+    /// autorepeat once.
+    record_down: [bool; 256],
     reader: bool,
 }
 
@@ -178,6 +183,7 @@ impl Arbiter {
             epoch: Epoch(0),
             holds: [Hold::Up; 256],
             established: false,
+            record_down: [false; 256],
             reader: true,
         }
     }
@@ -260,6 +266,7 @@ impl Arbiter {
     pub fn open(&mut self, flush: Flush, probe: &impl Probe) {
         if self.gate == Gate::Reopening(flush.0) {
             self.prime(probe);
+            self.record_down = [false; 256];
             // The flush left nothing older than now, so a console window in front is already established.
             self.established = probe.console() == ConsoleFocus::Front;
             self.gate = Gate::Open;
@@ -308,7 +315,7 @@ impl Arbiter {
                     let spent = target.is_some() || game_front || !self.is_open();
                     self.holds[usize::from(vk)] = Hold::Down {
                         spent,
-                        recorded: false,
+                        primed: false,
                         repeats: false,
                     };
                     commands.extend(target.map(Command::Hotkey));
@@ -337,6 +344,7 @@ impl Arbiter {
                     cancel(&mut slots, |_| true);
                     unbroken = false;
                     self.prime(probe);
+                    self.record_down = [false; 256];
                     continue;
                 }
                 Record::Key(key) => key,
@@ -347,6 +355,7 @@ impl Arbiter {
             // A modifier change cancels a chord still held; a completed tap survives it.
             cancel(&mut slots, |c| !c.released && c.modifiers != key.modifiers);
             if !key.down {
+                self.record_down[usize::from(vk)] = false;
                 for slot in &mut slots {
                     if let Slot::Candidate(candidate) = slot
                         && candidate.vk == vk
@@ -359,14 +368,16 @@ impl Arbiter {
                 }
                 continue;
             }
-            let (fresh, spent, mut repeats) = match self.holds[usize::from(vk)] {
-                Hold::Up => (true, false, false),
+            let (primed, spent, mut repeats) = match self.holds[usize::from(vk)] {
+                Hold::Up => (false, false, false),
                 Hold::Down {
                     spent,
-                    recorded,
+                    primed,
                     repeats,
-                } => (!recorded, spent, repeats),
+                } => (primed, spent, repeats),
             };
+            let repeated = std::mem::replace(&mut self.record_down[usize::from(vk)], true);
+            let fresh = !primed && !repeated;
             seen[usize::from(vk)] = true;
             if self.is_open() && live {
                 let target = if self.capturing {
@@ -400,7 +411,7 @@ impl Arbiter {
             }
             self.holds[usize::from(vk)] = Hold::Down {
                 spent,
-                recorded: true,
+                primed,
                 repeats,
             };
         }
@@ -425,15 +436,18 @@ impl Arbiter {
             // Every press the console has seen is decided now; one already released needs no hold.
             for vk in (0..=u8::MAX).filter(|vk| seen[usize::from(*vk)]) {
                 self.holds[usize::from(vk)] = match self.holds[usize::from(vk)] {
-                    Hold::Down { repeats, .. } if probe.down(vk) => Hold::Down {
+                    Hold::Down {
+                        primed, repeats, ..
+                    } if probe.down(vk) => Hold::Down {
                         spent: true,
-                        recorded: true,
+                        primed,
                         repeats,
                     },
                     _ => Hold::Up,
                 };
             }
-            self.established = focus == ConsoleFocus::Front && unbroken;
+            // Records queued behind a focus record come after the focus change.
+            self.established = focus == ConsoleFocus::Front;
         } else {
             self.established = false;
             self.prime(probe);
@@ -454,13 +468,13 @@ impl Arbiter {
             .map(|(_, target)| *target)
     }
 
-    /// Marks every key held now as spent and seen, and forgets every key that is up.
+    /// Marks every key held now as spent and primed, and forgets every key that is up.
     fn prime(&mut self, probe: &impl Probe) {
         for vk in 0..=u8::MAX {
             self.holds[usize::from(vk)] = if probe.down(vk) {
                 Hold::Down {
                     spent: true,
-                    recorded: true,
+                    primed: true,
                     repeats: false,
                 }
             } else {
@@ -484,6 +498,8 @@ fn cancel(slots: &mut [Slot], which: impl Fn(&Candidate) -> bool) {
 /// The dashboard command for a key that is not a hotkey, and whether its autorepeat scrolls; nothing for
 /// modifiers or keys the dashboard has no name for.
 fn command(key: &KeyRecord, vk: u8) -> Option<(Command, bool)> {
+    // Only reachable while processed input is off: with it on, the console turns Ctrl+C into a control
+    // notice and never queues the record.
     if vk == VK_C && key.modifiers == Modifiers::CTRL {
         return Some((Command::Interrupt, false));
     }
