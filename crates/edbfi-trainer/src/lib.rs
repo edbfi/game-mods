@@ -14,10 +14,14 @@ pub mod input;
 pub mod journal;
 pub mod lifecycle;
 pub mod location;
+pub mod patch;
 pub mod pe;
 pub mod profile;
 pub mod recovery;
+pub mod session;
 pub mod settings;
+#[cfg(windows)]
+pub mod shutdown;
 #[cfg(test)]
 mod testdir;
 #[cfg(windows)]
