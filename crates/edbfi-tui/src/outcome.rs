@@ -30,6 +30,13 @@ pub enum Outcome {
     Ran(Done),
     /// The trainer could not start; nothing touched the game.
     NotStarted(String),
+    /// The dashboard failed, by a panic or a failed wait, and the runtime then finished on its own.
+    Faulted {
+        /// What failed.
+        fault: String,
+        /// How the runtime finished afterwards.
+        done: Done,
+    },
 }
 
 impl Outcome {
@@ -51,6 +58,11 @@ impl Outcome {
                 _ => 1,
             },
             Self::NotStarted(_) => 1,
+            Self::Faulted {
+                done: Done::HooksLeft { .. },
+                ..
+            } => 6,
+            Self::Faulted { .. } => 1,
         }
     }
 
@@ -58,6 +70,11 @@ impl Outcome {
     #[must_use]
     pub fn summary(&self, log: Option<&Path>) -> Vec<String> {
         let mut lines = match self {
+            Self::Faulted { fault, done } => {
+                let mut lines = vec![format!("The trainer failed: {}", text::ascii(fault))];
+                lines.extend(Self::Ran(done.clone()).summary(None));
+                lines
+            }
             Self::Ran(Done::Finished(Finish::Restored)) => {
                 vec!["The game's code is restored and no cheats remain.".to_owned()]
             }
@@ -66,10 +83,14 @@ impl Outcome {
             }
             Self::Ran(Done::HooksLeft { sites, message }) => {
                 let sites: Vec<String> = sites.iter().map(ToString::to_string).collect();
+                let which = if sites.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (sites {})", sites.join(", "))
+                };
                 vec![
                     format!(
-                        "Some of the game's code may still hold trainer hooks (sites {}): {}",
-                        sites.join(", "),
+                        "Some of the game's code may still hold trainer hooks{which}: {}",
                         text::ascii(message)
                     ),
                     "Every cheat is off. Restart the game so its code is in a known state."
@@ -171,6 +192,21 @@ mod tests {
             6
         );
         assert_eq!(Outcome::NotStarted("no".into()).exit_code(), 1);
+        let fault = |done| Outcome::Faulted {
+            fault: "panicked".into(),
+            done,
+        };
+        assert_eq!(fault(Done::Finished(Finish::Restored)).exit_code(), 1);
+        let left = Done::HooksLeft {
+            sites: Vec::new(),
+            message: "stopped".into(),
+        };
+        assert_eq!(fault(left.clone()).exit_code(), 6);
+        let lines = fault(left).summary(None);
+        assert!(
+            lines[0].contains("panicked") && lines[1].contains("hooks: stopped"),
+            "{lines:?}"
+        );
     }
 
     #[test]

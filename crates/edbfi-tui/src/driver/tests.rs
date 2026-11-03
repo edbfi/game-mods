@@ -490,6 +490,44 @@ fn capturing_a_binding_is_a_barrier_and_console_keys_reach_the_dialog() {
 }
 
 #[test]
+fn keys_after_a_capture_starts_in_the_same_batch_never_reach_the_dialog() {
+    let mut rig = fresh();
+    rig.acknowledge();
+    // R opens the capture; the chord and Enter typed before its barrier must not set a binding.
+    rig.console(vec![
+        key(VK_R, true, Modifiers::NONE),
+        key(VK_R, false, Modifiers::NONE),
+        key(0x77, true, Modifiers::ALT),
+        key(0x77, false, Modifiers::ALT),
+        key(0x0D, true, Modifiers::NONE),
+        key(0x0D, false, Modifiers::NONE),
+    ]);
+    let Some(Modal::Capture { candidate, .. }) = &rig.driver.app().model.modal else {
+        panic!("{:?}", rig.driver.app().model.modal);
+    };
+    assert!(candidate.is_none());
+    assert_eq!(rig.calls.borrow().saves, 0);
+}
+
+#[test]
+fn a_key_held_when_the_game_comes_to_the_front_does_not_act() {
+    let mut rig = fresh();
+    rig.acknowledge();
+    rig.attach();
+    // Alt+F1 went down in another window; the focus moved to the game before the owner woke.
+    let keys = &rig.driver.host().keys;
+    *keys.modifiers.borrow_mut() = Modifiers::ALT;
+    *keys.foreground.borrow_mut() = Some(GAME);
+    keys.down.borrow_mut().push(VK_F1);
+    rig.driver.wake(Wake::Keyboard(Wakes {
+        keyboard: true,
+        foreground: true,
+        ..Wakes::default()
+    }));
+    assert_eq!(rig.publications(), 1, "only the attach publication");
+}
+
+#[test]
 fn a_resized_console_resizes_the_dashboard() {
     let mut rig = fresh();
     rig.screen.borrow_mut().batches.push_back(Ok(Batch {

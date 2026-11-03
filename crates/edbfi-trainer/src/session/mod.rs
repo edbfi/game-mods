@@ -759,16 +759,19 @@ impl Session<Installed> {
     /// asked to shut down or stop, it stores and acknowledges zero instead: a shutdown callback zeroed the
     /// word, and a late publication must not undo that.
     pub fn publish(&mut self, mask: DesiredMask) -> Ack {
-        let mask = if self.core.game.interrupted() || self.state.owner.stop_requested() {
-            DesiredMask::ZERO
-        } else {
-            mask
-        };
-        let state = &mut self.state;
+        let ending = || self.core.game.interrupted() || self.state.owner.stop_requested();
+        let mut mask = if ending() { DesiredMask::ZERO } else { mask };
         // Compared with the word itself, not the last publication: a panic or close may have zeroed it.
-        if state.hooks.controls.load() != mask.bits().word() {
-            state.hooks.controls.store(mask.bits().word());
+        if self.state.hooks.controls.load() != mask.bits().word() {
+            self.state.hooks.controls.store(mask.bits().word());
         }
+        // A close notice requests shutdown before it zeroes the word. If it ran between the check above and
+        // the store, its zero may have been overwritten: the request is visible now, so zero again.
+        if !mask.bits().is_empty() && ending() {
+            mask = DesiredMask::ZERO;
+            self.state.hooks.controls.store(0);
+        }
+        let state = &mut self.state;
         state.published = mask;
         state.revision += 1;
         Ack::new(state.revision, ControlMask::published(mask))

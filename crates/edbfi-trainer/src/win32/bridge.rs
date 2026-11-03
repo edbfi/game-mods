@@ -171,8 +171,10 @@ impl Bridge {
     /// within the operating system's budget.
     pub(crate) fn ending(&self) {
         self.read(|lease| {
-            lease.zero();
+            // Requested before zeroing: a publication that stores after this zero sees the request when it
+            // checks again, and zeroes the word itself.
             self.request();
+            lease.zero();
             lease.wait(CLOSE_BUDGET);
         });
         self.request();

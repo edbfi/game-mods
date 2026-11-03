@@ -38,10 +38,13 @@ use super::process::WinGame;
 /// The bridge, its shutdown event and its lease slot are process-wide, so these tests take turns.
 static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Takes this test's turn, with no shutdown request or interrupt routing left by an earlier test.
 fn serial() -> std::sync::MutexGuard<'static, ()> {
-    SERIAL
+    let turn = SERIAL
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    bridge::reset_for_tests();
+    turn
 }
 
 fn dummy_path() -> PathBuf {
@@ -798,7 +801,9 @@ fn set(event: &std::os::windows::io::OwnedHandle) {
 
 #[test]
 fn a_wait_on_several_handles_prefers_the_earliest_and_times_out() {
-    use std::os::windows::io::{AsHandle as _, FromRawHandle as _, OwnedHandle};
+    use std::os::windows::io::{
+        AsHandle as _, AsRawHandle as _, BorrowedHandle, FromRawHandle as _, OwnedHandle, RawHandle,
+    };
     use windows_sys::Win32::System::Threading::CreateMutexW;
     let first = event(true);
     let second = event(false);
@@ -834,15 +839,16 @@ fn a_wait_on_several_handles_prefers_the_earliest_and_times_out() {
     assert!(!raw.is_null());
     // SAFETY: `raw` is a new mutex handle nothing else owns.
     let mutex = unsafe { OwnedHandle::from_raw_handle(raw) };
-    std::thread::scope(|scope| {
-        scope.spawn(|| {
-            assert_eq!(
-                crate::wait::any(&[mutex.as_handle()], None),
-                Ok(Some(0)),
-                "taken"
-            );
-        });
-    });
+    let raw_mutex = mutex.as_raw_handle() as usize;
+    // A plain thread, joined: a scoped thread counts as finished before its OS thread ends, and only the
+    // end of the OS thread abandons the mutex.
+    std::thread::spawn(move || {
+        // SAFETY: the mutex outlives this thread, which is joined below.
+        let borrowed = unsafe { BorrowedHandle::borrow_raw(raw_mutex as RawHandle) };
+        assert_eq!(crate::wait::any(&[borrowed], None), Ok(Some(0)), "taken");
+    })
+    .join()
+    .unwrap();
     assert_eq!(
         crate::wait::any(&[mutex.as_handle()], Some(Duration::ZERO)),
         Ok(Some(0)),

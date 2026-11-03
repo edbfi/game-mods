@@ -116,9 +116,13 @@ fn a_first_run_writes_defaults_and_waits_for_the_game() {
     let path = h.started.settings_path.clone().unwrap();
     assert!(path.exists());
     assert!(h.started.log_path.as_ref().unwrap().exists());
+    // The start is not reported again; only what the journal recorded meanwhile is.
+    let events = h.runtime.events();
+    assert!(!events.is_empty());
     assert!(
-        h.runtime.events().is_empty(),
-        "the start is not reported again"
+        events
+            .iter()
+            .all(|event| matches!(event, RuntimeEvent::Journal(_)))
     );
     // Nothing runs: one look, then the next in a second.
     assert!(settle(&mut h.runtime).is_empty());
@@ -170,6 +174,7 @@ fn publications_are_ignored_until_the_game_is_hooked() {
     let (game, profile) = FakeGame::new();
     let games = Games::default();
     let mut h = start(&games, &profile, Options::default());
+    h.runtime.events();
     h.runtime.command(RuntimeCommand::Publish(mask(&[0])));
     assert!(h.runtime.events().is_empty());
     assert_eq!(game.info.word.get(), 0xFFFF_FFFF);
@@ -516,4 +521,65 @@ fn saves_reach_the_file_and_warnings_reach_the_dashboard() {
         event,
         RuntimeEvent::Journal(entry) if entry.event.severity == crate::journal::Severity::Warning
     )));
+}
+
+#[test]
+fn a_game_that_never_finishes_unpacking_fails_at_the_deadline() {
+    let (game, profile) = FakeGame::new();
+    game.fake.poke(BASE + 0x1200, &[0x00]);
+    let games = Games::running(&game);
+    let mut h = start(&games, &profile, Options::default());
+    h.runtime.unpack_deadline = Duration::ZERO;
+    let phases = settle(&mut h.runtime);
+    let Some(Phase::Failed(failure)) = phases.last() else {
+        panic!("{phases:?}");
+    };
+    assert!(
+        failure.message.contains("did not finish starting"),
+        "{failure:?}"
+    );
+    assert_eq!(h.runtime.due(), None, "no endless retry");
+}
+
+#[test]
+fn a_whole_code_mismatch_after_restoring_is_a_failure_unless_shutdown_skips_the_check() {
+    let verify = Options {
+        verify: VerifyRestore::Text,
+        ..Options::default()
+    };
+    let (game, profile) = FakeGame::new();
+    let games = Games::running(&game);
+    let mut h = start(&games, &profile, verify);
+    settle(&mut h.runtime);
+    game.fake.poke(BASE + 0x1A00, &[0x90]);
+    h.runtime.command(RuntimeCommand::Quit);
+    settle(&mut h.runtime);
+    let Some(Done::Failed(failure)) = h.runtime.done() else {
+        panic!("{:?}", h.runtime.done());
+    };
+    assert_eq!(failure.recovery, RecoveryAction::ModifiedGameCode);
+    assert!(
+        !game.info.controls_live.get(),
+        "the restored session is released"
+    );
+
+    // Shutting down skips the optional check, so the same game finishes restored.
+    let (game, profile) = FakeGame::new();
+    let games = Games::running(&game);
+    let mut h = start(&games, &profile, verify);
+    settle(&mut h.runtime);
+    game.fake.poke(BASE + 0x1A00, &[0x90]);
+    h.runtime.shutdown();
+    settle(&mut h.runtime);
+    assert_eq!(h.runtime.done(), Some(&Done::Finished(Finish::Restored)));
+}
+
+#[test]
+fn a_step_that_never_finished_reports_that_hooks_may_remain() {
+    let (_, profile) = FakeGame::new();
+    let mut h = start(&Games::default(), &profile, Options::default());
+    // As a panic inside a restore leaves it: the session was taken out and dropped mid-change.
+    h.runtime.phase = Phase::Restoring;
+    h.runtime.shutdown();
+    assert!(matches!(h.runtime.done(), Some(Done::HooksLeft { .. })));
 }

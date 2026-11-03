@@ -296,6 +296,13 @@ fn a_publication_after_a_shutdown_or_stop_request_publishes_zero() {
         assert_eq!(session.published(), DesiredMask::ZERO);
         session.restore(VerifyRestore::Sites).unwrap();
     }
+    // The notice lands between the publication's check and its store: the publication zeroes again.
+    let (game, profile) = FakeGame::new();
+    let mut session = installed(&game, &profile);
+    game.info.interrupt_on_store.set(true);
+    let ack = session.publish(mask(&[0, 3]));
+    assert_eq!(game.info.word.get(), 0);
+    assert_eq!(ack.mask().bits(), DesiredMask::ZERO.bits());
 }
 
 #[test]

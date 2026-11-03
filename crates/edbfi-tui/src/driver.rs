@@ -258,10 +258,8 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
     }
 
     fn keyboard(&mut self, wakes: Wakes) {
-        if wakes.keyboard {
-            let commands = self.arbiter.physical(self.host.probe());
-            self.commands(commands);
-        }
+        // Merged notices: a key held when the focus or the keyboards changed is primed before any press
+        // is judged, so a chord pressed elsewhere cannot act once the game comes to the front.
         if wakes.devices {
             self.arbiter.devices(self.host.probe());
         }
@@ -269,6 +267,10 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
             self.arbiter.foreground(self.host.probe());
             // A console window entering the front is established by one read, even of nothing.
             self.console();
+        }
+        if wakes.keyboard {
+            let commands = self.arbiter.physical(self.host.probe());
+            self.commands(commands);
         }
         if let Some(epoch) = wakes.barrier {
             self.acknowledged(epoch);
@@ -333,14 +335,24 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
         loop {
             self.queue
                 .extend(self.backend.events().into_iter().map(Msg::Runtime));
-            let Some(msg) = self.queue.pop_front() else {
+            if let Some(msg) = self.queue.pop_front() {
+                let effects = self.app.update(msg);
+                self.effects(effects);
+                continue;
+            }
+            // Reopening the gate can lose the console, which queues a message of its own.
+            self.gate();
+            if self.queue.is_empty() {
                 break;
-            };
-            let effects = self.app.update(msg);
-            self.effects(effects);
+            }
         }
-        self.gate();
         self.draw();
+    }
+
+    /// The input epoch changed: keys queued under the old one never act. Interrupts and runtime events stay.
+    fn invalidate(&mut self) {
+        self.queue
+            .retain(|msg| !matches!(msg, Msg::Input(Command::Hotkey(_) | Command::Press(_))));
     }
 
     /// Carries out one update's effects: runtime commands first, then the rest, then saves.
@@ -351,6 +363,7 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
                     // Whatever the retry leads to, keys pressed before it never act after it.
                     self.arbiter.close();
                     self.closed = true;
+                    self.invalidate();
                 }
                 self.backend.command(command);
             }
@@ -358,6 +371,7 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
         for effect in &effects {
             match *effect {
                 Effect::Bindings => {
+                    self.invalidate();
                     let epoch = self
                         .arbiter
                         .rebind(&self.app.settings().bindings, self.app.capturing());

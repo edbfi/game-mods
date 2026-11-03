@@ -281,21 +281,44 @@ pub fn run(profile: &'static Profile, header: &str, options: Options) -> Outcome
     let mut driver = Driver::new(app, runtime, host, reads);
     let pumped = catch_unwind(AssertUnwindSafe(|| pump(&mut driver, shutdown, interrupts)));
     let (_app, mut runtime, mut host) = driver.into_parts();
-    if pumped.is_err() || runtime.done().is_none() {
+    let fault = match pumped {
+        Ok(fault) => fault,
+        Err(payload) => Some(format!(
+            "the trainer panicked: {}",
+            panic_message(&*payload)
+        )),
+    };
+    if let Some(fault) = &fault {
+        runtime.record(Event::error(EntryKind::Session, fault.clone()));
+    }
+    if fault.is_some() || runtime.done().is_none() {
         // The dashboard may be broken: the runtime finishes on its own.
         finish(&mut runtime);
     }
     host.leave();
     let log = runtime.journal().path().map(ToOwned::to_owned);
-    let outcome = Outcome::Ran(runtime.done().cloned().unwrap_or_else(|| Done::HooksLeft {
+    let done = runtime.done().cloned().unwrap_or_else(|| Done::HooksLeft {
         sites: Vec::new(),
         message: "the trainer stopped before it could restore the game".to_owned(),
-    }));
+    });
+    let outcome = match fault {
+        Some(fault) => Outcome::Faulted { fault, done },
+        None => Outcome::Ran(done),
+    };
     drop(runtime);
     host.print(&outcome.summary(log.as_deref()));
     // Dropping the platform restores the console's modes and title.
     drop(host);
     outcome
+}
+
+/// A panic payload's message, when it has one.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|text| (*text).to_owned())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "a panic without a message".to_owned())
 }
 
 fn not_started(message: String) -> Outcome {
@@ -318,12 +341,13 @@ fn finish(runtime: &mut Runtime) {
     let _events = runtime.events();
 }
 
-/// The owner thread's loop: one wait, then the wake, then any due step, until the runtime finishes.
+/// The owner thread's loop: one wait, then the wake, then any due step, until the runtime finishes. Returns
+/// why it had to shut down by itself, if it did.
 fn pump(
     driver: &mut Driver<'_, Runtime, Win>,
     shutdown: Shutdown,
     interrupts: std::os::windows::io::BorrowedHandle<'static>,
-) {
+) -> Option<String> {
     // A shutdown request and a stop request stay signalled; each is handled once.
     let mut shut = false;
     let mut stopped = false;
@@ -383,13 +407,10 @@ fn pump(
             Ok(Some(Source::Console)) => Some(Wake::Console),
             Ok(None) => None,
             Err(error) => {
-                // Without its wait the owner cannot hear anything: restore and exit.
-                driver.backend_mut().record(Event::error(
-                    EntryKind::Session,
-                    format!("cannot wait for events: {error}"),
-                ));
-                shut = true;
-                Some(Wake::Shutdown)
+                // Without its wait the owner cannot hear anything: restore and exit at once.
+                driver.wake(Wake::Shutdown);
+                finish(driver.backend_mut());
+                return Some(format!("cannot wait for events: {error}"));
             }
         };
         if let Some(wake) = wake {
@@ -409,4 +430,5 @@ fn pump(
             driver.wake(Wake::Due);
         }
     }
+    None
 }

@@ -33,8 +33,8 @@ use crate::patch::OsError;
 use crate::profile::{SiteId, ValidProfile};
 use crate::recovery::RecoveryAction;
 use crate::session::{
-    Candidate, Identified, Installed, Recovery, Session, TrainerError, VerifyRestore, Write,
-    identify,
+    Candidate, Identified, Installed, Recovery, Session, TextCheck, TrainerError, VerifyRestore,
+    Write, identify,
 };
 use crate::settings::{External, Load, Saved, Settings, Store, StoreError};
 
@@ -156,6 +156,10 @@ pub struct Runtime {
     quitting: bool,
     /// Quitting without the user: a stop request, a closing window or shutdown. Nothing waits for a reply.
     forced: bool,
+    /// Shutting down against the operating system's deadline: the optional whole-code check is skipped.
+    deadline: bool,
+    /// How long a game may take to unpack its code.
+    unpack_deadline: Duration,
     done: Option<Done>,
 }
 
@@ -192,6 +196,8 @@ impl Runtime {
             events: Vec::new(),
             quitting: false,
             forced: false,
+            deadline: false,
+            unpack_deadline: UNPACK_DEADLINE,
             done: None,
         };
         if let Some(failure) = runtime.journal.failure() {
@@ -208,8 +214,11 @@ impl Runtime {
                 Settings::defaults(&runtime.profile)
             }
         };
-        // The dashboard starts from these; reporting them again would only repeat them.
-        runtime.events.clear();
+        // The dashboard starts from the phase and settings; what the journal recorded meanwhile, such as a log
+        // that cannot be written, still reaches it.
+        runtime
+            .events
+            .retain(|event| matches!(event, RuntimeEvent::Journal(_)));
         let started = Started {
             settings,
             settings_path: runtime.store.as_ref().map(|store| store.path().to_owned()),
@@ -333,6 +342,13 @@ impl Runtime {
         if !self.forced {
             self.record(Event::info(EntryKind::Session, "shutting down"));
         }
+        if !self.deadline && self.options.verify == VerifyRestore::Text {
+            self.record(Event::info(
+                EntryKind::Hooks,
+                "the whole-code check is skipped: shutting down leaves no time for it",
+            ));
+        }
+        self.deadline = true;
         self.quit(true);
     }
 
@@ -551,6 +567,19 @@ impl Runtime {
                 }
                 self.due = Some(Instant::now());
             }
+            Slot::Empty if matches!(self.phase, Phase::Installing | Phase::Restoring) => {
+                // Only a step that never finished, such as one a panic interrupted, leaves this: whatever it
+                // held was dropped mid-change, so hooks may remain.
+                self.record(Event::error(
+                    EntryKind::Hooks,
+                    "the trainer stopped while changing the game's code",
+                ));
+                self.due = None;
+                self.done = Some(Done::HooksLeft {
+                    sites: Vec::new(),
+                    message: "the trainer stopped while changing the game's code".to_owned(),
+                });
+            }
             Slot::Found { .. } | Slot::Identified { .. } | Slot::Empty => {
                 // Nothing was written: dropping the candidate or session releases it.
                 self.slot = Slot::Empty;
@@ -692,7 +721,8 @@ impl Runtime {
                         "the game exited while it was being checked",
                     ));
                     self.waiting();
-                } else if rejected.error.transient() && now.duration_since(since) < UNPACK_DEADLINE
+                } else if rejected.error.transient()
+                    && now.duration_since(since) < self.unpack_deadline
                 {
                     self.slot = Slot::Found {
                         candidate: rejected.candidate,
@@ -707,7 +737,7 @@ impl Runtime {
                     let message = if rejected.error.transient() {
                         format!(
                             "the game did not finish starting within {} s: {}",
-                            UNPACK_DEADLINE.as_secs(),
+                            self.unpack_deadline.as_secs(),
                             rejected.error
                         )
                     } else {
@@ -752,12 +782,7 @@ impl Runtime {
                 let message = format!("hooked the game in {} ms", attach_duration.as_millis());
                 self.record(Event::info(EntryKind::Hooks, message));
                 self.slot = Slot::Attached(session);
-                if self.quitting {
-                    self.enter(Phase::Restoring);
-                    self.due = Some(Instant::now());
-                } else {
-                    self.enter(Phase::Attached { attach_duration });
-                }
+                self.enter(Phase::Attached { attach_duration });
             }
             Err(failure) => {
                 let error = failure.error;
@@ -773,14 +798,10 @@ impl Runtime {
 
     /// Restores a failed install's leftovers, then shows `error`.
     fn recover(&mut self, session: Session<Recovery>, error: &TrainerError) {
-        match session.restore(self.options.verify) {
+        match session.restore(self.verify()) {
             Ok(detached) => {
                 drop(detached);
-                if self.quitting {
-                    self.finish(Finish::Untouched);
-                } else {
-                    self.fail(error.recovery(), error.to_string(), Vec::new());
-                }
+                self.fail(error.recovery(), error.to_string(), Vec::new());
             }
             Err(failure) => self.pin(failure.session, &failure.error, false),
         }
@@ -816,11 +837,20 @@ impl Runtime {
         self.fail(error.recovery(), message, sites);
     }
 
+    /// What a restore checks: the whole code too if asked, unless shutdown leaves no time.
+    fn verify(&self) -> VerifyRestore {
+        if self.deadline {
+            VerifyRestore::Sites
+        } else {
+            self.options.verify
+        }
+    }
+
     fn restore(&mut self) {
         let again = matches!(self.slot, Slot::Pinned(_));
         let outcome = match std::mem::replace(&mut self.slot, Slot::Empty) {
-            Slot::Attached(session) => session.restore(self.options.verify),
-            Slot::Pinned(session) => session.restore(self.options.verify),
+            Slot::Attached(session) => session.restore(self.verify()),
+            Slot::Pinned(session) => session.restore(self.verify()),
             other => {
                 self.slot = other;
                 return;
@@ -838,7 +868,24 @@ impl Runtime {
                 // restoration finished.
                 drop(detached);
                 self.record(Event::info(EntryKind::Hooks, message));
-                if self.quitting {
+                if report.text == TextCheck::Differs {
+                    // Every site is back, but something else changed the game's code: say so, never
+                    // claim it verified.
+                    let failure = Failure {
+                        recovery: RecoveryAction::ModifiedGameCode,
+                        message:
+                            "every hooked site was restored, but the game's code differs from the \
+                                  supported build elsewhere"
+                                .to_owned(),
+                        unrestored: Vec::new(),
+                    };
+                    self.record(Event::error(EntryKind::Hooks, failure.message.clone()));
+                    if self.quitting {
+                        self.due = None;
+                        self.done = Some(Done::Failed(failure.clone()));
+                    }
+                    self.enter(Phase::Failed(failure));
+                } else if self.quitting {
                     self.finish(Finish::Restored);
                 } else {
                     self.waiting();
