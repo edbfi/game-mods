@@ -653,9 +653,11 @@ fn queue(console: &super::console::Reader, records: &[INPUT_RECORD]) {
 
 #[test]
 fn the_console_reader_sets_and_restores_its_modes() {
+    use std::os::windows::io::AsRawHandle as _;
     use windows_sys::Win32::System::Console::{
-        ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_MOUSE_INPUT, ENABLE_PROCESSED_INPUT,
-        ENABLE_QUICK_EDIT_MODE, ENABLE_VIRTUAL_TERMINAL_INPUT, ENABLE_WINDOW_INPUT,
+        ENABLE_ECHO_INPUT, ENABLE_EXTENDED_FLAGS, ENABLE_LINE_INPUT, ENABLE_MOUSE_INPUT,
+        ENABLE_PROCESSED_INPUT, ENABLE_QUICK_EDIT_MODE, ENABLE_VIRTUAL_TERMINAL_INPUT,
+        ENABLE_WINDOW_INPUT, SetConsoleMode,
     };
     let _serial = serial();
     let console = reader();
@@ -670,8 +672,31 @@ fn the_console_reader_sets_and_restores_its_modes() {
     let on = ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT;
     assert_eq!(mode & on, on, "{mode:#x}");
     drop(console);
+    let quick = ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE;
+    let restored = if original & ENABLE_EXTENDED_FLAGS == 0 {
+        original | quick
+    } else {
+        original
+    };
     let again = reader();
-    assert_eq!(again.original(), original, "dropping restores the modes");
+    assert_eq!(again.original(), restored, "dropping restores the modes");
+
+    // A mode set without the extended flags hides the QuickEdit state; dropping then turns QuickEdit on.
+    let plain =
+        ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT;
+    // SAFETY: the reader's handle is a live console input handle; `again` restores its mode when dropped.
+    let set = unsafe { SetConsoleMode(again.handle().as_raw_handle(), plain) };
+    assert_ne!(set, 0);
+    let hidden = reader();
+    assert_eq!(
+        hidden.original() & ENABLE_EXTENDED_FLAGS,
+        0,
+        "{:#x}",
+        hidden.original()
+    );
+    drop(hidden);
+    let back = reader();
+    assert_eq!(back.original() & quick, quick, "{:#x}", back.original());
 }
 
 #[test]
