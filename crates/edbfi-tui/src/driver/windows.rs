@@ -121,6 +121,7 @@ impl Host for Win {
     fn read_console(&mut self) -> Result<Batch, OsError> {
         match &mut self.console {
             Some(console) => console.read(),
+            // ERROR_INVALID_HANDLE: there is no console reader to read.
             None => Err(OsError::new("ReadConsoleInputW", 6)),
         }
     }

@@ -241,14 +241,22 @@ impl<'p, B: Backend, H: Host> Driver<'p, B, H> {
     /// Handles one wake, then everything it led to, and draws.
     pub fn wake(&mut self, wake: Wake) {
         match wake {
-            Wake::Shutdown => self.backend.shutdown(),
+            // The restore runs before anything is drawn: a console write can stall (a selection parks it),
+            // and a closing window gives the restore only the operating system's budget.
+            Wake::Shutdown => {
+                self.backend.shutdown();
+                self.backend.step();
+            }
             Wake::Interrupts(count) => {
                 // A third press adds nothing: the second already confirms the quit.
                 for _ in 0..count.min(2) {
                     self.queue.push_back(Msg::Input(Command::Interrupt));
                 }
             }
-            Wake::Stop => self.backend.stop(),
+            Wake::Stop => {
+                self.backend.stop();
+                self.backend.step();
+            }
             Wake::Exited => self.backend.exited(),
             Wake::Due => self.backend.step(),
             Wake::Keyboard(wakes) => self.keyboard(wakes),

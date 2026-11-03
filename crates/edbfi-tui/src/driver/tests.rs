@@ -31,6 +31,8 @@ struct Calls {
     shutdowns: usize,
     exits: usize,
     steps: usize,
+    /// Steps and draws, in order.
+    order: Vec<&'static str>,
 }
 
 /// A runtime whose phase the test sets.
@@ -73,7 +75,9 @@ impl Backend for Pretend {
     }
 
     fn step(&mut self) {
-        self.calls.borrow_mut().steps += 1;
+        let mut calls = self.calls.borrow_mut();
+        calls.steps += 1;
+        calls.order.push("step");
     }
 
     fn stop(&mut self) {
@@ -145,6 +149,7 @@ struct Screen {
 
 #[derive(Debug, Default)]
 struct Platform {
+    calls: Rc<RefCell<Calls>>,
     keys: Keys,
     screen: Rc<RefCell<Screen>>,
     /// Whether barriers are acknowledged through keyboard wakes, as on Windows.
@@ -199,6 +204,7 @@ impl Host for Platform {
             return Err(std::io::Error::other("the console went away"));
         }
         screen.frames += 1;
+        self.calls.borrow_mut().order.push("draw");
         Ok(())
     }
 
@@ -237,6 +243,7 @@ fn rig_with(phase: Phase, notices: bool, console: bool) -> Rig {
     let backend = Pretend::default();
     let calls = Rc::clone(&backend.calls);
     let host = Platform {
+        calls: Rc::clone(&calls),
         notices,
         ..Platform::default()
     };
@@ -459,8 +466,15 @@ fn a_stop_or_shutdown_restores_without_asking() {
     assert_eq!(rig.screen.borrow().barriers.len(), barriers);
 
     let mut rig = fresh();
+    rig.attach();
+    rig.calls.borrow_mut().order.clear();
     rig.driver.wake(Wake::Shutdown);
     assert_eq!(rig.calls.borrow().shutdowns, 1);
+    assert_eq!(
+        rig.calls.borrow().order,
+        ["step", "draw"],
+        "the restore runs before a console write can stall it"
+    );
     rig.driver.wake(Wake::Exited);
     assert_eq!(rig.calls.borrow().exits, 1);
 }
