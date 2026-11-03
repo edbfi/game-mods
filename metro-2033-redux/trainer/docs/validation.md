@@ -3,22 +3,25 @@
 A green build or a matching signature does not show that a cheat behaves correctly in the game. This page records
 what the trainer has been checked against. Every cheat starts off on first run.
 
-The C++ trainer that this one replaced passed a live install and restore on 2026-10-31, an initial gameplay check and
-a partial ammo check. That was different code: none of it counts for the rows below.
+The C++ trainer that this one replaced hooked the same sites. It passed a live install and restore on 2026-10-31 and
+an initial gameplay check, and its unlimited ammo worked in shooting-range challenges, which is why the dashboard marks
+that cheat `gameplay partial`. That was different code, so none of it passes a row below.
 
 ## Owner checks
 
 Only the owner's machine has the game, the overlays and the hardware, so these stay PENDING until the owner records
-them. Record the date, `metro-trainer --version`, and what was seen. The first two rows gate the release of this
-trainer.
+them. Record the date, the SHA-256 of the `metro-trainer.exe` used and the commit it was built from, and what was
+seen. The trainer ships, as a nightly or a release, only after the check, gameplay pass, hotkeys, overlay and
+terminal rows pass.
 
 | Check | Status | Scope |
 | --- | --- | --- |
 | `metro-trainer check` against the supported game | PENDING | Exits 0 and reports the build, the code and every hook site as expected, with the game unchanged. |
 | Gameplay pass | PENDING | Connect, toggle each cheat, quit; the game's code restored. Then the [runtime acceptance](#runtime-acceptance) rows. |
-| Hook sites in a `.text` capture | PENDING | `EDBFI_TEXT_CAPTURE=<file> cargo test -p metro-2033-redux-trainer --test profile -- --ignored` passes. |
+| Hook sites in a `.text` capture | PENDING | `EDBFI_TEXT_CAPTURE=<file> cargo test --locked -p metro-2033-redux-trainer --test profile -- --ignored` passes. |
 | Attach from any install folder | PENDING | The game installed outside the default Steam library connects. |
-| Unlimited ammo, throwables, medkits, filters; indestructible mask | PENDING | Per-feature acceptance below. |
+| Unlimited ammo | PARTIAL | Worked in shooting-range challenges with the C++ trainer. The Rust trainer and currency isolation are unchecked. |
+| Unlimited throwables, medkits, filters; indestructible mask | PENDING | Per-feature acceptance below. |
 | Global and individual no reload | PENDING | Per-weapon and transition checks. |
 | Hellsing pressure | PENDING | See [pressure acceptance](#pressure-acceptance). |
 | God mode | PENDING | Scripted kills, suffocation, falls and transitions. |
@@ -70,9 +73,9 @@ None of these runs the game or shows how a cheat behaves in it. CI runs all of t
 
 - `just test` runs the portable tests: the profile's invariants, settings and their file faults, the input arbiter,
   the runtime against a simulated game, and the dashboard's snapshots.
-- On x86-64 Linux, `cargo test --test caves` also runs every generated hook against a stand-in game and compares
+- On x86-64 Linux, `just test` also runs every generated hook against a stand-in game and compares
   registers, flags, every XMM lane, MXCSR and memory with the game's own instructions, at the real RVAs.
 - On Windows, the tests install, toggle and restore hooks in a dummy game process, including every write fault, a
-  panic, a console close and a session end, and run `check` and `stop` against it.
+  panic, a console close and a session end; they also identify the dummy read-only and ask its trainer to stop.
 - CI's `windows` job runs the executable from the packaged zip: its version, its usage errors, `check` and `stop`
   with no game, and closing its console while it waits for the game.

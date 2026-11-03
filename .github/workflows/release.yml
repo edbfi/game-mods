@@ -108,8 +108,8 @@ jobs:
       - run: rustup toolchain install   # the version in rust-toolchain.toml
       # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
       - run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang llvm
-          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - id: check
         env:
           ARTIFACT: ${{ needs.verify.outputs.game }}-${{ needs.verify.outputs.mod }}-zip-${{ github.run_attempt }}

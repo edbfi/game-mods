@@ -71,8 +71,8 @@ jobs:
       - run: rustup toolchain install   # the version in rust-toolchain.toml
       # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
       - run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang llvm
-          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" test
       # Nightlies have no version: 0.0.0 only names the zip extracted here. The scan summary names a build by commit and run.
       - run: bash scripts/package-mod.sh "$GAME/$MOD" 0.0.0 "$RUNNER_TEMP/nightly"
@@ -103,8 +103,9 @@ jobs:
         run: |
           set -euo pipefail
           while IFS=$'\t' read -r game mod; do
-            bash scripts/verify-mod-artifact.sh "$game/$mod" 0.0.0 "$RUNNER_TEMP/nightly/$game-$mod-nightly"
-          done < <(jq -r '.[] | [.game, .mod] | @tsv' <<<"$MODS")
+            bash scripts/verify-mod-artifact.sh "$game/$mod" 0.0.0 "$RUNNER_TEMP/nightly/$game-$mod-nightly" </dev/null
+          # Windows jq ends lines with CRLF.
+          done < <(jq -r '.[] | [.game, .mod] | @tsv' <<<"$MODS" | tr -d '\r')
 
   scan:
     needs: [mods, build, verify]

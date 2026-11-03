@@ -32,8 +32,8 @@ jobs:
         with: { tool: cargo-xwin@0.23.1 }
       - name: Install clang and llvm-rc for Windows resources
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq clang llvm
-          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-18 llvm-18 lld-18
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
         with: { extra-args: "--all-files --hook-stage manual" }
   build:
@@ -47,8 +47,8 @@ jobs:
       - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
         with: { tool: "just,cargo-xwin@0.23.1" }
       - run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang llvm
-          dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: just test
@@ -56,12 +56,7 @@ jobs:
       # The zip a nightly ships, checked as package-mod.sh checks it, then handed to the windows job.
       - name: Package the trainer
         run: |
-          bash scripts/package-mod.sh metro-2033-redux/trainer 0.0.0 "$RUNNER_TEMP/trainer"
-          exe="$RUNNER_TEMP/trainer/metro-trainer/metro-trainer.exe"
-          resources=$(llvm-readobj --coff-resources "$exe")
-          for type in MANIFEST VERSIONINFO; do
-            grep -q "Type: $type " <<<"$resources" || { echo "::error::$exe has no $type resource"; exit 1; }
-          done
+          bash scripts/package-mod.sh metro-2033-redux/trainer 0.0.0
           mkdir -p candidate && cp metro-2033-redux/trainer/dist/metro-2033-redux-trainer-0.0.0.zip candidate/
           (cd candidate && sha256sum metro-2033-redux-trainer-0.0.0.zip > metro-2033-redux-trainer-0.0.0.zip.sha256)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -7,6 +7,8 @@ target := "x86_64-pc-windows-msvc"
 target_dir := env("CARGO_TARGET_DIR", "../../target")
 # Native on Windows; elsewhere cargo-xwin links against the MSVC CRT and SDK pinned by the XWIN_* variables.
 cargo_build := if os() == "windows" { "cargo build" } else { "cargo xwin build" }
+# The Windows tests share real processes and a console, so they run one at a time.
+test_args := if os() == "windows" { "-- --test-threads=1" } else { "" }
 
 # List available commands.
 default:
@@ -14,7 +16,7 @@ default:
 
 # Run the trainer's and the shared crates' tests. On Windows they include the dummy-game backend tests.
 test:
-    cargo test --locked -p metro-2033-redux-trainer -p edbfi-trainer -p edbfi-tui
+    cargo test --locked -p metro-2033-redux-trainer -p edbfi-trainer -p edbfi-tui {{test_args}}
 
 # Build build/metro-trainer.exe, version 0.0.0 unless EDBFI_VERSION says otherwise.
 build:

@@ -54,8 +54,8 @@ rest. While the trainer is connected, Ctrl+C asks before it quits.
 | Alt+3 | Unlimited flashlight |
 
 The per-weapon no-reload switches start unbound. Press **R** on any row, then the new chord: a key with any of Ctrl,
-Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. Keys name the physical key, so a binding works the same
-on AZERTY and QWERTY. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
+Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. A binding names the key Windows reports, not the
+character it types. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
 would fire while you type.
 
 Hotkeys act while the game or the trainer is in front. The game still sees every key, and an overlay such as
@@ -93,7 +93,7 @@ remain, restart the game before connecting again.
 
 Run these from this folder with [just](https://github.com/casey/just). They need the Rust toolchain that
 `rust-toolchain.toml` pins; off Windows, the build also needs [cargo-xwin](https://github.com/rust-cross/cargo-xwin)
-0.23.1 and LLVM's `clang-cl`, `llvm-rc` and `lld` on `PATH`, with the `XWIN_*` variables that
+0.23.1 and LLVM's `clang-cl`, `llvm-rc` and `lld-link` on `PATH`, with the `XWIN_*` variables that
 [CI](../../.github/workflows/ci.yml) sets.
 
 - `just test` runs the trainer's and the shared crates' tests. On x86-64 Linux they also run every generated hook
@@ -103,7 +103,7 @@ Run these from this folder with [just](https://github.com/casey/just). They need
 - `just demo` shows the dashboard against a simulated game, on any OS.
 
 With a capture of the game's unpacked `.text`,
-`EDBFI_TEXT_CAPTURE=<file> cargo test -p metro-2033-redux-trainer --test profile -- --ignored` checks that every hook
+`EDBFI_TEXT_CAPTURE=<file> cargo test --locked -p metro-2033-redux-trainer --test profile -- --ignored` checks that every hook
 site matches it exactly once. The capture is game code: keep it out of the repo.
 
 [src/profile.rs](src/profile.rs) holds the supported build's hashes and every hook site. The analyses behind them:
