@@ -55,7 +55,10 @@ type MapRemote = unsafe extern "system" fn(
 type UnmapRemote = unsafe extern "system" fn(process: HANDLE, base: *mut c_void, flags: u32) -> i32;
 
 /// Finds `name` in `kernelbase.dll`, then `kernel32.dll`, or explains that this Windows is too old.
-fn export(name: &std::ffi::CStr) -> Result<unsafe extern "system" fn() -> isize, OsError> {
+fn export(
+    name: &std::ffi::CStr,
+    call: &'static str,
+) -> Result<unsafe extern "system" fn() -> isize, OsError> {
     for module in ["kernelbase.dll", "kernel32.dll"] {
         let module = wide(module);
         // SAFETY: `module` is a NUL-terminated UTF-16 string; both modules are loaded in every process.
@@ -68,12 +71,12 @@ fn export(name: &std::ffi::CStr) -> Result<unsafe extern "system" fn() -> isize,
             return Ok(found);
         }
     }
-    Err(OsError::new("MapViewOfFileNuma2", ERROR_PROC_NOT_FOUND))
+    Err(OsError::new(call, ERROR_PROC_NOT_FOUND))
 }
 
 /// Finds `MapViewOfFileNuma2`.
 fn map_remote() -> Result<MapRemote, OsError> {
-    let found = export(c"MapViewOfFileNuma2")?;
+    let found = export(c"MapViewOfFileNuma2", "MapViewOfFileNuma2")?;
     // SAFETY: the export has this documented signature; both are `extern "system"` function pointers of the
     // same size.
     Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, MapRemote>(found) })
@@ -81,7 +84,7 @@ fn map_remote() -> Result<MapRemote, OsError> {
 
 /// Finds `UnmapViewOfFile2`, which the same Windows versions export.
 fn unmap_remote() -> Result<UnmapRemote, OsError> {
-    let found = export(c"UnmapViewOfFile2")?;
+    let found = export(c"UnmapViewOfFile2", "UnmapViewOfFile2")?;
     // SAFETY: as in `map_remote`, for `UnmapViewOfFile2`'s documented signature.
     Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, UnmapRemote>(found) })
 }

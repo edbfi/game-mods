@@ -17,7 +17,7 @@ use crate::addr::{Rva, Va};
 use crate::aob::{Pattern, Token};
 use crate::control::{ControlBit, ControlSet, DesiredMask};
 use crate::identity::Sha256Digest;
-use crate::patch::Process as _;
+use crate::patch::{Process as _, RegionState};
 use crate::pe::PeImage;
 use crate::profile::synthetic::SYNTHETIC;
 use crate::profile::{
@@ -508,4 +508,25 @@ fn discovery_finds_one_game_refuses_several_and_stops_every_trainer() {
     session.restore(VerifyRestore::Sites).unwrap();
     drop((first, second));
     assert_eq!(select(game, None), Err(SelectError::NotRunning));
+}
+
+#[test]
+fn an_abandoned_preparation_takes_its_control_word_out_of_the_game() {
+    let _serial = serial();
+    let dummy = Dummy::start();
+    let profile = profile(&dummy);
+    let candidate = Candidate::<Write>::open(dummy.pid()).unwrap();
+    let prepared = identify(candidate, &profile)
+        .unwrap()
+        .claim()
+        .unwrap()
+        .prepare()
+        .unwrap();
+    let at = prepared.controls_at();
+    assert!(at.get() >= 1 << 33, "the control word is above 8 GiB: {at}");
+    let game = WinGame::open(dummy.pid(), false).unwrap();
+    assert_eq!(game.query(at).unwrap().state, RegionState::Committed);
+    // No cave was ever published, so dropping the session unmaps the game's view.
+    drop(prepared);
+    assert_eq!(game.query(at).unwrap().state, RegionState::Free);
 }

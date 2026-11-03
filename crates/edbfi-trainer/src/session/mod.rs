@@ -675,6 +675,12 @@ fn text_check(core: &Core, text: &mut [u8]) -> TextCheck {
 }
 
 impl Session<Prepared> {
+    /// Where the control word is mapped in the game.
+    #[cfg(all(test, windows))]
+    pub(crate) fn controls_at(&self) -> Va {
+        self.state.hooks.controls.remote()
+    }
+
     /// Freezes the game and writes every site's jump, with every cheat off.
     ///
     /// Freezing is retried for about a second while a game thread is inside code about to change, or the
