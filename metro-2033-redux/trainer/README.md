@@ -1,169 +1,114 @@
-# Metro 2033 Redux INI trainer
+# Metro 2033 Redux trainer
 
-Windows x64 trainer (Windows 10 version 1703 or newer) for the Steam build of Metro 2033 Redux, from any install folder.
+A Windows x64 trainer (Windows 10 version 1703 or newer) for the Steam build of Metro 2033 Redux, from any install
+folder. It waits for the game, checks that it is the one supported build, and hooks a few of its functions in memory.
+Every cheat can be switched on and off while you play, from the game or from the trainer's dashboard. Nothing on disk
+changes: no game files, no saves and no overlay.
 
-Configure features before starting the companion executable. It waits for the
-game and applies reversible memory patches; no overlay, game-file replacement,
-or save-file editing is involved.
+**Status:** experimental. The trainer refuses any other build of the game and any code another mod has changed.
+[docs/validation.md](docs/validation.md) records which features have passed a gameplay check. Don't assume one
+has passed unless that page says so.
 
-**Status:** build-specific experimental implementation. Static analysis and
-read-only checks establish the patch locations. Gameplay validation is recorded
-separately in [docs/validation.md](docs/validation.md); do not assume a feature has
-passed a gameplay check unless that document says so.
-
-| INI option | Intended effect |
+| Cheat | What it does |
 | --- | --- |
-| `unlimited_ammo` | Preserve reserve ammunition; reloading remains necessary |
-| `unlimited_throwables` | Preserve throwing knives, hand grenades and incendiaries |
-| `unlimited_medkits` | Preserve medkits when healing |
-| `unlimited_filters` | Stop filter-time consumption |
-| `indestructible_mask` | Prevent gas-mask damage |
-| `no_reload` | Preserve loaded ammunition across supported weapons |
-| `unlimited_flashlight` | Stop flashlight battery drain |
-| `god_mode` | Enable the player's invulnerability check |
+| Unlimited ammo | Keeps reserve ammo. You still reload. |
+| Unlimited throwables | Keeps throwing knives, hand grenades and incendiaries. |
+| Unlimited medkits | Keeps medkits when you heal. |
+| Unlimited filters | Stops gas-mask filter time running down. |
+| Indestructible mask | Stops damage to the gas mask. |
+| No reload, all weapons | Keeps the loaded rounds of every weapon. Each weapon also has its own switch. |
+| God mode | Uses the player's own invulnerability check. |
+| Unlimited flashlight | Stops the battery draining, for the flashlight and night vision. |
 
-Unlimited currency remains reserved; setting it to `true` produces an error.
-The trainer preserves items you
-already have; it does not grant missing equipment, repair an already broken
-mask, or refill an exhausted filter.
+The cheats keep what you have: they don't give you missing items, mend a broken mask, refill an empty filter or
+charge a flat battery. **Keep Hellsing pressure** (on by default) holds the Hellsing's normal pressure while unlimited
+ammo or a no-reload cheat covers it; turn it off to keep pumping by hand.
 
-## Use
+## Install
 
-1. [Download](https://github.com/edbfi/game-mods#download) a release or nightly zip and unzip it. Keep
-   `metro-trainer.exe` and `metro-trainer.ini` together in their own folder.
-   Keep your original saves backed up before testing an experimental mod.
-2. Edit the INI to select the desired options under `[features]`. The master starts
-   active after installation; set `[trainer] enabled=false` to start paused.
-   All individual features in the supplied example start disabled.
-3. Run `metro-trainer.exe`, then launch the game normally through Steam. Starting
-   the trainer after the game is also supported. Keep the console open.
-4. Wait for the dashboard to show **ACTIVE** (or **PAUSED**). Its master row shows
-   your configured pause hotkey, **Alt+Space** by default.
-5. Press **Ctrl+C** in the trainer console to restore the original instructions
-   before exiting the trainer. Closing the game also discards all memory patches.
+1. [Download](https://github.com/edbfi/game-mods#download) a release or nightly zip and unzip it anywhere. It holds
+   `metro-trainer.exe`, this README and the license. Back up your saves before trying an experimental mod.
+2. Run `metro-trainer.exe` in Windows Terminal or a console window, then start the game through Steam as usual.
+   Starting the trainer after the game works too.
+3. Once the dashboard says **ATTACHED · ACTIVE**, the cheats you picked are on.
+4. Press **Q** (or Esc) to quit. The trainer puts the game's code back as it was before it exits. Closing its window,
+   signing out and shutting down restore it too, within the few seconds Windows allows. When the game closes, the
+   trainer waits for it to start again.
 
-Feature values are `true` or `false`. Keys and hotkey names are case-sensitive.
-INI edits take effect on the next trainer launch; hotkeys toggle the current
-session immediately.
+The dashboard fits windows down to 40×12 characters; smaller ones get a status line. **Up/Down** moves, **Tab**
+switches section, **Space** toggles the row, **R** sets the row's hotkey, **P** pauses every cheat and **?** shows the
+rest. While the trainer is connected, Ctrl+C asks before it quits.
 
-`[trainer] preserve_weapon_pressure=true` (the default) maintains normal Hellsing
-pressure while unlimited ammo or Hellsing no reload is active, including global
-no reload. Set it to `false` to retain manual pumping with those cheats enabled.
-This does not grant maximum overpressure or affect other weapons.
+## Hotkeys
 
-The dashboard shows selected and applied state separately;
-`GLOBAL` means covered by all-weapons no reload, and `PAUSED` retains selections.
-Use Left/Right with the console focused to page through the 24 weapon classes.
-The dashboard needs at least 72 columns and 24 rows. Smaller consoles print all
-state and bindings initially, then only changed rows; redirected output uses full
-plain state snapshots. Detailed lifecycle, toggle and timing events go to
-`metro-trainer.log` beside the executable; its path appears on the dashboard.
-`--check` and `--stop` keep plain diagnostic output.
-Do not force-close the trainer while the game is running; if that happens,
-restart the game before another trainer run. It refuses to attach to unknown
-builds or code modified by conflicting mods.
-
-`metro-trainer.exe --check` performs read-only identity and signature validation
-against an already running game, and fails if the game is not running. It does
-not activate features.
-
-`metro-trainer.exe --stop` asks the active trainer to restore its patches and
-exit. Check the log for `Original bytes restored` before starting another instance.
-
-## Keybinds and sound
-
-Edit the `[hotkeys]` section to change bindings. Defaults are:
-
-| Key | Toggle |
+| Hotkey | Cheat |
 | --- | --- |
-| Alt+Space | Master enable/pause (remembers individual selections) |
-| Alt+1 | Global no reload |
-| Alt+2 | God mode |
-| Alt+3 | Unlimited flashlight |
-| Alt+F1 | Unlimited reserve ammo |
+| Alt+F8 | Master switch: pause or resume every cheat, keeping your choices |
+| Alt+F1 | Unlimited ammo |
 | Alt+F2 | Unlimited throwables |
 | Alt+F3 | Unlimited medkits |
-| Alt+F4 | Unlimited filters |
+| Alt+F6 | Unlimited filters |
 | Alt+F5 | Indestructible mask |
+| Alt+1 | No reload, all weapons |
+| Alt+2 | God mode |
+| Alt+3 | Unlimited flashlight |
 
-Bindings accept `F1`–`F24`, `A`–`Z`, `0`–`9`, `SPACE`, `INSERT`, `DELETE`,
-`HOME`, `END`, `PAGEUP`, `PAGEDOWN`, `PAUSE`, or `NONE`. Add `CTRL`, `ALT`,
-and/or `SHIFT` with `+` or `-`, such as `CTRL+1` or `CTRL-SHIFT-F1`.
-Modifiers must match exactly. Bindings must be unique;
-`NONE` leaves an option unbound. Keys act once per press while the game or
-trainer console is focused. Choose keys that do not conflict with your game
-controls. Hotkey changes are session-only and do not rewrite the INI.
+The per-weapon no-reload switches start unbound. Press **R** on any row, then the new chord: a key with any of Ctrl,
+Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. Keys name the physical key, so a binding works the same
+on AZERTY and QWERTY. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
+would fire while you type.
 
-In Windows Terminal, shortcuts must reach the trainer's tab. A terminal host
-may intercept Alt+Space (the default master binding) or other shortcuts; changing
-the classic console's system menu cannot control that host. In classic conhost,
-the trainer temporarily removes the system menu, which also disables its Close,
-Minimize and Maximize buttons; use Ctrl+C to restore and exit. If a shortcut is
-intercepted, choose another binding in `[hotkeys]`, such as `enabled=CTRL+0`.
-Host shortcut passthrough requires physical validation in your terminal. ConPTY
-shortcuts require an async edge correlated with a console record during the same
-physical hold; taps released before polling can be missed. The foreground
-classic console supports delivered short taps after its first focus-entry batch.
+Hotkeys act while the game or the trainer is in front. The game still sees every key, and an overlay such as
+NVIDIA's or Steam's may use the same one: rebind any that clash. Each change plays a short chime, higher for on and
+lower for off; turn **Chimes** off in the dashboard to mute them.
 
-Successful changes play a quiet, short sine chime: higher for enabling, lower
-for disabling. Set `[trainer] sounds=false` to mute them. A paused trainer
-still accepts hotkeys and remembers selections. All controls are disabled
-while entry hooks remain installed. Every toggle publishes shared controls without
-suspending the game or rewriting executable code. Gameplay frame-time improvements
-remain unmeasured. The master starts active after successful installation by default;
-explicit `[trainer] enabled=false` starts paused. Per-feature defaults still apply.
+## Settings and log
 
-Individual no-reload options appear under both `[features]` and `[hotkeys]` in
-the example INI. They start disabled and unbound. For example:
+The trainer writes its settings on first run to `%APPDATA%\edbfi\metro-2033-redux\trainer\settings.toml` and saves
+every change you make in the dashboard. You can edit the file while the trainer is closed. The trainer checks every
+key, and it never discards a file it can't read: it shows what's wrong and offers to reload or reset it. While the
+trainer runs, it keeps an edit made by another program and tells you. **Start paused** starts the master switch
+paused; pause itself is never saved.
 
-```ini
-[features]
-no_reload=false
-no_reload_revolver=true
-no_reload_ak74=false
+The log is `%LOCALAPPDATA%\edbfi\metro-2033-redux\trainer\trainer.log`. `metro-trainer --help` prints both paths.
 
-[hotkeys]
-no_reload_revolver=ALT+4
-no_reload_ak74=ALT+5
+## Command line
+
+```text
+metro-trainer [--pid N] [--plain] [--verify-restore] [--colour MODE] [--glyphs MODE]
+metro-trainer check [--pid N]
+metro-trainer stop [--pid N]
 ```
 
-Use those entries within your existing sections; do not add duplicate sections.
-Global `no_reload=true` overrides individual selections. Turning global no
-reload off returns to the individual selections you made. The option names use
-the game's internal weapon classes (`ak74`, `revolver`, `uboynicheg`, `duplet`,
-`tihar`, `helsing`, etc.). Some classes exist in the engine but may not be
-available in your campaign. The setting does not grant a weapon or load an
-empty magazine; load ammunition once before enabling it. Air-pressure and
-weapon-charge mechanics are separate from loaded ammunition. Hellsing pressure
-is preserved separately when the pressure option above is enabled.
+- `check` tests the running game without changing it: its build, its code and every hook site.
+- `stop` asks the trainer connected to each running game to restore the game's code and exit.
+- `--pid N` picks one game when several run. `--plain` prints lines instead of the dashboard. `--verify-restore` also
+  checks the game's whole code section after restoring it. `--colour` (`auto`, `16`, `mono`, `truecolor`) and
+  `--glyphs` (`auto`, `ascii`) override the terminal detection.
 
-Unlimited flashlight also prevents night-vision drain because both use the same
-battery. Recharge an already empty or dim battery once. God mode uses the
-player's normal damage protection; scripted deaths and other exceptional damage
-paths still require gameplay validation.
+`metro-trainer --help` lists the exit codes. If the trainer is killed while the game runs, or reports that hooks may
+remain, restart the game before connecting again.
 
 ## Build and test
 
-Run these from this folder with [just](https://github.com/casey/just); `just` lists them.
+Run these from this folder with [just](https://github.com/casey/just). They need the Rust toolchain that
+`rust-toolchain.toml` pins; off Windows, the build also needs [cargo-xwin](https://github.com/rust-cross/cargo-xwin)
+0.23.1 and LLVM's `clang-cl`, `llvm-rc` and `lld` on `PATH`, with the `XWIN_*` variables that
+[CI](../../.github/workflows/ci.yml) sets.
 
-- `just test` builds and runs the portable core and patch-profile tests, then
-  executes the generated no-reload and pressure hooks against synthetic objects (x86-64 Linux/WSL).
-  It needs a C++17 compiler; override it with `CXX`, `CPPFLAGS` and `CXXFLAGS`.
-- `just build` cross-builds `build/metro-trainer.exe` with Zig **0.17.0** from
-  [the official distribution](https://ziglang.org/download/) (verify the archive
-  checksum). Put it on `PATH` or set `ZIG_BIN`. No game files are needed.
-- `just package 0.1.0` writes `dist/metro-2033-redux-trainer-0.1.0.zip` with the
-  executable, the example INI, this README and the license.
-- `just test-windows` checks the Windows memory backend, console and trainer
-  attachment against disposable processes. It needs WSL with Windows interop;
-  the attachment checks refuse to run while a real `metro.exe` is running.
+- `just test` runs the trainer's and the shared crates' tests. On x86-64 Linux they also run every generated hook
+  against a stand-in game; on Windows they also install and restore hooks in a dummy game process.
+- `just build` builds `build/metro-trainer.exe`.
+- `just package 0.1.0` builds version 0.1.0 and writes `dist/metro-2033-redux-trainer-0.1.0.zip`.
+- `just demo` shows the dashboard against a simulated game, on any OS.
 
-See [design and lifecycle](docs/design.md), [ammunition analysis](docs/ammo-analysis.md),
-[consumable analysis](docs/consumables-analysis.md),
-[gas-mask analysis](docs/gasmask-analysis.md), [no-reload analysis](docs/no-reload-analysis.md),
-[survival analysis](docs/survival-analysis.md) and [validation](docs/validation.md).
-Supported disk and unpacked-code hashes and instruction profiles are in
-`include/metro/build_profile.hpp`. A new game update requires renewed analysis;
-changing only the hash is insufficient.
+With a capture of the game's unpacked `.text`,
+`EDBFI_TEXT_CAPTURE=<file> cargo test -p metro-2033-redux-trainer --test profile -- --ignored` checks that every hook
+site matches it exactly once. The capture is game code: keep it out of the repo.
+
+[src/profile.rs](src/profile.rs) holds the supported build's hashes and every hook site. The analyses behind them:
+[ammo](docs/ammo-analysis.md), [consumables](docs/consumables-analysis.md), [gas mask](docs/gasmask-analysis.md),
+[no reload](docs/no-reload-analysis.md) and [survival](docs/survival-analysis.md). A game update needs new
+analysis, not just a new hash.
 
 Game binaries, captures and extracted assets never go in the repo or a release.

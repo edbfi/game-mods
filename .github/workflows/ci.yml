@@ -40,33 +40,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: { contents: read }
+    env: { EDBFI_COMMIT: "${{ github.sha }}" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
         with: { tool: "just,cargo-xwin@0.23.1" }
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with: { version: 0.17.0 }
       - run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang llvm
           dirname "$(readlink -f "$(command -v clang)")" >> "$GITHUB_PATH"
-      - run: just test
-      - run: just build
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - name: Cross-build the Rust trainer
-        env: { EDBFI_COMMIT: "${{ github.sha }}" }
+      - run: just test
+      - run: just build
+      # The zip a nightly ships, checked as package-mod.sh checks it, then handed to the windows job.
+      - name: Package the trainer
         run: |
-          cargo xwin build --locked --release --target x86_64-pc-windows-msvc -p metro-2033-redux-trainer
-          exe=target/x86_64-pc-windows-msvc/release/metro-trainer.exe
+          bash scripts/package-mod.sh metro-2033-redux/trainer 0.0.0 "$RUNNER_TEMP/trainer"
+          exe="$RUNNER_TEMP/trainer/metro-trainer/metro-trainer.exe"
           resources=$(llvm-readobj --coff-resources "$exe")
           for type in MANIFEST VERSIONINFO; do
             grep -q "Type: $type " <<<"$resources" || { echo "::error::$exe has no $type resource"; exit 1; }
           done
-          mkdir -p candidate && cp "$exe" candidate/
-          (cd candidate && sha256sum metro-trainer.exe > metro-trainer.exe.sha256)
+          mkdir -p candidate && cp metro-2033-redux/trainer/dist/metro-2033-redux-trainer-0.0.0.zip candidate/
+          (cd candidate && sha256sum metro-2033-redux-trainer-0.0.0.zip > metro-2033-redux-trainer-0.0.0.zip.sha256)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: rust-trainer-candidate, path: candidate/, retention-days: 7, if-no-files-found: error }
+        with: { name: trainer-zip, path: candidate/, retention-days: 7, if-no-files-found: error }
   windows:
     needs: build
     runs-on: windows-latest
@@ -80,22 +79,15 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo test --locked --workspace -- --test-threads=1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with: { name: rust-trainer-candidate, path: candidate }
-      - name: Smoke-test the exact cross-built executable
+        with: { name: trainer-zip, path: candidate }
+      - name: Verify the packaged trainer
         working-directory: candidate
         run: |
-          sha256sum -c metro-trainer.exe.sha256
-          version=$(./metro-trainer.exe --version)
-          [ "$version" = "metro-trainer 0.0.0" ] || { echo "::error::unexpected --version output: $version"; exit 1; }
-          status=0; ./metro-trainer.exe --bogus || status=$?
-          [ "$status" -eq 2 ] || { echo "::error::an unknown option exited $status, expected 2"; exit 1; }
-          # No game runs here: check and stop find nothing to act on.
-          for command in check stop; do
-            status=0; ./metro-trainer.exe "$command" || status=$?
-            [ "$status" -eq 3 ] || { echo "::error::$command without a game exited $status, expected 3"; exit 1; }
-          done
-      - name: Run the executable tests against the exact cross-built executable
-        env: { EDBFI_TRAINER_EXE: "${{ github.workspace }}/candidate/metro-trainer.exe" }
+          sha256sum -c metro-2033-redux-trainer-0.0.0.zip.sha256
+          python3 -m zipfile -e metro-2033-redux-trainer-0.0.0.zip files
+          bash ../scripts/verify-mod-artifact.sh metro-2033-redux/trainer 0.0.0 files
+      - name: Run the executable tests against the packaged executable
+        env: { EDBFI_TRAINER_EXE: "${{ github.workspace }}/candidate/files/metro-trainer/metro-trainer.exe" }
         run: cargo test --locked -p metro-2033-redux-trainer --test cli --test console_close -- --test-threads=1
   deny:
     runs-on: ubuntu-latest

@@ -41,7 +41,7 @@ other paths at `0x224504` and `0x224538`. Thus the patch uses the existing
 invulnerability decision rather than a global health-store patch.
 
 The branch's complete unique 24-byte context begins at `0x1e3710` and is
-recorded in `include/metro/survival_patches.hpp`. This establishes the ordinary
+recorded in [`src/profile.rs`](../src/profile.rs). This establishes the ordinary
 damage path statically. Scripted kills, instant-death volumes, suffocation,
 cutscenes, regeneration behavior, and transitions remain gameplay-test unknowns.
 The patch does not restore an already dead player or promise a constant health
@@ -79,8 +79,6 @@ night vision, save/load, normal drain after disabling, and NPC behavior.
 
 ## Integration
 
-`append_survival_patches(std::vector<CodePatchDefinition>&)` appends three
-patches for `god_mode` and `unlimited_flashlight`. Include its header after
-`CodePatchDefinition` is declared, outside any namespace, and invoke it while
-assembling the profile. The two flashlight sites now share one published control bit.
-All context bytes and originals must pass existing verification before enabling.
+[`src/profile.rs`](../src/profile.rs) declares three sites for `god_mode` and
+`unlimited_flashlight`. The two flashlight sites share one control bit. Every
+context and original byte must pass the trainer's checks before it hooks them.

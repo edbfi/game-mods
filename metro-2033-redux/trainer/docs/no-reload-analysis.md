@@ -93,18 +93,17 @@ threads executing displaced calls cannot return into freed memory.
 
 ## Verification and limits
 
-Reproducible native x64 verification:
+Reproducible native verification, on x86-64 Linux:
 
 ```sh
-c++ -std=c++20 -O2 -Wall -Wextra -Werror -I include tools/verify-no-reload.cpp -o /tmp/verify-no-reload
-/tmp/verify-no-reload
+cargo test --locked -p metro-2033-redux-trainer --test caves
 ```
 
 This executes every generated cave against synthetic module/player/weapon
-memory and an actual indirect setter stub. It checks selected, ordinary, and
-NPC paths, every named class and alias, plus null player/configuration, unknown
-class, and out-of-range cave
-rejection for the shared hook. It does not write to the running game.
+memory and an actual indirect setter stub, and compares each with the game's
+own instructions. It checks selected, ordinary, and NPC paths, every named
+class and alias, a missing owner, manager, player or configuration, unknown
+classes, and that the allocation reaches every site and no further. It does not write to the running game.
 
 Gameplay validation remains necessary for weapon-specific animations, pneumatic
 pressure/charge, military-grade ammunition, zero initial loaded count, and level
