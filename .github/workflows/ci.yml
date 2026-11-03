@@ -89,6 +89,14 @@ jobs:
           [ "$version" = "metro-trainer 0.0.0" ] || { echo "::error::unexpected --version output: $version"; exit 1; }
           status=0; ./metro-trainer.exe --bogus || status=$?
           [ "$status" -eq 2 ] || { echo "::error::an unknown option exited $status, expected 2"; exit 1; }
+          # No game runs here: check and stop find nothing to act on.
+          for command in check stop; do
+            status=0; ./metro-trainer.exe "$command" || status=$?
+            [ "$status" -eq 3 ] || { echo "::error::$command without a game exited $status, expected 3"; exit 1; }
+          done
+      - name: Run the executable tests against the exact cross-built executable
+        env: { EDBFI_TRAINER_EXE: "${{ github.workspace }}/candidate/metro-trainer.exe" }
+        run: cargo test --locked -p metro-2033-redux-trainer --test cli --test console_close -- --test-threads=1
   deny:
     runs-on: ubuntu-latest
     timeout-minutes: 10

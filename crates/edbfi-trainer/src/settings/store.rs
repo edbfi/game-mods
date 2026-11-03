@@ -23,7 +23,7 @@ use crate::recovery::RecoveryAction;
 use super::{MAX_BYTES, Parsed, Settings, SettingsError};
 
 /// The settings file's name.
-const FILE_NAME: &str = "settings.toml";
+pub(crate) const FILE_NAME: &str = "settings.toml";
 const LOCK_NAME: &str = "settings.lock";
 
 /// How many times an operation retries when the file appears or disappears under it.

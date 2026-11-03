@@ -47,16 +47,13 @@ impl Outcome {
             Self::Ran(Done::Finished(_)) => 0,
             Self::Ran(Done::HooksLeft { .. }) => 6,
             Self::Ran(Done::Settings(_)) => 2,
-            Self::Ran(Done::Failed(failure)) => match failure.recovery {
-                RecoveryAction::StartGame => 3,
-                RecoveryAction::UnsupportedBuild => 4,
-                RecoveryAction::ModifiedGameCode => 5,
-                RecoveryAction::CloseOtherTrainer => 7,
-                RecoveryAction::CloseDuplicates => 8,
-                RecoveryAction::RestartGame if failure.left_hooks() => 6,
-                RecoveryAction::EditSettings | RecoveryAction::ResetSettings => 2,
-                _ => 1,
-            },
+            Self::Ran(Done::Failed(failure)) => {
+                if failure.left_hooks() && matches!(failure.recovery, RecoveryAction::RestartGame) {
+                    6
+                } else {
+                    failure_code(failure.recovery)
+                }
+            }
             Self::NotStarted(_) => 1,
             Self::Faulted {
                 done: Done::HooksLeft { .. },
@@ -129,6 +126,19 @@ impl Outcome {
             ));
         }
         lines
+    }
+}
+
+/// The exit code of a failure whose next step is `recovery`, with no hooks left in the game.
+pub(crate) const fn failure_code(recovery: RecoveryAction) -> u8 {
+    match recovery {
+        RecoveryAction::StartGame => 3,
+        RecoveryAction::UnsupportedBuild => 4,
+        RecoveryAction::ModifiedGameCode => 5,
+        RecoveryAction::CloseOtherTrainer => 7,
+        RecoveryAction::CloseDuplicates => 8,
+        RecoveryAction::EditSettings | RecoveryAction::ResetSettings => 2,
+        _ => 1,
     }
 }
 

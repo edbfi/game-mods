@@ -16,17 +16,11 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SendMessageW, WM_ENDSESSION, WM_QUERYENDSESSION,
 };
 
-use crate::addr::{Rva, Va};
-use crate::aob::{Pattern, Token};
+use crate::addr::Va;
 use crate::control::{ControlBit, ControlSet, DesiredMask};
-use crate::identity::Sha256Digest;
 use crate::patch::{Process as _, RegionState};
-use crate::pe::PeImage;
+use crate::profile::ValidProfile;
 use crate::profile::synthetic::SYNTHETIC;
-use crate::profile::{
-    Class, Context, Game, GateEffect, HookKind, Identity, PlayerLayout, Profile, ReloadKind, Site,
-    SiteId, TextSection, ValidProfile,
-};
 use crate::session::{
     Candidate, Installed, ReadOnly, SelectError, Session, StopOutcome, TextCheck, TrainerError,
     VerifyRestore, Write, identify, request_stop, select,
@@ -68,7 +62,8 @@ struct Dummy {
     child: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
-    layout: Vec<(String, u32)>,
+    /// Its first line of output.
+    layout: String,
 }
 
 impl Dummy {
@@ -80,19 +75,8 @@ impl Dummy {
             .unwrap();
         let input = child.stdin.take().unwrap();
         let mut output = BufReader::new(child.stdout.take().unwrap());
-        let mut line = String::new();
-        output.read_line(&mut line).unwrap();
-        let layout = line
-            .trim()
-            .strip_prefix("layout ")
-            .unwrap()
-            .split(' ')
-            .map(|pair| {
-                let (key, value) = pair.split_once('=').unwrap();
-                let value = u32::from_str_radix(value.trim_start_matches("0x"), 16).unwrap();
-                (key.to_owned(), value)
-            })
-            .collect();
+        let mut layout = String::new();
+        output.read_line(&mut layout).unwrap();
         Self {
             child,
             input,
@@ -103,10 +87,6 @@ impl Dummy {
 
     fn pid(&self) -> u32 {
         self.child.id()
-    }
-
-    fn rva(&self, key: &str) -> Rva {
-        Rva::new(self.layout.iter().find(|(k, _)| k == key).unwrap().1)
     }
 
     fn ask(&mut self, command: &str) -> String {
@@ -125,125 +105,10 @@ impl Drop for Dummy {
     }
 }
 
-fn leak<T>(items: Vec<T>) -> &'static [T] {
-    Box::leak(items.into_boxed_slice())
-}
-
-/// A site at the first match of `marker` in `text`, `skip` bytes in, `len` long, with the 16 bytes from the
-/// marker as its signature.
-fn site(
-    text: &[u8],
-    text_rva: u32,
-    marker: &[u8],
-    skip: usize,
-    len: usize,
-    id: u8,
-    kind: HookKind,
-) -> Site {
-    let at = text
-        .windows(marker.len())
-        .position(|window| window == marker)
-        .unwrap_or_else(|| panic!("marker {marker:02X?} not in the dummy's code"));
-    let tokens = leak(
-        text[at..at + 16]
-            .iter()
-            .map(|&byte| Token::Byte(byte))
-            .collect(),
-    );
-    Site {
-        id: SiteId(id),
-        rva: Rva::new(text_rva + (at + skip) as u32),
-        original: leak(text[at + skip..at + skip + len].to_vec()),
-        context: Context {
-            rva: Rva::new(text_rva + at as u32),
-            aob: Pattern::new(tokens).unwrap(),
-        },
-        kind,
-    }
-}
-
-/// A profile of the dummy: its file and code fingerprints, its three sites, and its globals.
+/// The dummy's profile.
 fn profile(dummy: &Dummy) -> ValidProfile<'static> {
     let file = std::fs::read(dummy_path()).unwrap();
-    let pe = PeImage::parse(&file).unwrap();
-    let section = pe.section(".text").unwrap();
-    let text = section.loaded(&file).unwrap();
-    let base = section.rva().get();
-    let alpha = site(
-        &text,
-        base,
-        &[
-            0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83, 0xEC, 0x20, 0x31, 0xC0, 0xB9, 0x01,
-            0x00, 0xED,
-        ],
-        0,
-        5,
-        1,
-        HookKind::Gate {
-            bit: ControlBit::new(0),
-            effect: GateEffect::ReturnTrue,
-        },
-    );
-    let drain_marker = [0xB9, 0x02, 0x00, 0xED, 0x5E, 0xE8];
-    let at = text.windows(6).position(|w| w == drain_marker).unwrap();
-    let rel = i32::from_le_bytes(text[at + 6..at + 10].try_into().unwrap());
-    let callee = Rva::new((i64::from(base) + (at + 10) as i64 + i64::from(rel)) as u32);
-    let drain = site(
-        &text,
-        base,
-        &drain_marker,
-        5,
-        5,
-        2,
-        HookKind::Gate {
-            bit: ControlBit::new(1),
-            effect: GateEffect::SkipBatteryCall { callee },
-        },
-    );
-    let fire = site(
-        &text,
-        base,
-        &[
-            0x8D, 0x50, 0xFF, 0xFF, 0x93, 0x60, 0x13, 0x00, 0x00, 0xB8, 0x03, 0x00, 0xED, 0x5E,
-        ],
-        0,
-        9,
-        3,
-        HookKind::NoReload(ReloadKind::DirectCallbackRcx),
-    );
-    let classes = leak(vec![
-        Class {
-            interned_ids: leak(vec![dummy.rva("red")]),
-            ..SYNTHETIC.classes[0]
-        },
-        Class {
-            interned_ids: leak(vec![dummy.rva("blue"), dummy.rva("blue_alias")]),
-            ..SYNTHETIC.classes[1]
-        },
-    ]);
-    let profile: &'static Profile = Box::leak(Box::new(Profile {
-        game: Game {
-            name: "Dummy Game",
-            exe: "dummy_game.exe",
-        },
-        identity: Identity {
-            disk_sha256: Sha256Digest::of(&file),
-            text: TextSection {
-                rva: section.rva(),
-                size: section.virtual_size(),
-                sha256: Sha256Digest::of(&text),
-            },
-        },
-        player: PlayerLayout {
-            manager: dummy.rva("manager"),
-            ..SYNTHETIC.player
-        },
-        classes,
-        sites: leak(vec![alpha, drain, fire]),
-        derived: &[],
-        ..SYNTHETIC
-    }));
-    ValidProfile::new(profile).unwrap()
+    ValidProfile::new(crate::profile::dummy::profile(&file, &dummy.layout).unwrap()).unwrap()
 }
 
 fn mask(bits: &[u8]) -> DesiredMask {

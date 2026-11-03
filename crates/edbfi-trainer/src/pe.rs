@@ -53,7 +53,7 @@ impl Section {
     }
 
     /// The section's bytes as the loader maps them: its raw data, then zeros up to its loaded size.
-    #[cfg(all(test, windows))]
+    #[cfg(any(test, feature = "simulate"))]
     pub(crate) fn loaded(&self, file: &[u8]) -> Option<Vec<u8>> {
         let raw = self.raw_size.min(self.virtual_size) as usize;
         let start = self.raw_offset as usize;
