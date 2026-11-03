@@ -57,6 +57,13 @@ impl Output {
         self.0.arm();
     }
 
+    /// Whether the dashboard is still on the alternate screen: `false` once a panic on any thread left it, so
+    /// nothing more may be drawn.
+    #[must_use]
+    pub fn armed(&self) -> bool {
+        self.0.armed()
+    }
+
     /// The dashboard is leaving the alternate screen itself. Returns whether it is still on it: `false` once
     /// a panic already left it and turned terminal processing back off, so no escape may be written.
     pub fn disarm(&self) -> bool {

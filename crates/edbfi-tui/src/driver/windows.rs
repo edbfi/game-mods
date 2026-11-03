@@ -153,6 +153,11 @@ impl Host for Win {
     }
 
     fn draw(&mut self, app: &App<'_>) -> io::Result<()> {
+        // A panic on another thread may have left the screen and turned terminal processing off: drawing
+        // would print escapes as text, so the driver switches to plain lines instead.
+        if !self.output.as_ref().is_some_and(Output::armed) {
+            return Err(io::Error::other("a panic left the dashboard's screen"));
+        }
         let terminal = self
             .terminal
             .as_mut()

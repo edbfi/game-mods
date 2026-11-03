@@ -295,6 +295,11 @@ pub(crate) fn disarm_screen() -> bool {
     armed
 }
 
+/// Whether the screen is still armed: `false` once a panic on any thread reset it.
+pub(crate) fn screen_armed() -> bool {
+    SCREEN.load(Ordering::SeqCst) != 0
+}
+
 /// Leaves the alternate screen and restores the output mode, if armed, once: the arming is used up, so a
 /// later panic or the normal teardown never writes escapes to a console whose terminal processing is off.
 /// Safe from a panic hook: no allocation, lock or formatting.

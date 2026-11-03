@@ -116,6 +116,11 @@ impl Screen {
         bridge::arm_screen(self.raw(), self.mode);
     }
 
+    /// Whether a panic has not yet reset the screen since it was armed.
+    pub(crate) fn armed(&self) -> bool {
+        bridge::screen_armed()
+    }
+
     /// Stops that; returns whether it was still armed, `false` once a panic already reset the screen.
     pub(crate) fn disarm(&self) -> bool {
         bridge::disarm_screen()

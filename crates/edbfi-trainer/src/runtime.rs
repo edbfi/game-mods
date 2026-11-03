@@ -812,10 +812,12 @@ impl Runtime {
                     || failure.session.stop_requested()
                     || matches!(error, TrainerError::Stopped)
                 {
-                    self.record(Event::info(
-                        EntryKind::Session,
-                        "asked to stop while the hooks were being written",
-                    ));
+                    let why = if interrupted {
+                        "shutting down while the hooks were being written"
+                    } else {
+                        "asked to stop while the hooks were being written"
+                    };
+                    self.record(Event::info(EntryKind::Session, why));
                     self.quitting = true;
                     self.forced = true;
                 }
@@ -846,7 +848,6 @@ impl Runtime {
         }
     }
 
-    /// Restores a failed install's leftovers, then shows `error`, or exits if quitting.
     /// After a restore that put every site back: if the whole-code check found other changes, shows that
     /// failure (and ends the run if quitting) and returns `true`. A mismatch is never reported as restored.
     fn differs(&mut self, text: TextCheck) -> bool {
@@ -869,6 +870,7 @@ impl Runtime {
         true
     }
 
+    /// Restores a failed install's leftovers, then shows `error`, or exits if quitting.
     fn recover(&mut self, session: Session<Recovery>, error: &TrainerError) {
         match session.restore(self.verify()) {
             Ok(detached) => {
