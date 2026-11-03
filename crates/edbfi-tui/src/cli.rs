@@ -20,6 +20,7 @@ use std::io::{self, Write as _};
 
 use edbfi_trainer::location::{LocationError, Locations};
 use edbfi_trainer::profile::{HookKind, Profile, Site, SiteId, Toggle};
+use edbfi_trainer::recovery::RecoveryAction;
 use edbfi_trainer::session::{IdentifyError, SiteStatus, StopOutcome, VerifyRestore};
 
 use crate::outcome::failure_code;
@@ -372,6 +373,7 @@ Usage:
 With no command, the trainer waits for the game, connects and shows its dashboard. Quitting puts the
 game's code back as it was.
   check    Check the running game without changing it: its build, its code and every hook site.
+           A game another trainer is connected to is not checked.
   stop     Ask the trainer connected to each running game to put it back and exit.
 
 Options:
@@ -504,6 +506,21 @@ pub fn check_report(profile: &Profile, pid: u32, result: Result<(), &IdentifyErr
     }
 }
 
+/// The `check` report for process `pid`, which another trainer owns: its code holds that trainer's hooks,
+/// so identifying it would only report them.
+#[must_use]
+pub fn connected_report(pid: u32) -> Report {
+    Report::failed(
+        vec![
+            format!(
+                "Process {pid}: a trainer is connected to it, so the game's code holds that trainer's hooks."
+            ),
+            "Stop that trainer first, then check again.".to_owned(),
+        ],
+        failure_code(RecoveryAction::CloseOtherTrainer),
+    )
+}
+
 /// The features the `failed` sites block, by group, or that every feature is ready.
 fn features(profile: &Profile, failed: &[SiteId]) -> Vec<String> {
     let sites: Vec<&Site> = profile
@@ -593,7 +610,7 @@ pub fn stop_report(game: &str, results: &[(u32, StopOutcome)]) -> Report {
     let code = if failed > 0 {
         lines.push(format!(
             "{failed} of {} requests failed; {requested} sent.",
-            results.len()
+            requested + failed
         ));
         1
     } else if requested == 0 {

@@ -6,7 +6,7 @@
 //! pseudoconsole is what closing the tab does, and sends the trainer the same close event a console window's
 //! close button does. Its output is a console, so the trainer draws its dashboard. `cargo test` without
 //! target filters builds the `dummy_game` and `dummy_trainer` examples these tests start;
-//! `EDBFI_TRAINER_EXE` points them at another build of `metro-trainer`.
+//! `EDBFI_TRAINER_EXE` points the waiting trainer's test at another build of `metro-trainer`.
 #![cfg(windows)]
 #![expect(
     clippy::unwrap_used,
@@ -435,6 +435,17 @@ fn closing_a_connected_trainer_puts_the_game_back_first() {
             .iter()
             .all(|status| *status != SiteStatus::Verified),
         "every site is hooked"
+    );
+    // A check from another console sees the connected trainer, not modified game code.
+    let check = Command::new(example("dummy_trainer"))
+        .args(["check", "--pid", &game.child.id().to_string()])
+        .envs(env.iter().map(|(name, value)| (name, value)))
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(7), "{check:?}");
+    assert!(
+        String::from_utf8_lossy(&check.stdout).contains("a trainer is connected"),
+        "{check:?}"
     );
 
     trainer.close();

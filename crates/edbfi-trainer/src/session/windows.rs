@@ -122,6 +122,16 @@ impl Candidate<Write> {
     }
 }
 
+/// Whether another trainer owns process `pid`, so its code may hold that trainer's hooks. Creates nothing
+/// and never opens the game.
+///
+/// # Errors
+///
+/// The [`OsError`] if the trainer's owner object cannot be looked up.
+pub fn trainer_connected(profile: &Profile, pid: u32) -> Result<bool, OsError> {
+    owner::owned_by_trainer(profile.slug, pid)
+}
+
 /// Asks the trainer of each running game, or only of `pid`, to restore and exit. The games themselves are
 /// never opened.
 ///

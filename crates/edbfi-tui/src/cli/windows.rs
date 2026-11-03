@@ -5,7 +5,7 @@
 use edbfi_trainer::profile::{Profile, ValidProfile};
 use edbfi_trainer::session::{self, Candidate, ReadOnly, SelectError};
 
-use super::{Report, Run, Trainer, check_report, sentence, stop_report};
+use super::{Report, Run, Trainer, check_report, connected_report, sentence, stop_report};
 use crate::driver::windows::{self as driver, Options};
 use crate::outcome::failure_code;
 use crate::view::recovery_text;
@@ -22,8 +22,8 @@ pub(super) fn run(trainer: Trainer, run: &Run) -> u8 {
     driver::run(trainer.profile, &header, options).exit_code()
 }
 
-/// Identifies the one running game, or `pid`, through a handle that can only read it. Never waits for the
-/// game to unpack its code.
+/// Identifies the one running game, or `pid`, through a handle that can only read it, unless another trainer
+/// is connected to it. Never waits for the game to unpack its code.
 pub(super) fn check(profile: &'static Profile, pid: Option<u32>) -> Report {
     let valid = match ValidProfile::new(profile) {
         Ok(valid) => valid,
@@ -35,6 +35,18 @@ pub(super) fn check(profile: &'static Profile, pid: Option<u32>) -> Report {
         Ok(pid) => pid,
         Err(error) => return selection(&error),
     };
+    match session::trainer_connected(profile, pid) {
+        Ok(false) => {}
+        Ok(true) => return connected_report(pid),
+        Err(error) => {
+            return Report::failed(
+                vec![format!(
+                    "Cannot tell whether a trainer is connected to process {pid}: {error}"
+                )],
+                1,
+            );
+        }
+    }
     let candidate = match Candidate::<ReadOnly>::open(pid) {
         Ok(candidate) => candidate,
         Err(error) => {

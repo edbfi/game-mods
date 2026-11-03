@@ -16,7 +16,8 @@
 //!   write the cave block is given up for good: from then on a game thread may run it, so it stays until the
 //!   game exits.
 //! - [`Session::publish`] stores a mask in the control word. It never freezes the game or touches code.
-//! - [`Session::restore`] publishes zero, then freezes the game and puts every site back.
+//! - [`Session::restore`] publishes zero, then freezes the game and puts every site back. The detached session
+//!   keeps the game's ownership and the control word until it drops, so a closing window waits until then.
 //! - A failed install or restore leaves a [`Recovery`] session holding whatever the game may still have; it
 //!   publishes nothing and can only try to restore again.
 //! - [`Session::exited`] ends a session whose game has exited, without touching the game.
@@ -37,7 +38,7 @@ mod windows;
 pub use identify::{IdentifyError, SiteCheck, SiteStatus};
 pub use prepare::PrepareError;
 #[cfg(windows)]
-pub use windows::{SelectError, find, request_stop, select};
+pub use windows::{SelectError, find, request_stop, select, trainer_connected};
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -224,7 +225,8 @@ pub struct Installed {
     revision: u64,
     published: DesiredMask,
 }
-/// Every site is restored and verified.
+/// Every site is restored and verified. Until the session drops it still owns the game and holds the
+/// shutdown bridge's one lease, so no other session in this process can prepare.
 pub struct Detached {
     _owner: Box<dyn Owner>,
     /// Kept until the session drops: dropping its control word tells a waiting close notice that

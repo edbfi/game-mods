@@ -9,12 +9,14 @@
 use std::os::windows::io::{AsHandle as _, AsRawHandle as _, BorrowedHandle, OwnedHandle};
 
 use windows_sys::Win32::Foundation::{
-    ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, FALSE, TRUE, WAIT_OBJECT_0,
+    ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, FALSE, TRUE, WAIT_OBJECT_0,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateEventW, CreateMutexW, EVENT_MODIFY_STATE, OpenEventW, SetEvent, WaitForSingleObject,
+    CreateEventW, CreateMutexW, EVENT_MODIFY_STATE, OpenEventW, OpenMutexW,
+    SYNCHRONIZATION_SYNCHRONIZE, SetEvent, WaitForSingleObject,
 };
 
+use crate::patch::OsError;
 use crate::profile::ModSlug;
 use crate::session::{ClaimError, Owner, StopOutcome};
 
@@ -81,6 +83,24 @@ pub(crate) fn claim(slug: ModSlug, pid: u32) -> Result<WinOwner, ClaimError> {
         _mutex: mutex,
         stop,
     })
+}
+
+/// Whether a trainer owns process `pid`: its owner mutex exists. Opens the mutex only to look; creates
+/// nothing.
+pub(crate) fn owned_by_trainer(slug: ModSlug, pid: u32) -> Result<bool, OsError> {
+    let name = wide(&owner_name(slug, pid));
+    // SAFETY: `name` is a NUL-terminated UTF-16 name.
+    let raw = unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, FALSE, name.as_ptr()) };
+    if raw.is_null() {
+        return match last_code() {
+            ERROR_FILE_NOT_FOUND => Ok(false),
+            // It exists, but belongs to a trainer this one may not open, such as an elevated one.
+            ERROR_ACCESS_DENIED => Ok(true),
+            code => Err(OsError::new("OpenMutexW", code)),
+        };
+    }
+    drop(owned(raw, "OpenMutexW")?);
+    Ok(true)
 }
 
 /// Sets the stop event of the trainer owning process `pid`, without opening the game or creating anything.

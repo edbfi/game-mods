@@ -470,4 +470,26 @@ fn stop_counts_requests_and_failures() {
         partial.lines.last().unwrap(),
         "1 of 2 requests failed; 1 sent."
     );
+
+    // A game without a trainer is not a request.
+    let mixed = stop_report(
+        "Synthetic Game",
+        &[
+            (5, StopOutcome::Requested),
+            (6, StopOutcome::NoTrainer),
+            (7, StopOutcome::Failed(OsError::new("SetEvent", 5))),
+        ],
+    );
+    assert_eq!(mixed.code, 1);
+    assert_eq!(
+        mixed.lines.last().unwrap(),
+        "1 of 2 requests failed; 1 sent."
+    );
+}
+
+#[test]
+fn a_game_another_trainer_is_connected_to_is_not_checked() {
+    let report = connected_report(42);
+    assert_eq!(report.code, 7);
+    assert!(report.lines[0].starts_with("Process 42: a trainer is connected"));
 }
