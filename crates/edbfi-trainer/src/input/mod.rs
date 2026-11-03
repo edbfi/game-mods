@@ -2,9 +2,15 @@
 //! What the user did, as the dashboard receives it.
 //!
 //! The input layer turns key events into [`Command`]s: a bound chord that fired, a key pressed in the trainer's
-//! own console, or an interrupt. Deciding what a console key means is the dashboard's job, because it depends on
-//! what is on screen.
+//! own console, or an interrupt. [`arbiter`] decides which events act; on Windows, `platform` reads them.
+//! Deciding what a console key means is the dashboard's job, because it depends on what is on screen.
 #![forbid(unsafe_code)]
+
+pub mod arbiter;
+#[cfg(windows)]
+pub mod platform;
+
+pub use arbiter::{Arbiter, Batch, ConsoleFocus, Epoch, Flush, KeyRecord, Probe, Record};
 
 use crate::chord::{Chord, Key, Modifiers};
 use crate::settings::Target;

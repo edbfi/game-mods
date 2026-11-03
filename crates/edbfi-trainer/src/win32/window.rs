@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The hidden top-level window that hears about logoff and shutdown.
+//! The hidden top-level window that hears about logoff, shutdown, keyboards and the foreground.
 //!
 //! A console process that loads `user32.dll` no longer gets logoff or shutdown console notices; Windows sends
 //! `WM_QUERYENDSESSION` and `WM_ENDSESSION` to its top-level windows instead, never to message-only windows.
@@ -9,6 +9,8 @@
 //! restoration already finished. The query already asked the owner to restore and exit, so a session end
 //! another program cancels still ends the trainer; the cancelling `WM_ENDSESSION` itself changes nothing. If
 //! the pump ever stops or panics, the owner is asked to restore and exit.
+//!
+//! The same window and thread receive the keyboard and foreground notices of [`super::input`].
 
 use std::sync::OnceLock;
 
@@ -16,12 +18,14 @@ use windows_sys::Win32::Foundation::{ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, L
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG, RegisterClassW,
-    TranslateMessage, WM_ENDSESSION, WM_QUERYENDSESSION, WNDCLASSW, WS_OVERLAPPED,
+    TranslateMessage, WM_ENDSESSION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_QUERYENDSESSION,
+    WNDCLASSW, WS_OVERLAPPED,
 };
 
 use crate::patch::OsError;
 
 use super::bridge::{self, Bridge};
+use super::input::{self, WM_BARRIER};
 use super::process::none;
 use super::{last_code, last_error, wide};
 
@@ -40,6 +44,17 @@ unsafe extern "system" fn procedure(
         WM_ENDSESSION if wparam != 0 => Some(0),
         _ => None,
     };
+    if matches!(message, WM_INPUT | WM_INPUT_DEVICE_CHANGE | WM_BARRIER) {
+        match std::panic::catch_unwind(|| input::heard(message, wparam, lparam)) {
+            Ok(true) => return 0,
+            Ok(false) => {}
+            Err(_) => {
+                if let Some(bridge) = bridge::get() {
+                    bridge.request();
+                }
+            }
+        }
+    }
     if let Some(answer) = ending {
         let handled = std::panic::catch_unwind(|| {
             if let Some(bridge) = bridge::get() {
@@ -75,6 +90,7 @@ pub(super) fn start(bridge: &'static Bridge) -> Result<(), OsError> {
                 }
             };
             let _set = WINDOW.set(window as usize);
+            input::start(window);
             let _sent = ready.send(Ok(()));
             // The pump never ends while the process runs. If it stops or panics, session end would go
             // unheard, so the owner is asked to restore and exit.

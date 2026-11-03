@@ -8,7 +8,10 @@ use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use windows_sys::Win32::System::Console::CTRL_CLOSE_EVENT;
+use windows_sys::Win32::System::Console::{
+    CTRL_CLOSE_EVENT, INPUT_RECORD, KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0,
+    WriteConsoleInputW,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     SendMessageW, WM_ENDSESSION, WM_QUERYENDSESSION,
 };
@@ -529,4 +532,246 @@ fn an_abandoned_preparation_takes_its_control_word_out_of_the_game() {
     // No cave was ever published, so dropping the session unmaps the game's view.
     drop(prepared);
     assert_eq!(game.query(at).unwrap().state, RegionState::Free);
+}
+
+// ----- keyboard and foreground notices, console input -----
+
+/// Waits up to a second for the keyboard notices' event.
+fn woken(keyboard: &crate::input::platform::Keyboard) -> bool {
+    use std::os::windows::io::AsRawHandle as _;
+    // SAFETY: the event lives for the whole process.
+    let waited = unsafe {
+        windows_sys::Win32::System::Threading::WaitForSingleObject(
+            keyboard.event().as_raw_handle(),
+            1000,
+        )
+    };
+    waited == windows_sys::Win32::Foundation::WAIT_OBJECT_0
+}
+
+fn keyboard() -> crate::input::platform::Keyboard {
+    let shutdown = crate::shutdown::install().unwrap();
+    let keyboard = crate::input::platform::Keyboard::start(&shutdown).unwrap();
+    let _stale = keyboard.take();
+    keyboard
+}
+
+#[test]
+fn keyboard_and_foreground_notices_wake_the_owner_and_merge() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_INPUT, WM_INPUT_DEVICE_CHANGE};
+    let _serial = serial();
+    let keyboard = keyboard();
+    assert!(
+        !super::input::heard(WM_INPUT, 0, 0),
+        "Raw Input still gets its default handling"
+    );
+    assert!(!super::input::heard(WM_INPUT, 0, 0));
+    assert!(woken(&keyboard));
+    assert!(keyboard.take().keyboard);
+    assert_eq!(send(WM_INPUT_DEVICE_CHANGE, 2), 0);
+    super::input::foreground_notice();
+    assert!(woken(&keyboard));
+    let wakes = keyboard.take();
+    assert!(wakes.devices && wakes.foreground, "{wakes:?}");
+}
+
+#[test]
+fn a_barrier_comes_back_through_the_window_thread() {
+    let _serial = serial();
+    let keyboard = keyboard();
+    let profile = ValidProfile::new(&SYNTHETIC).unwrap();
+    let mut arbiter = crate::input::Arbiter::new(&crate::settings::Bindings::defaults(&profile));
+    let stale = arbiter.reopen().unwrap();
+    let epoch = arbiter.reopen().unwrap();
+    keyboard.barrier(stale).unwrap();
+    keyboard.barrier(epoch).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let acknowledged = loop {
+        assert!(Instant::now() < deadline, "no acknowledgement");
+        if woken(&keyboard)
+            && let Some(acknowledged) = keyboard.take().barrier
+            && acknowledged == epoch
+        {
+            break acknowledged;
+        }
+    };
+    let flush = arbiter.barrier(acknowledged).unwrap();
+    arbiter.open(flush, &crate::input::platform::System);
+    assert!(arbiter.is_open());
+}
+
+#[test]
+fn the_system_probe_answers_without_a_desktop() {
+    use crate::input::Probe as _;
+    let probe = crate::input::platform::System;
+    // Nobody holds F24 on a test machine.
+    assert!(!probe.down(0x87));
+    let _ = (probe.modifiers(), probe.foreground(), probe.console());
+}
+
+/// A console reader, allocating a console if the test process has none.
+fn reader() -> super::console::Reader {
+    super::console::Reader::open().unwrap_or_else(|_| {
+        // SAFETY: the test process has no console, so this gives it one.
+        let allocated = unsafe { windows_sys::Win32::System::Console::AllocConsole() };
+        assert_ne!(allocated, 0, "no console and none can be allocated");
+        super::console::Reader::open().unwrap()
+    })
+}
+
+fn key_record(vk: u16, down: bool, state: u32, unit: u16, repeat: u16) -> INPUT_RECORD {
+    let mut record = INPUT_RECORD {
+        EventType: u16::try_from(KEY_EVENT).unwrap(),
+        ..INPUT_RECORD::default()
+    };
+    record.Event.KeyEvent = KEY_EVENT_RECORD {
+        bKeyDown: i32::from(down),
+        wRepeatCount: repeat,
+        wVirtualKeyCode: vk,
+        wVirtualScanCode: 0,
+        uChar: KEY_EVENT_RECORD_0 { UnicodeChar: unit },
+        dwControlKeyState: state,
+    };
+    record
+}
+
+fn queue(console: &super::console::Reader, records: &[INPUT_RECORD]) {
+    use std::os::windows::io::AsRawHandle as _;
+    let mut written = 0;
+    // SAFETY: `records` outlives the call and `written` is writable.
+    let ok = unsafe {
+        WriteConsoleInputW(
+            console.handle().as_raw_handle(),
+            records.as_ptr(),
+            u32::try_from(records.len()).unwrap(),
+            &raw mut written,
+        )
+    };
+    assert_ne!(ok, 0);
+    assert_eq!(written as usize, records.len());
+}
+
+#[test]
+fn the_console_reader_sets_and_restores_its_modes() {
+    use std::os::windows::io::AsRawHandle as _;
+    use windows_sys::Win32::System::Console::{
+        ENABLE_ECHO_INPUT, ENABLE_EXTENDED_FLAGS, ENABLE_LINE_INPUT, ENABLE_MOUSE_INPUT,
+        ENABLE_PROCESSED_INPUT, ENABLE_QUICK_EDIT_MODE, ENABLE_VIRTUAL_TERMINAL_INPUT,
+        ENABLE_WINDOW_INPUT, SetConsoleMode,
+    };
+    let _serial = serial();
+    let console = reader();
+    let original = console.original();
+    let mode = console.mode();
+    let off = ENABLE_QUICK_EDIT_MODE
+        | ENABLE_MOUSE_INPUT
+        | ENABLE_LINE_INPUT
+        | ENABLE_ECHO_INPUT
+        | ENABLE_VIRTUAL_TERMINAL_INPUT;
+    assert_eq!(mode & off, 0, "{mode:#x}");
+    let on = ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT;
+    assert_eq!(mode & on, on, "{mode:#x}");
+    drop(console);
+    let quick = ENABLE_EXTENDED_FLAGS | ENABLE_QUICK_EDIT_MODE;
+    let restored = if original & ENABLE_EXTENDED_FLAGS == 0 {
+        original | quick
+    } else {
+        original
+    };
+    let again = reader();
+    assert_eq!(again.original(), restored, "dropping restores the modes");
+
+    // A mode set without the extended flags hides the QuickEdit state; dropping then turns QuickEdit on.
+    let plain =
+        ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT;
+    // SAFETY: the reader's handle is a live console input handle; `again` restores its mode when dropped.
+    let set = unsafe { SetConsoleMode(again.handle().as_raw_handle(), plain) };
+    assert_ne!(set, 0);
+    let hidden = reader();
+    assert_eq!(
+        hidden.original() & ENABLE_EXTENDED_FLAGS,
+        0,
+        "{:#x}",
+        hidden.original()
+    );
+    drop(hidden);
+    let back = reader();
+    assert_eq!(back.original() & quick, quick, "{:#x}", back.original());
+}
+
+#[test]
+fn the_console_reader_turns_records_into_batches() {
+    use crate::chord::Modifiers;
+    use crate::input::{KeyRecord, Record};
+    use windows_sys::Win32::System::Console::{
+        FOCUS_EVENT, LEFT_CTRL_PRESSED, RIGHT_ALT_PRESSED, SHIFT_PRESSED, WINDOW_BUFFER_SIZE_EVENT,
+    };
+    let _serial = serial();
+    let mut console = reader();
+    console.flush().unwrap();
+    assert_eq!(
+        console.read().unwrap(),
+        crate::input::Batch {
+            complete: true,
+            ..Default::default()
+        }
+    );
+    let focus = INPUT_RECORD {
+        EventType: u16::try_from(FOCUS_EVENT).unwrap(),
+        ..INPUT_RECORD::default()
+    };
+    let resize = INPUT_RECORD {
+        EventType: u16::try_from(WINDOW_BUFFER_SIZE_EVENT).unwrap(),
+        ..INPUT_RECORD::default()
+    };
+    queue(
+        &console,
+        &[
+            key_record(0x41, true, 0, u16::from(b'a'), 1),
+            // AltGr+E types the euro sign and reports Ctrl+Alt.
+            key_record(0x45, true, LEFT_CTRL_PRESSED | RIGHT_ALT_PRESSED, 0x20AC, 1),
+            key_record(0x28, true, SHIFT_PRESSED, 0, 3),
+            key_record(0x28, false, SHIFT_PRESSED, 0, 1),
+            focus,
+            resize,
+        ],
+    );
+    let batch = console.read().unwrap();
+    let record = |vk, down, modifiers, text| {
+        Record::Key(KeyRecord {
+            vk,
+            down,
+            modifiers,
+            text,
+        })
+    };
+    let shift = Modifiers::SHIFT;
+    assert_eq!(
+        batch.records,
+        [
+            record(0x41, true, Modifiers::NONE, Some('a')),
+            record(0x45, true, Modifiers::CTRL.union(Modifiers::ALT), Some('€')),
+            record(0x28, true, shift, None),
+            record(0x28, true, shift, None),
+            record(0x28, true, shift, None),
+            record(0x28, false, shift, None),
+            Record::Focus,
+        ]
+    );
+    assert!(batch.complete && batch.resized);
+
+    // More than one read takes leaves the batch partial.
+    let many = vec![key_record(0x41, true, 0, u16::from(b'a'), 1); super::console::BATCH + 6];
+    queue(&console, &many);
+    let first = console.read().unwrap();
+    assert_eq!(
+        (first.records.len(), first.complete),
+        (super::console::BATCH, false)
+    );
+    let rest = console.read().unwrap();
+    assert_eq!((rest.records.len(), rest.complete), (6, true));
+
+    queue(&console, &many[..3]);
+    console.flush().unwrap();
+    assert!(console.read().unwrap().records.is_empty(), "flushed");
 }

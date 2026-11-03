@@ -3,8 +3,10 @@
 //! `unsafe` block states why it is sound.
 
 pub(crate) mod bridge;
+pub(crate) mod console;
 pub(crate) mod controls;
 pub(crate) mod fs;
+pub(crate) mod input;
 pub(crate) mod owner;
 pub(crate) mod process;
 pub(crate) mod window;
