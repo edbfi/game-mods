@@ -55,8 +55,8 @@ rest. Ctrl+C opens the same quit dialog, and a second Ctrl+C quits.
 | Alt+3 | Unlimited flashlight |
 
 The per-weapon no-reload switches start unbound. Press **R** on any row, then the new chord: a key with any of Ctrl,
-Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. The trainer refuses chords Windows uses itself (Alt+F4, Alt+Space), Ctrl+C, and chords that
-would fire while you type.
+Alt and Shift, such as `Ctrl+F1`, `Alt+Num5` or `Shift+F2`. The trainer refuses chords Windows uses itself
+(Alt+F4, Alt+Space), Ctrl+C, and chords that would fire while you type.
 
 Hotkeys act while the game or the trainer is in front. The game still sees every key, and an overlay such as
 NVIDIA's or Steam's may use the same one: rebind any that clash. Each change plays a short chime, higher for on and
