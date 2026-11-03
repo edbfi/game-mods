@@ -285,19 +285,22 @@ pub(crate) fn arm_screen(output: HANDLE, mode: u32) {
     SCREEN.store(output as usize, Ordering::SeqCst);
 }
 
-/// Stops the panic hook from touching the console output, and waits until no hook is using it.
-pub(crate) fn disarm_screen() {
-    SCREEN.store(0, Ordering::SeqCst);
+/// Stops the panic hook from touching the console output, and waits until no hook is using it. Returns
+/// whether it was still armed: `false` once a panic already reset the screen.
+pub(crate) fn disarm_screen() -> bool {
+    let armed = SCREEN.swap(0, Ordering::SeqCst) != 0;
     while SCREEN_READERS.load(Ordering::SeqCst) != 0 {
         std::thread::sleep(Duration::from_millis(1));
     }
+    armed
 }
 
-/// Leaves the alternate screen and restores the output mode, if armed. Safe from a panic hook: no
-/// allocation, lock or formatting.
+/// Leaves the alternate screen and restores the output mode, if armed, once: the arming is used up, so a
+/// later panic or the normal teardown never writes escapes to a console whose terminal processing is off.
+/// Safe from a panic hook: no allocation, lock or formatting.
 fn reset_screen() {
     SCREEN_READERS.fetch_add(1, Ordering::SeqCst);
-    let output = SCREEN.load(Ordering::SeqCst);
+    let output = SCREEN.swap(0, Ordering::SeqCst);
     if output != 0 {
         let output = output as HANDLE;
         let len = u32::try_from(SCREEN_RESET.len()).unwrap_or(0);

@@ -624,8 +624,14 @@ impl Runtime {
         }
     }
 
-    fn fail(&mut self, recovery: RecoveryAction, message: String, unrestored: Vec<SiteId>) {
-        self.record(Event::error(EntryKind::Game, message.clone()));
+    fn fail(
+        &mut self,
+        kind: EntryKind,
+        recovery: RecoveryAction,
+        message: String,
+        unrestored: Vec<SiteId>,
+    ) {
+        self.record(Event::error(kind, message.clone()));
         self.enter(Phase::Failed(Failure {
             recovery,
             message,
@@ -638,6 +644,7 @@ impl Runtime {
             Ok(pids) => pids,
             Err(error) => {
                 self.fail(
+                    EntryKind::Game,
                     RecoveryAction::Retry,
                     format!("cannot list processes: {error}"),
                     Vec::new(),
@@ -670,6 +677,7 @@ impl Runtime {
                     self.due = Some(Instant::now());
                 }
                 Err(error) => self.fail(
+                    EntryKind::Game,
                     RecoveryAction::Retry,
                     format!("cannot open the game, process {pid}: {error}"),
                     Vec::new(),
@@ -685,7 +693,12 @@ impl Runtime {
                     Phase::Failed(failure) if failure.message == message
                 );
                 if !unchanged {
-                    self.fail(RecoveryAction::CloseDuplicates, message, Vec::new());
+                    self.fail(
+                        EntryKind::Game,
+                        RecoveryAction::CloseDuplicates,
+                        message,
+                        Vec::new(),
+                    );
                 }
                 // Keep looking: once only one runs, the trainer connects to it.
                 self.due = Some(Instant::now() + DISCOVERY);
@@ -743,7 +756,12 @@ impl Runtime {
                     } else {
                         rejected.error.to_string()
                     };
-                    self.fail(rejected.error.recovery(), message, Vec::new());
+                    self.fail(
+                        EntryKind::Game,
+                        rejected.error.recovery(),
+                        message,
+                        Vec::new(),
+                    );
                 }
             }
         }
@@ -754,25 +772,20 @@ impl Runtime {
         else {
             return;
         };
-        let prepared = match session.claim() {
-            Ok(claimed) => claimed.prepare(),
+        let claimed = match session.claim() {
+            Ok(claimed) => claimed,
             Err(failure) => {
-                self.fail(
-                    failure.error.recovery(),
-                    failure.error.to_string(),
-                    Vec::new(),
-                );
+                let exited = failure.session.exit_proof().is_some();
+                self.abandon(exited, false, &failure.error);
                 return;
             }
         };
-        let prepared = match prepared {
+        let prepared = match claimed.prepare() {
             Ok(prepared) => prepared,
             Err(failure) => {
-                self.fail(
-                    failure.error.recovery(),
-                    failure.error.to_string(),
-                    Vec::new(),
-                );
+                let exited = failure.session.exit_proof().is_some();
+                let stop = failure.session.stop_requested();
+                self.abandon(exited, stop, &failure.error);
                 return;
             }
         };
@@ -786,22 +799,57 @@ impl Runtime {
             }
             Err(failure) => {
                 let error = failure.error;
-                self.record(Event::error(
-                    EntryKind::Hooks,
-                    format!("hooking the game failed: {error}"),
-                ));
+                // A stop request or shutdown ended the wait to freeze the game: once restored, exit.
+                if failure.session.stop_requested() || matches!(error, TrainerError::Stopped) {
+                    self.record(Event::info(
+                        EntryKind::Session,
+                        "asked to stop while the hooks were being written",
+                    ));
+                    self.quitting = true;
+                    self.forced = true;
+                }
                 // Whatever the failed install left is restored now; only what stays pins the game.
                 self.recover(failure.session, &error);
             }
         }
     }
 
-    /// Restores a failed install's leftovers, then shows `error`.
+    /// Claiming or preparing failed with nothing written: the game exited, a stop was asked for, or `error`
+    /// is shown.
+    fn abandon(&mut self, exited: bool, stop: bool, error: &TrainerError) {
+        if exited {
+            self.record(Event::info(EntryKind::Game, "the game exited"));
+            self.waiting();
+        } else if stop {
+            self.record(Event::info(EntryKind::Session, "asked to stop"));
+            self.quitting = true;
+            self.forced = true;
+            self.finish(Finish::Untouched);
+        } else {
+            self.fail(
+                EntryKind::Hooks,
+                error.recovery(),
+                error.to_string(),
+                Vec::new(),
+            );
+        }
+    }
+
+    /// Restores a failed install's leftovers, then shows `error`, or exits if quitting.
     fn recover(&mut self, session: Session<Recovery>, error: &TrainerError) {
         match session.restore(self.verify()) {
             Ok(detached) => {
                 drop(detached);
-                self.fail(error.recovery(), error.to_string(), Vec::new());
+                if self.quitting {
+                    self.finish(Finish::Untouched);
+                } else {
+                    self.fail(
+                        EntryKind::Hooks,
+                        error.recovery(),
+                        error.to_string(),
+                        Vec::new(),
+                    );
+                }
             }
             Err(failure) => self.pin(failure.session, &failure.error, false),
         }
@@ -834,7 +882,7 @@ impl Runtime {
         }
         // The user reads the failure; quitting again tries once more, then exits.
         self.quitting = false;
-        self.fail(error.recovery(), message, sites);
+        self.fail(EntryKind::Hooks, error.recovery(), message, sites);
     }
 
     /// What a restore checks: the whole code too if asked, unless shutdown leaves no time.
@@ -891,14 +939,7 @@ impl Runtime {
                     self.waiting();
                 }
             }
-            Err(failure) => {
-                let error = failure.error;
-                self.record(Event::error(
-                    EntryKind::Hooks,
-                    format!("restoring the game failed: {error}"),
-                ));
-                self.pin(failure.session, &error, again);
-            }
+            Err(failure) => self.pin(failure.session, &failure.error, again),
         }
     }
 }

@@ -77,7 +77,7 @@ impl Win {
     fn enter(output: &Output) -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
         let mut stdout = io::stdout();
         execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)?;
-        output.arm(true);
+        output.arm();
         let entered = Terminal::new(CrosstermBackend::new(stdout)).and_then(|mut terminal| {
             terminal.clear()?;
             Ok(terminal)
@@ -88,15 +88,17 @@ impl Win {
         entered
     }
 
-    /// Leaves the alternate screen with the cursor shown and the attributes reset.
+    /// Leaves the alternate screen with the cursor shown and the attributes reset, unless a panic already
+    /// did.
     fn exit(output: &Output) {
-        let _left = execute!(
-            io::stdout(),
-            SetAttribute(Attribute::Reset),
-            cursor::Show,
-            terminal::LeaveAlternateScreen
-        );
-        output.arm(false);
+        if output.disarm() {
+            let _left = execute!(
+                io::stdout(),
+                SetAttribute(Attribute::Reset),
+                cursor::Show,
+                terminal::LeaveAlternateScreen
+            );
+        }
     }
 }
 
@@ -225,31 +227,18 @@ pub fn run(profile: &'static Profile, header: &str, options: Options) -> Outcome
             None
         }
     };
-    let output = Output::open().ok();
-    let mut console_reader = None;
-    let mut terminal = None;
-    if !options.plain && console::stdout_is_console() {
-        match (Console::open(), &output) {
-            (Ok(console), Some(output)) => match Win::enter(output) {
-                Ok(screen) => {
-                    console_reader = Some(console);
-                    terminal = Some(screen);
-                }
-                Err(error) => runtime.record(Event::warning(
-                    EntryKind::Session,
-                    format!("cannot draw the dashboard, printing lines instead: {error}"),
-                )),
-            },
-            (Err(error), _) => runtime.record(Event::warning(
-                EntryKind::Session,
-                format!("cannot read the console, printing lines instead: {error}"),
-            )),
-            (Ok(_), None) => runtime.record(Event::warning(
-                EntryKind::Session,
-                "cannot draw on this console, printing lines instead",
-            )),
+    // Plain or redirected output leaves the console's modes, code page and title alone.
+    let (output, console_reader, terminal) = if !options.plain && console::stdout_is_console() {
+        match screen() {
+            Ok(screen) => screen,
+            Err(warning) => {
+                runtime.record(Event::warning(EntryKind::Session, warning));
+                (None, None, None)
+            }
         }
-    }
+    } else {
+        (None, None, None)
+    };
     let size = output
         .as_ref()
         .and_then(|output| output.size().ok())
@@ -319,6 +308,25 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
         .map(|text| (*text).to_owned())
         .or_else(|| payload.downcast_ref::<String>().cloned())
         .unwrap_or_else(|| "a panic without a message".to_owned())
+}
+
+/// The console output, input and screen for the dashboard, or why it prints lines instead.
+#[expect(clippy::type_complexity, reason = "one tuple, destructured once")]
+fn screen() -> Result<
+    (
+        Option<Output>,
+        Option<Console>,
+        Option<Terminal<CrosstermBackend<Stdout>>>,
+    ),
+    String,
+> {
+    let output = Output::open()
+        .map_err(|error| format!("cannot draw on this console, printing lines instead: {error}"))?;
+    let console = Console::open()
+        .map_err(|error| format!("cannot read the console, printing lines instead: {error}"))?;
+    let terminal = Win::enter(&output)
+        .map_err(|error| format!("cannot draw the dashboard, printing lines instead: {error}"))?;
+    Ok((Some(output), Some(console), Some(terminal)))
 }
 
 fn not_started(message: String) -> Outcome {

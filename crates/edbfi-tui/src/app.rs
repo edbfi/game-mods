@@ -69,7 +69,8 @@ pub enum Msg {
     ConsoleLost,
 }
 
-/// Something the driver must do. Within one batch, carry out runtime commands, then saves, then draw.
+/// Something the driver must do. Within one batch, carry out runtime commands, then the bindings, chimes and
+/// title, then saves, then draw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Effect {
     /// Send this command to the runtime.

@@ -3,7 +3,8 @@
 //!
 //! [`app::App`] is a pure reducer over the runtime's phase, acknowledgements and user input. Drawing `&App`
 //! into a ratatui buffer is deterministic, and [`plain::Report`] prints the same model as plain ASCII lines
-//! for redirected output or a lost console. Nothing here reads a terminal or touches a process.
+//! for redirected output or a lost console. [`driver::Driver`] joins the app to the runtime and the platform;
+//! only its Windows part reads the console, draws on it and waits on the game.
 #![forbid(unsafe_code)]
 
 pub mod app;

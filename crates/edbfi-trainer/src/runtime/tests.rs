@@ -583,3 +583,30 @@ fn a_step_that_never_finished_reports_that_hooks_may_remain() {
     h.runtime.shutdown();
     assert!(matches!(h.runtime.done(), Some(Done::HooksLeft { .. })));
 }
+
+#[test]
+fn a_stop_or_shutdown_while_hooks_are_written_exits_untouched() {
+    for request in [
+        |game: &FakeGame| game.info.stop.set(true),
+        |game: &FakeGame| game.info.interrupted.set(true),
+    ] {
+        let (game, profile) = FakeGame::new();
+        let code = game.code();
+        let games = Games::running(&game);
+        let mut h = start(&games, &profile, Options::default());
+        h.runtime.step();
+        h.runtime.step();
+        assert_eq!(
+            phases_of(h.runtime.events()).last(),
+            Some(&Phase::Installing)
+        );
+        // A thread inside a site keeps the freeze failing, and the request arrives meanwhile.
+        game.fake.0.borrow_mut().threads.get_mut(&2).unwrap().rip =
+            crate::addr::Va::new(BASE + 0x1102);
+        request(&game);
+        h.runtime.step();
+        assert_eq!(h.runtime.done(), Some(&Done::Finished(Finish::Untouched)));
+        assert_eq!(game.code(), code);
+        assert!(!game.info.controls_live.get());
+    }
+}

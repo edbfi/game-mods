@@ -947,7 +947,7 @@ fn the_console_output_sets_and_restores_its_mode_code_page_and_title() {
     // Armed, a panic leaves the alternate screen and restores the mode found; disarmed, it does not.
     crate::shutdown::install().unwrap();
     bridge::reset_for_tests();
-    output.arm(true);
+    output.arm();
     let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
     assert_eq!(
         super::screen::current().unwrap().0,
@@ -955,7 +955,7 @@ fn the_console_output_sets_and_restores_its_mode_code_page_and_title() {
         "the hook restored the mode"
     );
     super::screen::set_mode(mode).unwrap();
-    output.arm(false);
+    assert!(!output.disarm(), "the panic used the arming up");
     let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
     assert_eq!(
         super::screen::current().unwrap().0,

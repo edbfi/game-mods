@@ -111,19 +111,20 @@ impl Screen {
         set_title(&wide(title))
     }
 
-    /// Whether a panic leaves the alternate screen and restores the output mode found.
-    pub(crate) fn arm(&self, armed: bool) {
-        if armed {
-            bridge::arm_screen(self.raw(), self.mode);
-        } else {
-            bridge::disarm_screen();
-        }
+    /// Has a panic leave the alternate screen and restore the output mode found.
+    pub(crate) fn arm(&self) {
+        bridge::arm_screen(self.raw(), self.mode);
+    }
+
+    /// Stops that; returns whether it was still armed, `false` once a panic already reset the screen.
+    pub(crate) fn disarm(&self) -> bool {
+        bridge::disarm_screen()
     }
 }
 
 impl Drop for Screen {
     fn drop(&mut self) {
-        bridge::disarm_screen();
+        let _armed = bridge::disarm_screen();
         // SAFETY: `raw` is a console output handle.
         let _mode = unsafe { SetConsoleMode(self.raw(), self.mode) };
         // SAFETY: takes no pointers.
@@ -161,7 +162,7 @@ fn mode(handle: HANDLE) -> Result<u32, OsError> {
     Ok(mode)
 }
 
-/// The console window's title, without its NUL, or `None` if it cannot be read.
+/// The console window's title, NUL-terminated, or `None` if it cannot be read.
 fn title() -> Option<Vec<u16>> {
     let mut buffer = vec![0u16; TITLE_LIMIT];
     let size = u32::try_from(buffer.len()).unwrap_or(u32::MAX);

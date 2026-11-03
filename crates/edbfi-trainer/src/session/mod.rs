@@ -440,6 +440,12 @@ impl Session<Identified, Write> {
 }
 
 impl Session<Claimed> {
+    /// Whether someone asked this trainer to stop.
+    #[must_use]
+    pub fn stop_requested(&self) -> bool {
+        self.state.owner.stop_requested()
+    }
+
     /// Maps the zeroed control word and writes every cave, protected and checked, where every site can reach
     /// it.
     ///
@@ -805,6 +811,12 @@ impl Session<Installed> {
 }
 
 impl Session<Recovery> {
+    /// Whether someone asked this trainer to stop.
+    #[must_use]
+    pub fn stop_requested(&self) -> bool {
+        self.state.owner.stop_requested()
+    }
+
     /// The sites the game may still hold the trainer's jumps in.
     #[must_use]
     pub fn hooked(&self) -> Vec<SiteId> {

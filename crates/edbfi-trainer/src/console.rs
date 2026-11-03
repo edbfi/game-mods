@@ -50,11 +50,17 @@ impl Output {
         self.0.set_title(title)
     }
 
-    /// Whether the dashboard is on the alternate screen, so a panic must leave it. While armed, the panic
-    /// hook resets colours, shows the cursor, leaves the alternate screen and restores the original output
-    /// mode, before the panic is printed. It does so with no allocation, lock or formatting.
-    pub fn arm(&self, armed: bool) {
-        self.0.arm(armed);
+    /// The dashboard is on the alternate screen, so a panic must leave it. While armed, the first panic
+    /// resets colours, shows the cursor, leaves the alternate screen and restores the original output mode,
+    /// before the panic is printed, with no allocation, lock or formatting; that uses the arming up.
+    pub fn arm(&self) {
+        self.0.arm();
+    }
+
+    /// The dashboard is leaving the alternate screen itself. Returns whether it is still on it: `false` once
+    /// a panic already left it and turned terminal processing back off, so no escape may be written.
+    pub fn disarm(&self) -> bool {
+        self.0.disarm()
     }
 }
 
