@@ -89,15 +89,11 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
     let detached = session.restore(VerifyRestore::Text).unwrap();
     assert_eq!(game.code(), code);
     assert_eq!(game.info.word.get(), 0);
-    assert_eq!(game.info.finished.get(), 1);
-    // The caves were published, so the game keeps its view of the control word.
-    assert!(!game.info.withdrawn.get());
     assert_eq!(detached.report().text, TextCheck::Identical);
     assert_eq!(game.fake.suspend_counts(), [0, 0]);
-    // The caves outlive the hooks; the trainer's own view of the controls does not.
     assert_eq!(game.blocks(), [Block::Retained]);
-    assert!(!game.info.controls_live.get());
-    // Until the session ends no other trainer may claim the game.
+    // Until the session ends no other trainer may claim the game, and a close notice still waits, so the
+    // owner can record the restoration before Windows may end the process.
     assert_eq!(
         identified(&game.second(), &profile)
             .claim()
@@ -106,7 +102,15 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
             .recovery(),
         RecoveryAction::CloseOtherTrainer
     );
+    assert_eq!(game.info.finished.get(), 0);
+    assert!(game.info.controls_live.get());
     drop(detached);
+    assert_eq!(game.info.finished.get(), 1);
+    // The caves were published, so the game keeps its view of the control word; the caves outlive the hooks,
+    // and the trainer's own view of the controls does not.
+    assert!(!game.info.withdrawn.get());
+    assert_eq!(game.blocks(), [Block::Retained]);
+    assert!(!game.info.controls_live.get());
     identified(&game.second(), &profile).claim().unwrap();
 }
 
@@ -323,8 +327,8 @@ fn a_busy_thread_is_waited_for_and_a_stop_ends_the_wait() {
         "only the four caves were written"
     );
     let detached = failure.session.restore(VerifyRestore::Sites).unwrap();
-    assert_eq!(game.blocks(), [Block::Freed], "unreached caves are freed");
     drop(detached);
+    assert_eq!(game.blocks(), [Block::Freed], "unreached caves are freed");
 
     let (game, profile) = FakeGame::new();
     let session = prepared(&game, &profile);

@@ -950,7 +950,7 @@ impl Runtime {
                     report.timing.held.as_millis(),
                     report.text
                 );
-                // Logged first: dropping the session releases the control word, which tells a waiting close
+                // Logged first: dropping the session releases its control word, which tells a waiting close
                 // notice that restoration finished, and Windows may then end the process at once.
                 self.record(Event::info(EntryKind::Hooks, message));
                 drop(detached);

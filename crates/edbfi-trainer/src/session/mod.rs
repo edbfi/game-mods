@@ -227,6 +227,9 @@ pub struct Installed {
 /// Every site is restored and verified.
 pub struct Detached {
     _owner: Box<dyn Owner>,
+    /// Kept until the session drops: dropping its control word tells a waiting close notice that
+    /// restoration finished, and Windows may then end the process at once.
+    _hooks: Hooks,
     report: Restored,
 }
 /// An install or restore failed; the game may still hold some of the trainer's code.
@@ -897,11 +900,12 @@ impl Session<Recovery> {
         };
         match changed.outcome {
             Ok(()) => {
-                let Recovery { owner, .. } = self.state;
+                let Recovery { owner, hooks } = self.state;
                 Ok(at(
                     self.core,
                     Detached {
                         _owner: owner,
+                        _hooks: hooks,
                         report: Restored {
                             timing: changed.timing,
                             text: changed.text,
