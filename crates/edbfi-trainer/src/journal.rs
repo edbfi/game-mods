@@ -17,7 +17,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use crate::profile::SiteId;
 
-const LOG_NAME: &str = "trainer.log";
+pub(crate) const LOG_NAME: &str = "trainer.log";
 const OLD_NAME: &str = "trainer.old.log";
 
 /// How serious an entry is.

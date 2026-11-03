@@ -13,6 +13,8 @@
 #![forbid(unsafe_code)]
 
 mod check;
+#[cfg(any(test, feature = "simulate"))]
+pub mod dummy;
 mod select;
 pub mod synthetic;
 #[cfg(test)]

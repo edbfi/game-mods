@@ -83,6 +83,18 @@ impl Locations {
         };
         Ok(Self::under(slug, &config, &data))
     }
+
+    /// The settings file in [`Self::settings`].
+    #[must_use]
+    pub fn settings_file(&self) -> PathBuf {
+        self.settings.join(crate::settings::FILE_NAME)
+    }
+
+    /// The current log file in [`Self::logs`].
+    #[must_use]
+    pub fn log_file(&self) -> PathBuf {
+        self.logs.join(crate::journal::LOG_NAME)
+    }
 }
 
 /// Why the folders cannot be found. Settings cannot be saved; the user may continue with unsaved defaults.
@@ -157,6 +169,12 @@ mod tests {
                 logs: folder(&local),
             })
         );
+        let found = found.unwrap();
+        assert_eq!(
+            found.settings_file(),
+            folder(&roaming).join("settings.toml")
+        );
+        assert_eq!(found.log_file(), folder(&local).join("trainer.log"));
     }
 
     #[test]

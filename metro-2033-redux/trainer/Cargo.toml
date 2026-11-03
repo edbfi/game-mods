@@ -14,15 +14,23 @@ path = "src/main.rs"
 
 [dependencies]
 edbfi-trainer.workspace = true
+edbfi-tui.workspace = true
 
 [dev-dependencies]
 crossterm = { workspace = true, features = ["events"] }
 edbfi-trainer = { workspace = true, features = ["simulate"] }
-edbfi-tui.workspace = true
 iced-x86.workspace = true
 insta.workspace = true
 proptest.workspace = true
 ratatui.workspace = true
+
+# The console-close tests find and close a trainer's console window.
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # The hook-cave execution tests map and run generated code, which only Linux x86-64 can do.
 [target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dev-dependencies]

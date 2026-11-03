@@ -38,6 +38,7 @@ mod store;
 mod tests;
 
 pub use parse::{Expected, Location, Problem, SettingsError};
+pub(crate) use store::FILE_NAME;
 pub use store::{External, Load, Reset, Saved, Store, StoreError};
 
 use std::fmt;
