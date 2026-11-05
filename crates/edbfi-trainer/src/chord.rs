@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Hotkey chords: a virtual key plus an exact set of Ctrl, Alt and Shift.
 //!
-//! Chords are identified by Windows virtual-key codes, never by the character a layout produces, so a binding
-//! means the same physical key on AZERTY and QWERTY. Settings spell them canonically, such as `Ctrl+Alt+F1`,
-//! `Alt+Num5` or `None`.
+//! Chords are identified by Windows virtual-key codes, not scan codes. Settings spell them canonically, such as
+//! `Ctrl+Alt+F1`, `Alt+Num5` or `None`.
 #![forbid(unsafe_code)]
 
 use std::fmt;

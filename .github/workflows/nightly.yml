@@ -5,6 +5,7 @@
 #   mods   (unprivileged) lists every <game>/<mod>/justfile;
 #   build  (unprivileged) tests and packages each mod and uploads the zip's files as the
 #          artifact <game>-<mod>-nightly, which GitHub zips once;
+#   verify (unprivileged, Windows) runs each artifact's executables, if any, and uploads nothing;
 #   scan   (privileged: VT_API_KEY; shell only, no actions) takes in exactly those artifact
 #          zips, the bytes users download, and submits them to VirusTotal;
 #   readme (privileged: NIGHTLY_DEPLOY_KEY; shell only, no actions) points the README's
@@ -20,6 +21,12 @@ permissions: {}
 concurrency:
   group: nightly-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # The MSVC CRT and Windows SDK that cargo-xwin links Windows builds against, as in ci.yml.
+  XWIN_VERSION: "17"
+  XWIN_SDK_VERSION: 10.0.26100
+  XWIN_CRT_VERSION: 14.44.17.14
+  XWIN_ARCH: x86_64
 jobs:
   mods:
     if: github.ref == 'refs/heads/main'
@@ -54,15 +61,18 @@ jobs:
     env:
       GAME: ${{ matrix.game }}
       MOD: ${{ matrix.mod }}
+      EDBFI_COMMIT: ${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       # No build cache: these builds are published.
       - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
-        with: { tool: just }
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with: { version: 0.17.0, use-cache: false }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+        with: { tool: "just,cargo-xwin@0.23.1" }
+      - run: rustup toolchain install   # the version in rust-toolchain.toml
+      # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" test
       # Nightlies have no version: 0.0.0 only names the zip extracted here. The scan summary names a build by commit and run.
       - run: bash scripts/package-mod.sh "$GAME/$MOD" 0.0.0 "$RUNNER_TEMP/nightly"
@@ -75,8 +85,31 @@ jobs:
           retention-days: 90
           overwrite: true
 
-  scan:
+  verify:
     needs: [mods, build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions: { contents: read }
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: "*-nightly", path: "${{ runner.temp }}/nightly" }
+      - name: Run each mod's packaged files
+        env:
+          MODS: ${{ needs.mods.outputs.mods }}
+        run: |
+          set -euo pipefail
+          # Read first, so a failed jq fails the step instead of verifying nothing. Windows jq ends lines with CRLF.
+          rows="$(jq -r '.[] | [.game, .mod] | @tsv' <<<"$MODS" | tr -d '\r')"
+          while IFS=$'\t' read -r game mod; do
+            bash scripts/verify-mod-artifact.sh "$game/$mod" 0.0.0 "$RUNNER_TEMP/nightly/$game-$mod-nightly" </dev/null
+          done <<<"$rows"
+
+  scan:
+    needs: [mods, build, verify]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Each mod takes up to about 6 minutes, 5 of them polling VirusTotal: room for about 10 mods.

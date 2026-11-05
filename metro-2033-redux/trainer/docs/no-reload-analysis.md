@@ -23,7 +23,7 @@ one in the Hellsing's own firing method:
 | `0x2c6fab` | `8D 50 FF 48 8B 46 F8` | Pass EAX unchanged; preserve vtable load |
 | `0x2b9dce` | `48 8B CF 8D 50 FF` | Keep `mov rcx,rdi`; pass EAX unchanged |
 
-Each full context signature in `verified_no_reload_sites()` occurs exactly once
+Each full context signature in the profile's `SITES` ([`src/profile.rs`](../src/profile.rs)) occurs exactly once
 in a capture of the loaded `.text`, at its declared RVA. The callback methods
 use RCX as the weapon receiver at the hook; the shared routine uses R14 and the
 Hellsing routine RDI.
@@ -54,7 +54,7 @@ The game's named configuration registrations at RVAs `0x2a040` through
 The game itself reads the configuration pointer at weapon `+0x1b8`, then its
 first DWORD, and compares it against these globals (for example at `0x264743`).
 The profile compares these same live identifiers, avoiding guessed numeric enum
-values. `verified_no_reload_classes()` records all named firearm registrations;
+values. The profile's `CLASSES` records all named firearm registrations;
 the Duplet selector includes its explicitly named 2B, 3B, and 4B registrations.
 Names retained from the binary include internal variants which may not be
 obtainable in normal Metro 2033 gameplay.
@@ -74,7 +74,7 @@ or runtime class identifiers.
 
 ## Generated code and lifecycle
 
-`make_no_reload_image()` saves flags and RAX/RCX/RDX/R8 before classification,
+The no-reload cave saves flags and RAX/RCX/RDX/R8 before classification,
 loads one aligned control DWORD, and bypasses classification when disabled. It
 restores them before displaced instructions, and returns through an indirect
 absolute jump which consumes no scratch register. Every unselected branch
@@ -93,18 +93,17 @@ threads executing displaced calls cannot return into freed memory.
 
 ## Verification and limits
 
-Reproducible native x64 verification:
+Reproducible native verification, on x86-64 Linux:
 
 ```sh
-c++ -std=c++20 -O2 -Wall -Wextra -Werror -I include tools/verify-no-reload.cpp -o /tmp/verify-no-reload
-/tmp/verify-no-reload
+cargo test --locked -p metro-2033-redux-trainer --test caves
 ```
 
 This executes every generated cave against synthetic module/player/weapon
-memory and an actual indirect setter stub. It checks selected, ordinary, and
-NPC paths, every named class and alias, plus null player/configuration, unknown
-class, and out-of-range cave
-rejection for the shared hook. It does not write to the running game.
+memory and an actual indirect setter stub, and compares each with the game's
+own instructions. It checks selected, ordinary, and NPC paths, every named
+class and alias, a missing owner, manager, player or configuration, unknown
+classes, and that the allocation reaches every site and no further. It does not write to the running game.
 
 Gameplay validation remains necessary for weapon-specific animations, pneumatic
 pressure/charge, military-grade ammunition, zero initial loaded count, and level
@@ -121,7 +120,7 @@ Pressure is a float at weapon +`0xc00`; owner and configuration pointers are
 at +`0x118` and +`0x1b8`. Normal pressure is config +`0x1320`.
 The player identity chain starts at global RVA `0xfbd820`, then +`0x38`,
 then +`0xa0`. Hellsing class global RVA `0xf5d0e8` is bound to the existing
-no-reload class table rather than duplicated in the emitter.
+no-reload class table rather than duplicated in the pressure cave.
 
 The reviewed contexts come from static inspection of captured `.text` (RVA
 `0x1000`), SHA-256

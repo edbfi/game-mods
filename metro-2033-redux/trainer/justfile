@@ -1,52 +1,44 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-export CXX := env("CXX", "g++")
-export CPPFLAGS := env("CPPFLAGS", "-Iinclude")
-export CXXFLAGS := env("CXXFLAGS", "-std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror")
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set windows-shell := ["bash", "-euo", "pipefail", "-c"]
+
+target := "x86_64-pc-windows-msvc"
+# Cargo builds into the workspace's /target/ unless CARGO_TARGET_DIR moves it.
+target_dir := env("CARGO_TARGET_DIR", "../../target")
+# Native on Windows; elsewhere cargo-xwin links against the MSVC CRT and SDK pinned by the XWIN_* variables.
+cargo_build := if os() == "windows" { "cargo build" } else { "cargo xwin build" }
+# The Windows tests share real processes and a console, so they run one at a time.
+test_args := if os() == "windows" { "-- --test-threads=1" } else { "" }
 
 # List available commands.
 default:
     @just --list
 
-# Build and run the portable core, patch-profile, no-reload and pressure hook tests.
-test: test-hooks test-pressure
-    mkdir -p build
-    $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/core_tests.cpp -o build/core_tests
-    $CXX $CPPFLAGS $CXXFLAGS src/core.cpp tests/profile_tests.cpp -o build/profile_tests
-    $CXX $CPPFLAGS $CXXFLAGS src/core.cpp src/presentation.cpp tests/presentation_tests.cpp -o build/presentation_tests
-    ./build/presentation_tests
-    ./build/core_tests
-    ./build/profile_tests
+# Run the trainer's and the shared crates' tests. On Windows they include the dummy-game backend tests.
+test:
+    cargo test --locked -p metro-2033-redux-trainer -p edbfi-trainer -p edbfi-tui {{test_args}}
 
-# Execute generated hooks against synthetic objects (x86-64 Linux/WSL).
-test-hooks:
-    mkdir -p build
-    $CXX $CPPFLAGS $CXXFLAGS tools/verify-no-reload.cpp -o build/verify-no-reload
-    ./build/verify-no-reload
-    $CXX $CPPFLAGS $CXXFLAGS tests/conditional_hook_tests.cpp -o build/conditional_hook_tests
-    ./build/conditional_hook_tests
-
-# Cross-build build/metro-trainer.exe with Zig 0.17.0.
+# Build build/metro-trainer.exe, version 0.0.0 unless EDBFI_VERSION says otherwise.
 build:
-    ./tools/build-windows.sh
+    {{cargo_build}} --locked --release --target {{target}} -p metro-2033-redux-trainer
+    mkdir -p build
+    cp {{quote(target_dir / target / "release/metro-trainer.exe")}} build/
 
-# Run Windows memory-backend and trainer attach tests against disposable processes (WSL only).
-test-windows:
-    ./tools/test-windows.sh
+# Show the dashboard against a simulated game, in this terminal.
+demo:
+    cargo run --locked -p metro-2033-redux-trainer --example demo
 
-# Run console and dummy memory tests without trainer attachment.
-test-windows-safe:
-    ./tools/test-windows.sh --no-attach
-
-# Build and zip the trainer as dist/metro-2033-redux-trainer-<version>.zip.
-package version: build
-    ./tools/package.sh {{quote(version)}}
+# Build the trainer at <version> and zip it, this README and the license as dist/metro-2033-redux-trainer-<version>.zip.
+package version:
+    [[ {{quote(version)}} =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "Bad version: "{{quote(version)}} >&2; exit 1; }
+    EDBFI_VERSION={{quote(version)}} {{quote(just_executable())}} --justfile {{quote(justfile())}} build
+    rm -rf dist/stage dist/metro-2033-redux-trainer-{{version}}.zip
+    mkdir -p dist/stage/metro-trainer
+    cp build/metro-trainer.exe README.md ../../LICENSE dist/stage/metro-trainer/
+    cd dist/stage && python3 -m zipfile -c ../metro-2033-redux-trainer-{{version}}.zip metro-trainer
+    rm -rf dist/stage
+    echo "Created dist/metro-2033-redux-trainer-{{version}}.zip"
 
 # Remove generated build outputs.
 clean:
     rm -rf build dist
-
-# Execute synthetic pressure hook regressions.
-test-pressure:
-    mkdir -p build
-    $CXX $CPPFLAGS $CXXFLAGS tools/verify-pressure.cpp -o build/verify-pressure
-    ./build/verify-pressure

@@ -7,10 +7,12 @@ CI comes from [edbfi-ci](https://github.com/edbfi/edbfi-ci); its rules apply her
 
 - A mod is a folder with a `README.md` and a `justfile` with `test`, `build` and `package <version>`.
   `package` writes `dist/<game>-<mod>-<version>.zip`. Adding a mod needs no change outside its folder,
-  except a non-trainer Rust mod's workspace entry (below).
+  except a non-trainer Rust mod's workspace entry (below) and, for a mod that ships an executable other than a
+  trainer's, a check in `scripts/verify-mod-artifact.sh`.
 - Rust code is one Cargo workspace. Rust trainers live in `<game>/trainer` and join it automatically, so the mod name
-  `trainer` is reserved for Rust crates. Other Rust mods add themselves to the root `Cargo.toml` members, and any
-  Rust change may update the root `Cargo.lock`.
+  `trainer` is reserved for Rust crates. A trainer declares one `[[bin]]` and zips it as `<bin>/<bin>.exe`;
+  `scripts/verify-mod-artifact.sh` says what that executable must pass before it ships. Other Rust mods add
+  themselves to the root `Cargo.toml` members, and any Rust change may update the root `Cargo.lock`.
   Shared crates live in `crates/` and never hold a `justfile`.
 - Never commit game files, saves, captures or binaries. Build output goes in the mod's ignored `build/` and `dist/`
   (Cargo's in the root `/target/`).
