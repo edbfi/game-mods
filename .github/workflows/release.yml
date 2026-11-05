@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Release automation, after EasyHDR's release.yml. Publish a GitHub release tagged
 # <game>/<mod>/v<semver>, e.g. metro-2033-redux/trainer/v0.1.0. Then:
-#   verify   (unprivileged) the tag names a mod at the released commit, which is on main
-#            and passed CI there;
+#   verify   (unprivileged) the tag names a mod at the released commit, which is on main;
+#   ci       (unprivileged) waits until CI has passed on that commit, alongside build and windows;
 #   build    (unprivileged) packages the mod with scripts/package-mod.sh, which checks the zip;
 #   windows  (unprivileged) runs the zip's executables, if any, and uploads nothing;
 #   publish  (privileged: VT_API_KEY, contents: write; shell only, no actions) takes the
@@ -26,9 +26,8 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # Room to wait for a just-merged commit's CI run.
-    timeout-minutes: 25
-    permissions: { contents: read, actions: read }
+    timeout-minutes: 5
+    permissions: { contents: read }
     outputs:
       game: ${{ steps.tag.outputs.game }}
       mod: ${{ steps.tag.outputs.mod }}
@@ -61,6 +60,14 @@ jobs:
             { echo "::error::No mod at $game/$mod in $GITHUB_SHA"; exit 1; }
           { echo "game=$game"; echo "mod=$mod"; echo "version=$version"; } >> "$GITHUB_OUTPUT"
           echo "$TAG ($GITHUB_SHA) is on main"
+
+  ci:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Room for a just-merged commit's CI run to finish.
+    timeout-minutes: 65
+    permissions: { actions: read }
+    steps:
       - name: Require successful CI on main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,7 +75,8 @@ jobs:
         run: |
           set -euo pipefail
           # Any non-PR CI run of this commit on main counts. A just-merged commit's run may still be going.
-          for ((poll = 1; ; poll++)); do
+          deadline=$((SECONDS + 60 * 60))
+          while :; do
             runs="$(gh run list --workflow ci.yml --branch main --commit "$GITHUB_SHA" --limit 100 \
               --json event,status,conclusion \
               --jq '[.[] | select(.event == "push" or .event == "schedule" or .event == "workflow_dispatch")]')"
@@ -76,10 +84,10 @@ jobs:
               echo "CI passed on $GITHUB_SHA"; break
             fi
             if jq -e 'length > 0 and all(.[]; .status == "completed")' <<<"$runs" >/dev/null; then
-              echo "::error::CI failed on $GITHUB_SHA; re-run it, then re-run all jobs"; exit 1
+              echo "::error::CI failed on $GITHUB_SHA; re-run it, then re-run failed jobs"; exit 1
             fi
-            if ((poll == 40)); then
-              echo "::error::No finished CI run on main for $GITHUB_SHA after 20 minutes; re-run all jobs once it passes"; exit 1
+            if ((SECONDS >= deadline)); then
+              echo "::error::No finished CI run on main for $GITHUB_SHA after an hour; re-run failed jobs once it passes"; exit 1
             fi
             sleep 30
           done
@@ -87,7 +95,7 @@ jobs:
   build:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions: { contents: read }
     outputs:
       artifact: ${{ steps.check.outputs.artifact }}
@@ -108,7 +116,7 @@ jobs:
       - run: rustup toolchain install   # the version in rust-toolchain.toml
       # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
       - run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          bash scripts/apt-install.sh lua5.1 clang-18 llvm-18 lld-18
           echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - id: check
         env:
@@ -147,13 +155,14 @@ jobs:
         run: |
           set -euo pipefail
           zip="$RUNNER_TEMP/zip/$GAME-$MOD-$VERSION.zip"
-          actual="$(sha256sum "$zip" | cut -d' ' -f1)"
+          # From stdin: sha256sum prefixes its line with \ when the file name holds one, as Windows paths do.
+          actual="$(sha256sum < "$zip" | cut -d' ' -f1)"
           [[ "$actual" == "$EXPECTED_SHA256" ]] || { echo "::error::sha256 $actual, build reported $EXPECTED_SHA256"; exit 1; }
           python3 -m zipfile -e "$zip" "$RUNNER_TEMP/files"
           bash scripts/verify-mod-artifact.sh "$GAME/$MOD" "$VERSION" "$RUNNER_TEMP/files"
 
   publish:
-    needs: [build, windows]
+    needs: [ci, build, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: { contents: write, actions: read }
