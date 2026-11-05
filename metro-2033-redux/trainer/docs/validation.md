@@ -14,10 +14,13 @@ them. Record the date, the SHA-256 of the `metro-trainer.exe` used and the commi
 seen. This trainer replaces the C++ one on main only after the check, gameplay pass, hotkeys, overlay and terminal
 rows pass.
 
+The owner's 2026-11-05 run used the `metro-trainer.exe` that CI built from `d6ce394` (SHA-256
+`953d97d5283bc292b048333fc6b2644939cfddf96d63b7f600a829f173734ad7`) and saw no issues.
+
 | Check | Status | Scope |
 | --- | --- | --- |
-| `metro-trainer check` against the supported game | PENDING | Exits 0 and reports the build, the code and every hook site as expected, with the game unchanged. |
-| Gameplay pass | PENDING | Connect, toggle each cheat on and off in play, quit; the game's code restored. The per-feature rows below track the full [runtime acceptance](#runtime-acceptance). |
+| `metro-trainer check` against the supported game | PASS 2026-11-05 | Exits 0 and reports the build, the code and every hook site as expected, with the game unchanged. |
+| Gameplay pass | PASS 2026-11-05 | Connect, toggle each cheat on and off in play, quit; the game's code restored. The per-feature rows below track the full [runtime acceptance](#runtime-acceptance). |
 | Hook sites in a `.text` capture | PENDING | `EDBFI_TEXT_CAPTURE=<file> cargo test --locked -p metro-2033-redux-trainer --test profile -- --ignored` passes. |
 | Attach from any install folder | PENDING | The game installed outside the default Steam library connects. |
 | Unlimited ammo | PARTIAL | Worked in shooting-range challenges with the C++ trainer. The Rust trainer and currency isolation are unchecked. |
@@ -28,9 +31,9 @@ rows pass.
 | Unlimited flashlight | PENDING | Flashlight and night-vision drain. |
 | Feature and currency isolation | PENDING | No gameplay comparison yet. |
 | Stutter and freeze time | UNRESOLVED | The log records how long connecting took and how long restoring held the game's threads. No gameplay measurement yet. |
-| Hotkeys in the game | PENDING | Raw Input with the game fullscreen; AltGr and AZERTY; NumLock and the numpad; unplugging a keyboard; an elevated game with an unelevated trainer. |
-| Overlay clashes | PENDING | Every default hotkey against Metro's own controls and the installed Steam and GPU overlays. |
-| Terminals | PENDING | The dashboard in conhost and Windows Terminal: glyphs, colours, resizing, 40×12; closing a conhost window restores the game. |
+| Hotkeys in the game | PASS 2026-11-05 | Raw Input with the game fullscreen; AltGr and AZERTY; NumLock and the numpad; unplugging a keyboard; an elevated game with an unelevated trainer. |
+| Overlay clashes | PASS 2026-11-05 | Every default hotkey against Metro's own controls and the installed Steam and GPU overlays. |
+| Terminals | PASS 2026-11-05 | The dashboard in conhost and Windows Terminal: glyphs, colours, resizing, 40×12; closing a conhost window restores the game. |
 
 ## Before connecting
 
