@@ -9,7 +9,7 @@
 //! - [`identify`] proves the process is the supported build without changing anything. A [`ReadOnly`]
 //!   candidate stops there; that is the `check` command.
 //! - [`Session::claim`] takes the per-process owner and stop objects; a second trainer is refused.
-//! - [`Session::prepare`] maps the zeroed control word into the game, places the cave block within jump range
+//! - [`Session::prepare`] allocates the zeroed control word in the game, places the cave block within jump range
 //!   of every site, and writes, checks and protects every cave. Nothing can reach the caves yet, so a failure
 //!   here frees them.
 //! - [`Session::install`] freezes the game and writes every site's jump with every cheat off. Before the first
@@ -86,7 +86,7 @@ pub(crate) trait Game: Process {
     fn interrupted(&self) -> bool;
     /// Reserves and commits `len` read-write bytes at exactly `at`.
     fn allocate(&self, at: Va, len: u64) -> Result<Box<dyn Allocation>, OsError>;
-    /// Maps a zeroed control word into the game at exactly `at`, an allocation-granularity boundary.
+    /// Allocates a zeroed control word in the game at exactly `at`, an allocation-granularity boundary.
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError>;
     /// Takes this process's owner and stop objects for `slug`.
     fn claim(&self, slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError>;
@@ -458,7 +458,7 @@ impl Session<Claimed> {
         self.state.owner.stop_requested()
     }
 
-    /// Maps the zeroed control word and writes every cave, protected and checked, where every site can reach
+    /// Allocates the zeroed control word and writes every cave, protected and checked, where every site can reach
     /// it.
     ///
     /// # Errors

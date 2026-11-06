@@ -204,6 +204,11 @@ fn a_publication_that_cannot_reach_the_game_is_journaled_and_reported_failed() {
     };
     assert_eq!(ack.mask().bits(), mask(&[3]).bits());
     assert_eq!(game.info.word.get(), 0b1000);
+    // A game that exited ends the session through its exit notice, so its failed publication is not news.
+    game.info.store_fails.set(true);
+    game.info.exited.set(true);
+    h.runtime.command(RuntimeCommand::Publish(mask(&[0])));
+    assert_eq!(h.runtime.events(), [RuntimeEvent::PublishFailed]);
 }
 
 #[test]
