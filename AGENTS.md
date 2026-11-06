@@ -30,6 +30,8 @@ version of it is worth keeping; nightlies cover the changes in between.
 - Each mod has its own [SemVer](https://semver.org/) version, `X.Y.Z` with no leading zeros.
 - Release by publishing a GitHub release from main, tagged and titled `<game>/<mod>/vX.Y.Z`
   (e.g. `metro-2033-redux/trainer/v0.1.0`). Never move, delete or reuse a tag; fix a bad release with a new one.
+- Write release notes with one line per paragraph or list item: GitHub shows every newline in a release body
+  as a line break.
 - The first release is `0.1.0`. After that, bump from the mod's commits since its last tag:
   breaking → major (minor while the version is `0.y.z`), `feat` → minor, `fix` or `perf` → patch.
 - A change is breaking when users must act on it: a renamed or removed setting, hotkey or file, a different

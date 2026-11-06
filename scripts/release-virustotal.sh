@@ -143,7 +143,7 @@ notes() {
       then ($body | split($start)) as $h | $h[0] + $b + ($h[1] | split($end))[1]
       elif $ns == 0 and $ne == 0 then
         (if ($body | gsub("\\s+"; "") | length) == 0 then $b + "\n"
-        else ($body | rtrimstr("\n")) + "\n\n" + $b + "\n" end)
+        else ($body | sub("\\s+\\z"; "")) + "\n\n" + $b + "\n" end)
       else error("the release body has unmatched VirusTotal markers") end
   ' >"$out"
 }
