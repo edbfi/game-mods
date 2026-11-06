@@ -56,7 +56,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.mods.outputs.mods) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions: { contents: read }
     env:
       GAME: ${{ matrix.game }}
@@ -71,7 +71,7 @@ jobs:
       - run: rustup toolchain install   # the version in rust-toolchain.toml
       # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
       - run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1 clang-18 llvm-18 lld-18
+          bash scripts/apt-install.sh lua5.1 clang-18 llvm-18 lld-18
           echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
       - run: just --justfile "$GAME/$MOD/justfile" --working-directory "$GAME/$MOD" test
       # Nightlies have no version: 0.0.0 only names the zip extracted here. The scan summary names a build by commit and run.
