@@ -296,8 +296,19 @@ impl Runtime {
         match command {
             RuntimeCommand::Publish(mask) => {
                 if let Slot::Attached(session) = &mut self.slot {
-                    let ack = session.publish(mask);
-                    self.events.push(RuntimeEvent::Ack(ack));
+                    match session.publish(mask) {
+                        Ok(ack) => self.events.push(RuntimeEvent::Ack(ack)),
+                        Err(error) => {
+                            // A game that exited ends the session through its exit notice instead.
+                            if session.exit_proof().is_none() {
+                                self.record(Event::error(
+                                    EntryKind::Hooks,
+                                    format!("cannot set the cheats in the game: {error}"),
+                                ));
+                            }
+                            self.events.push(RuntimeEvent::PublishFailed);
+                        }
+                    }
                 }
             }
             RuntimeCommand::Retry => self.retry(),

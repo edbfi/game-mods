@@ -20,21 +20,18 @@ use super::{Allocation, Controls, Game, Hooks};
 /// `ERROR_INVALID_ADDRESS`: the requested base is no longer free.
 pub(crate) const ERROR_INVALID_ADDRESS: u32 = 487;
 
-/// `ERROR_PROC_NOT_FOUND`: a function this Windows does not export.
-const ERROR_PROC_NOT_FOUND: u32 = 127;
-
 /// Fresh walks of the address space before placement gives up.
 const PLACEMENT_ROUNDS: usize = 3;
 /// Most regions one walk visits.
 const MAX_REGIONS: usize = 1 << 16;
 
-/// Maps the controls, places and writes the caves, and returns everything needed to hook the sites.
+/// Allocates the controls, places and writes the caves, and returns everything needed to hook the sites.
 pub(super) fn prepare(
     game: &dyn Game,
     profile: &ValidProfile<'static>,
     image: Va,
 ) -> Result<Hooks, PrepareError> {
-    let controls = map_controls(game, image)?;
+    let mut controls = allocate_controls(game, image)?;
     let built = write_caves(game, profile, image, &*controls).and_then(|(plan, block)| {
         let patches = plan
             .hooks()
@@ -58,7 +55,7 @@ pub(super) fn prepare(
             stuck: crate::patch::Stuck::default(),
         }),
         Err(error) => {
-            // Nothing can read the control word yet: take the game's view back out.
+            // Nothing can read the control word yet: free its page in the game.
             controls.withdraw();
             Err(error)
         }
@@ -108,10 +105,10 @@ const CONTROLS_CLEARANCE: u64 = 1 << 32;
 /// Most bases tried for the control word.
 const CONTROLS_TRIES: usize = 64;
 
-/// Maps the control word at the first free granularity boundary above 8 GiB and at least 4 GiB from the
-/// image, so no constant a cave holds lies near it. Left to choose, Windows may put the view low, beside the
+/// Allocates the control word at the first free granularity boundary above 8 GiB and at least 4 GiB from the
+/// image, so no constant a cave holds lies near it. Left to choose, Windows may put the page low, beside the
 /// class masks and float bits the caves compare against, and their proof would refuse it.
-fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, PrepareError> {
+fn allocate_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, PrepareError> {
     let granularity = game.granularity();
     let image = image.get();
     let near = |at: u64| at.abs_diff(image) < CONTROLS_CLEARANCE;
@@ -157,7 +154,7 @@ fn map_controls(game: &dyn Game, image: Va) -> Result<Box<dyn Controls>, Prepare
         cursor = end;
     }
     Err(PrepareError::Controls(OsError::new(
-        "MapViewOfFileNuma2",
+        "VirtualAllocEx",
         ERROR_INVALID_ADDRESS,
     )))
 }
@@ -211,8 +208,8 @@ pub(super) fn free_regions(game: &dyn Game, reach: Reach) -> Result<Vec<FreeRegi
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum PrepareError {
-    /// The shared control word could not be mapped into the game.
-    #[error("cannot share the control word with the game: {0}")]
+    /// The control word's page could not be allocated in the game.
+    #[error("cannot allocate the control word in the game: {0}")]
     Controls(OsError),
     /// No base reaches every site. A verified profile never does this.
     #[error("no cave address can reach every hook site")]
@@ -267,10 +264,6 @@ impl PrepareError {
     #[must_use]
     pub const fn recovery(&self) -> RecoveryAction {
         match self {
-            // Only a missing `MapViewOfFileNuma2` means Windows is too old.
-            Self::Controls(error) if error.code == ERROR_PROC_NOT_FOUND => {
-                RecoveryAction::UpdateWindows
-            }
             Self::NoReach | Self::Hook(_) | Self::Patches(_) => RecoveryAction::ReportBug,
             Self::Controls(_)
             | Self::Read { .. }

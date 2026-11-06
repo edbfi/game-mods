@@ -567,6 +567,29 @@ fn help_closes_with_shifted_letters() {
 }
 
 #[test]
+fn a_publication_that_failed_can_be_published_again() {
+    let mut app = live();
+    let acked = app.model.acked;
+    let wanted =
+        published(&app.update(press(ConsoleKey::Key(Key::SPACE)))).expect("a toggle publishes");
+    app.update(Msg::Runtime(RuntimeEvent::PublishFailed));
+    assert!(app.in_flight.is_empty());
+    assert_eq!(
+        app.model.acked, acked,
+        "nothing new is shown as acknowledged"
+    );
+    // Back to the acknowledged mask needs nothing sent; asking for the failed mask again sends it again.
+    assert_eq!(
+        published(&app.update(press(ConsoleKey::Key(Key::SPACE)))),
+        None
+    );
+    assert_eq!(
+        published(&app.update(press(ConsoleKey::Key(Key::SPACE)))),
+        Some(wanted)
+    );
+}
+
+#[test]
 fn loading_settings_clears_a_stale_save_failure() {
     let mut app = live();
     app.update(press(ConsoleKey::Key(Key::SPACE)));

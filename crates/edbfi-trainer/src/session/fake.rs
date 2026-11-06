@@ -51,9 +51,11 @@ pub(crate) struct Info {
     /// The next nonzero store is interrupted, as if a close notice ran between a publication's check and
     /// its store.
     pub(crate) interrupt_on_store: Cell<bool>,
-    /// Whether the game's view of the control word was unmapped.
+    /// Every store fails with access denied, as if the control word's page were gone.
+    pub(crate) store_fails: Cell<bool>,
+    /// Whether the control word's page was freed.
     pub(crate) withdrawn: Cell<bool>,
-    /// Where the control word was mapped.
+    /// Where the control word was allocated.
     pub(crate) controls_at: Cell<u64>,
     /// Allocation fails with access denied.
     pub(crate) deny: Cell<bool>,
@@ -134,6 +136,7 @@ impl FakeGame {
             stop: Cell::new(false),
             interrupted: Cell::new(false),
             interrupt_on_store: Cell::new(false),
+            store_fails: Cell::new(false),
             withdrawn: Cell::new(false),
             controls_at: Cell::new(0),
             deny: Cell::new(false),
@@ -272,13 +275,16 @@ impl Game for FakeGame {
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
         self.fail("controls")?;
         if self.info.taken.borrow().contains(&at.get()) || self.fake.occupied(at.get(), PAGE) {
-            return Err(OsError::new("MapViewOfFileNuma2", 487));
+            return Err(OsError::new("VirtualAllocEx", 487));
         }
         self.info.controls_at.set(at.get());
         self.fake.map(at.get(), PAGE, Protection::READ_WRITE, 0);
         self.info.word.set(0);
         self.info.controls_live.set(true);
-        Ok(Box::new(FakeControls(Rc::clone(&self.info))))
+        Ok(Box::new(FakeControls {
+            info: Rc::clone(&self.info),
+            withdrawn: false,
+        }))
     }
 
     fn claim(&self, _slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {
@@ -319,23 +325,32 @@ impl Drop for FakeBlock {
     }
 }
 
-struct FakeControls(Rc<Info>);
+struct FakeControls {
+    info: Rc<Info>,
+    /// Whether this page was freed.
+    withdrawn: bool,
+}
 
 impl Controls for FakeControls {
     fn remote(&self) -> Va {
-        Va::new(self.0.controls_at.get())
+        Va::new(self.info.controls_at.get())
     }
 
-    fn load(&self) -> u32 {
-        self.0.word.get()
+    fn load(&self) -> Result<u32, OsError> {
+        Ok(self.info.word.get())
     }
 
-    fn withdraw(&self) {
-        self.0.withdrawn.set(true);
+    fn withdraw(&mut self) {
+        self.withdrawn = true;
+        self.info.withdrawn.set(true);
     }
 
-    fn store(&self, word: u32) {
-        let info = &self.0;
+    fn store(&self, word: u32) -> Result<(), OsError> {
+        assert!(!self.withdrawn, "a store after the page was freed");
+        let info = &self.info;
+        if info.store_fails.get() {
+            return Err(OsError::new("WriteProcessMemory", 5));
+        }
         if word != 0 && info.interrupt_on_store.take() {
             // The notice requests shutdown, then zeroes the word, before this store lands.
             info.interrupted.set(true);
@@ -343,14 +358,18 @@ impl Controls for FakeControls {
         }
         info.word.set(word);
         info.stores.set(info.stores.get() + 1);
+        Ok(())
     }
 }
 
 impl Drop for FakeControls {
     fn drop(&mut self) {
-        let info = &self.0;
+        let info = &self.info;
         info.finished.set(info.finished.get() + 1);
-        info.word.set(0);
+        // A freed page may belong to the game again.
+        if !self.withdrawn {
+            info.word.set(0);
+        }
         info.controls_live.set(false);
     }
 }

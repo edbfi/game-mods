@@ -6,11 +6,11 @@
 //! owner thread holds, so the bridge keeps what they need: an event that asks the owner to restore and exit,
 //! and a slot holding the current session's lease on its control word.
 //!
-//! A lease pins the trainer's view of the control word and an event the session sets once its restoration
-//! has finished. A callback counts itself as a reader before loading the slot, zeroes the control word
-//! through the lease it found, and stops reading when done. A session retiring its lease empties the slot,
-//! then waits for the reader count to drop to zero before unmapping, so no callback ever touches an unmapped
-//! view. All of it is lock-free and allocation-free on the callback side.
+//! A lease pins the game's process handle, the control word's address in it and an event the session sets
+//! once its restoration has finished. A callback counts itself as a reader before loading the slot, zeroes the
+//! control word through the lease it found, and stops reading when done. A session retiring its lease empties
+//! the slot, then waits for the reader count to drop to zero before freeing it, so no callback ever uses a
+//! closed handle. All of it is lock-free and allocation-free on the callback side.
 //!
 //! Ctrl+C and Ctrl+Break ask for shutdown too, until the owner routes them: from then on each is counted and
 //! signals an interrupt event of its own, so the dashboard can offer an interactive quit.
@@ -22,7 +22,7 @@
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{FALSE, HANDLE, TRUE, WAIT_OBJECT_0};
@@ -33,8 +33,10 @@ use windows_sys::Win32::System::Console::{
 use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent, WaitForSingleObject};
 use windows_sys::core::BOOL;
 
+use crate::addr::Va;
 use crate::patch::OsError;
 
+use super::controls::write_word;
 use super::process::none;
 use super::{last_error, millis, owned};
 
@@ -44,19 +46,18 @@ pub(crate) const CLOSE_BUDGET: Duration = Duration::from_millis(4500);
 
 /// A session's control word and completion event, pinned while any callback may use them.
 pub(crate) struct Lease {
-    word: NonNull<AtomicU32>,
+    process: Arc<OwnedHandle>,
+    word: Va,
     completion: OwnedHandle,
 }
 
-// SAFETY: `word` points into a mapped view that stays mapped until the lease is retired, which waits for
-// every reader; the view is only accessed through atomics, so sharing the pointer between threads is sound.
-unsafe impl Send for Lease {}
-// SAFETY: as for `Send`; every access through `word` is atomic and the event handle is thread-safe.
-unsafe impl Sync for Lease {}
-
 impl Lease {
-    pub(crate) const fn new(word: NonNull<AtomicU32>, completion: OwnedHandle) -> Self {
-        Self { word, completion }
+    pub(crate) const fn new(process: Arc<OwnedHandle>, word: Va, completion: OwnedHandle) -> Self {
+        Self {
+            process,
+            word,
+            completion,
+        }
     }
 
     /// The event set when the session's restoration has finished.
@@ -65,9 +66,8 @@ impl Lease {
     }
 
     fn zero(&self) {
-        // SAFETY: a reader only reaches a lease through the slot, and the view stays mapped until every
-        // reader has left (see `retire`).
-        unsafe { self.word.as_ref() }.store(0, Ordering::SeqCst);
+        // A game that already exited has no word left to zero.
+        let _zeroed = write_word(self.process.as_raw_handle(), self.word, 0);
     }
 
     fn wait(&self, timeout: Duration) {

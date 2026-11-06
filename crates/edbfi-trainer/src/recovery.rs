@@ -19,8 +19,6 @@ pub enum RecoveryAction {
     EditSettings,
     /// Replace the settings file with defaults, keeping a backup of the old one.
     ResetSettings,
-    /// The Windows version lacks a required feature; update Windows.
-    UpdateWindows,
     /// Restart the game so its code is in a known state.
     RestartGame,
     /// This game build is not supported by this trainer version.

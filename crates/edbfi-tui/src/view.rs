@@ -146,9 +146,6 @@ pub(crate) fn recovery_text(action: RecoveryAction) -> &'static str {
         RecoveryAction::ResetSettings => {
             "This trainer can't read that file. Replace it with defaults; the old file is kept."
         }
-        RecoveryAction::UpdateWindows => {
-            "Update Windows; this version lacks something the trainer needs."
-        }
         RecoveryAction::RestartGame => "Restart the game so its code is in a known state.",
         RecoveryAction::UnsupportedBuild => {
             "This game build isn't supported by this trainer version."
