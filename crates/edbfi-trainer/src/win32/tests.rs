@@ -402,6 +402,41 @@ fn an_abandoned_preparation_takes_its_control_word_out_of_the_game() {
     assert_eq!(game.query(at).unwrap().state, RegionState::Free);
 }
 
+#[test]
+fn a_withdrawn_control_page_is_never_written_again() {
+    use crate::session::Game as _;
+    let _serial = serial();
+    bridge::install().unwrap();
+    bridge::reset_for_tests();
+    let dummy = Dummy::start();
+    let profile = profile(&dummy);
+    // A boundary the trainer itself picks for the control word.
+    let candidate = Candidate::<Write>::open(dummy.pid()).unwrap();
+    let prepared = identify(candidate, &profile)
+        .unwrap()
+        .claim()
+        .unwrap()
+        .prepare()
+        .unwrap();
+    let at = prepared.controls_at();
+    drop(prepared);
+    let game = WinGame::open(dummy.pid(), true).unwrap();
+    let mut controls = game.controls(at).unwrap();
+    controls.withdraw();
+    // The game takes the address for something else before the controls go.
+    let reused = game.allocate(at, 4096).unwrap();
+    game.write(at, &[0xAB; 4]).unwrap();
+    let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
+    drop(controls);
+    let mut back = [0; 4];
+    game.read(at, &mut back).unwrap();
+    assert_eq!(
+        back, [0xAB; 4],
+        "neither the panic hook nor the drop wrote to it"
+    );
+    drop(reused);
+}
+
 // ----- keyboard and foreground notices, console input -----
 
 /// Waits up to a second for the keyboard notices' event.

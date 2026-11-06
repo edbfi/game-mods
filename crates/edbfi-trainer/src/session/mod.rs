@@ -121,8 +121,9 @@ pub(crate) trait Controls {
     fn store(&self, word: u32) -> Result<(), OsError>;
     /// The word the game sees now, which a shutdown callback may have zeroed behind the session's back.
     fn load(&self) -> Result<u32, OsError>;
-    /// Frees the game's page. Only for controls no cave can read: a cave block never published.
-    fn withdraw(&self);
+    /// Frees the game's page, after which nothing writes to it. Only for controls no cave can read: a cave block
+    /// never published.
+    fn withdraw(&mut self);
     // Dropping the controls zeroes them and tells a close request waiting on the session that nothing more will
     // be restored; the game's page stays. A failed restoration does not tell it, so a close request keeps
     // waiting while the owner tries again.
@@ -263,7 +264,7 @@ struct Hooks {
 }
 
 impl Drop for Hooks {
-    /// While the caves were never published nothing in the game can read the control word, so its view goes
+    /// While the caves were never published nothing in the game can read the control word, so its page goes
     /// too; once they were, it stays until the game exits.
     fn drop(&mut self) {
         if self.unpublished.is_some() {

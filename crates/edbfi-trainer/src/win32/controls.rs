@@ -3,18 +3,22 @@
 //!
 //! The trainer reads and writes the word through the process handle, as it does the caves. Windows does not
 //! promise that a 4-byte `WriteProcessMemory` is a single store, but it never needs to be: each cave loads the
-//! word once and tests its own bits, no bit straddles a byte, and any mix of old and new bits is a selection
-//! the dashboard could have made. A cave racing a write sees every bit either before or after it.
+//! word once and decides on its own bits alone, and no bit straddles a byte, so a cave racing a write sees
+//! each of its bits either before or after it. A torn word can briefly pair bits no selection produces, such
+//! as a derived bit without the toggle that implies it, but no cave reads both.
 //!
-//! The page is never freed once a cave may read it, even after the trainer has gone; dropping the controls
-//! only zeroes it, after the shutdown bridge has stopped every callback from using the lease.
+//! Only [`Controls::withdraw`] frees the page, while no cave can read it; it retires the shutdown bridge's
+//! lease first, so no callback writes to a page the game may have reused. Once a cave may read the page it
+//! stays, even after the trainer has gone: dropping the controls zeroes the word, then retires the lease.
 
 use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::NonNull;
 use std::sync::Arc;
 
-use windows_sys::Win32::Foundation::{ERROR_BUSY, FALSE, HANDLE, TRUE};
+use windows_sys::Win32::Foundation::{
+    ERROR_BUSY, ERROR_INVALID_ADDRESS, ERROR_PARTIAL_COPY, FALSE, HANDLE, TRUE,
+};
 use windows_sys::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows_sys::Win32::System::Memory::{
     MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAllocEx, VirtualFreeEx,
@@ -31,8 +35,6 @@ use super::{last_error, owned};
 
 /// One page.
 const SIZE: usize = 4096;
-/// `ERROR_PARTIAL_COPY`: fewer bytes moved than asked.
-const ERROR_PARTIAL_COPY: u32 = 299;
 
 /// Writes `word` at `at` in `process`. Safe from a panic hook or a console handler: no allocation, lock or I/O.
 pub(super) fn write_word(process: HANDLE, at: Va, word: u32) -> Result<(), OsError> {
@@ -57,12 +59,15 @@ pub(super) fn write_word(process: HANDLE, at: Va, word: u32) -> Result<(), OsErr
     Ok(())
 }
 
-/// The control word, shared with one game.
+/// The control word, in a page of one game.
 pub(crate) struct Page {
     process: Arc<OwnedHandle>,
     remote: Va,
     lease: NonNull<Lease>,
+    /// Whether the bridge's slot holds the lease.
     registered: bool,
+    /// Whether [`Controls::withdraw`] freed the page.
+    withdrawn: bool,
 }
 
 impl Page {
@@ -93,7 +98,7 @@ impl Page {
         let remote = Va::new(raw as usize as u64);
         if remote != at {
             free();
-            return Err(OsError::new("VirtualAllocEx", 487));
+            return Err(OsError::new("VirtualAllocEx", ERROR_INVALID_ADDRESS));
         }
         // The lease is owned through a raw pointer from here on, so the pointer the bridge holds stays valid
         // however the page moves; it is freed only after the bridge has no reader of it.
@@ -115,6 +120,7 @@ impl Page {
             remote,
             lease,
             registered,
+            withdrawn: false,
         })
     }
 
@@ -155,7 +161,19 @@ impl Controls for Page {
         Ok(u32::from_ne_bytes(bytes))
     }
 
-    fn withdraw(&self) {
+    fn withdraw(&mut self) {
+        if self.withdrawn {
+            return;
+        }
+        // Nothing will be restored: release any close notice waiting on this session, then take the lease out
+        // of the bridge, so no callback can write to the page once it is gone.
+        // SAFETY: the completion event is a live event handle owned by the lease.
+        let _set = unsafe { SetEvent(self.lease().completion()) };
+        if self.registered {
+            bridge::retire(self.lease);
+            self.registered = false;
+        }
+        self.withdrawn = true;
         // SAFETY: `remote` is this page, which no cave can reach yet; the process handle is live with
         // `PROCESS_VM_OPERATION`.
         let _freed = unsafe {
@@ -171,8 +189,10 @@ impl Controls for Page {
 
 impl Drop for Page {
     fn drop(&mut self) {
-        // A game that already exited has no page left to zero.
-        let _zeroed = self.store(0);
+        // A freed page may belong to the game again; a game that already exited has no page left to zero.
+        if !self.withdrawn {
+            let _zeroed = self.store(0);
+        }
         // Nothing more will be restored: release any close notice waiting on this session.
         // SAFETY: the completion event is a live event handle owned by the lease.
         let _set = unsafe { SetEvent(self.lease().completion()) };

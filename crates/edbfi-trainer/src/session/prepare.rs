@@ -31,7 +31,7 @@ pub(super) fn prepare(
     profile: &ValidProfile<'static>,
     image: Va,
 ) -> Result<Hooks, PrepareError> {
-    let controls = allocate_controls(game, image)?;
+    let mut controls = allocate_controls(game, image)?;
     let built = write_caves(game, profile, image, &*controls).and_then(|(plan, block)| {
         let patches = plan
             .hooks()

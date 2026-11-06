@@ -106,8 +106,8 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
     assert!(game.info.controls_live.get());
     drop(detached);
     assert_eq!(game.info.finished.get(), 1);
-    // The caves were published, so the game keeps its view of the control word; the caves outlive the hooks,
-    // and the trainer's own view of the controls does not.
+    // The caves were published, so the game keeps the control word's page; the caves outlive the hooks, and
+    // the trainer's hold on the controls does not.
     assert!(!game.info.withdrawn.get());
     assert_eq!(game.blocks(), [Block::Retained]);
     assert!(!game.info.controls_live.get());
@@ -121,7 +121,7 @@ fn a_dropped_prepared_session_frees_its_caves() {
     assert_eq!(game.blocks(), [Block::Live]);
     drop(session);
     assert_eq!(game.blocks(), [Block::Freed]);
-    // Nothing could read the control word, so its view left the game too.
+    // Nothing could read the control word, so its page left the game too.
     assert!(game.info.withdrawn.get());
 }
 

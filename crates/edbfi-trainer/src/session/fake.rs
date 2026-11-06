@@ -281,7 +281,10 @@ impl Game for FakeGame {
         self.fake.map(at.get(), PAGE, Protection::READ_WRITE, 0);
         self.info.word.set(0);
         self.info.controls_live.set(true);
-        Ok(Box::new(FakeControls(Rc::clone(&self.info))))
+        Ok(Box::new(FakeControls {
+            info: Rc::clone(&self.info),
+            withdrawn: false,
+        }))
     }
 
     fn claim(&self, _slug: ModSlug) -> Result<Box<dyn Owner>, ClaimError> {
@@ -322,23 +325,29 @@ impl Drop for FakeBlock {
     }
 }
 
-struct FakeControls(Rc<Info>);
+struct FakeControls {
+    info: Rc<Info>,
+    /// Whether this page was freed.
+    withdrawn: bool,
+}
 
 impl Controls for FakeControls {
     fn remote(&self) -> Va {
-        Va::new(self.0.controls_at.get())
+        Va::new(self.info.controls_at.get())
     }
 
     fn load(&self) -> Result<u32, OsError> {
-        Ok(self.0.word.get())
+        Ok(self.info.word.get())
     }
 
-    fn withdraw(&self) {
-        self.0.withdrawn.set(true);
+    fn withdraw(&mut self) {
+        self.withdrawn = true;
+        self.info.withdrawn.set(true);
     }
 
     fn store(&self, word: u32) -> Result<(), OsError> {
-        let info = &self.0;
+        assert!(!self.withdrawn, "a store after the page was freed");
+        let info = &self.info;
         if info.store_fails.get() {
             return Err(OsError::new("WriteProcessMemory", 5));
         }
@@ -355,9 +364,12 @@ impl Controls for FakeControls {
 
 impl Drop for FakeControls {
     fn drop(&mut self) {
-        let info = &self.0;
+        let info = &self.info;
         info.finished.set(info.finished.get() + 1);
-        info.word.set(0);
+        // A freed page may belong to the game again.
+        if !self.withdrawn {
+            info.word.set(0);
+        }
         info.controls_live.set(false);
     }
 }
