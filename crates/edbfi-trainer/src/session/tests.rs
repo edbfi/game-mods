@@ -68,11 +68,11 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
         crate::patch::Protection::EXECUTE_READ
     );
 
-    let first = session.publish(mask(&[0, 31]));
+    let first = session.publish(mask(&[0, 31])).unwrap();
     assert_eq!(game.info.word.get(), 0x8000_0001);
     assert_eq!(first.revision(), 1);
     let stores = game.info.stores.get();
-    let again = session.publish(mask(&[0, 31]));
+    let again = session.publish(mask(&[0, 31])).unwrap();
     assert_eq!(
         game.info.stores.get(),
         stores,
@@ -83,7 +83,7 @@ fn a_session_installs_publishes_and_restores_the_game_exactly() {
     assert_eq!(session.published(), mask(&[0, 31]));
     // A shutdown callback zeroed the word behind the session's back: the same mask is stored again.
     game.info.word.set(0);
-    session.publish(mask(&[0, 31]));
+    session.publish(mask(&[0, 31])).unwrap();
     assert_eq!(game.info.word.get(), 0x8000_0001);
 
     let detached = session.restore(VerifyRestore::Text).unwrap();
@@ -289,12 +289,12 @@ fn a_publication_after_a_shutdown_or_stop_request_publishes_zero() {
     ] {
         let (game, profile) = FakeGame::new();
         let mut session = installed(&game, &profile);
-        session.publish(mask(&[0, 3]));
+        session.publish(mask(&[0, 3])).unwrap();
         assert_eq!(game.info.word.get(), 0b1001);
         // A shutdown callback zeroes the word, then the owner publishes a change it was already making.
         request(&game);
         game.info.word.set(0);
-        let ack = session.publish(mask(&[0, 3, 5]));
+        let ack = session.publish(mask(&[0, 3, 5])).unwrap();
         assert_eq!(game.info.word.get(), 0);
         assert_eq!(ack.mask().bits(), DesiredMask::ZERO.bits());
         assert_eq!(session.published(), DesiredMask::ZERO);
@@ -304,9 +304,27 @@ fn a_publication_after_a_shutdown_or_stop_request_publishes_zero() {
     let (game, profile) = FakeGame::new();
     let mut session = installed(&game, &profile);
     game.info.interrupt_on_store.set(true);
-    let ack = session.publish(mask(&[0, 3]));
+    let ack = session.publish(mask(&[0, 3])).unwrap();
     assert_eq!(game.info.word.get(), 0);
     assert_eq!(ack.mask().bits(), DesiredMask::ZERO.bits());
+}
+
+#[test]
+fn a_publication_that_cannot_reach_the_game_acknowledges_nothing() {
+    let (game, profile) = FakeGame::new();
+    let mut session = installed(&game, &profile);
+    let first = session.publish(mask(&[0])).unwrap();
+    game.info.store_fails.set(true);
+    let error = session.publish(mask(&[0, 3])).unwrap_err();
+    assert_eq!(error.call, "WriteProcessMemory");
+    assert_eq!(game.info.word.get(), 0b1);
+    assert_eq!(session.published(), mask(&[0]));
+    // The next publication that lands takes the next revision.
+    game.info.store_fails.set(false);
+    let next = session.publish(mask(&[3])).unwrap();
+    assert_eq!(next.revision(), first.revision() + 1);
+    assert_eq!(game.info.word.get(), 0b1000);
+    session.restore(VerifyRestore::Sites).unwrap();
 }
 
 #[test]
@@ -464,7 +482,7 @@ fn a_whole_code_check_reports_changes_outside_the_sites() {
 fn a_game_that_exited_is_not_restored() {
     let (game, profile) = FakeGame::new();
     let mut session = installed(&game, &profile);
-    session.publish(mask(&[1]));
+    session.publish(mask(&[1])).unwrap();
     game.info.exited.set(true);
     let writes = game.fake.calls("write");
     let failure = session.restore(VerifyRestore::Text).unwrap_err();
@@ -630,7 +648,7 @@ fn a_rolled_back_install_still_gets_its_whole_code_check() {
 #[test]
 fn a_lost_race_for_the_control_word_tries_the_next_boundary() {
     let (game, profile) = FakeGame::new();
-    // The first boundary looks free to the walk but is taken when mapped; the next one in the same region
+    // The first boundary looks free to the walk but is taken when allocated; the next one in the same region
     // is used.
     game.info.taken.borrow_mut().insert(1 << 33);
     drop(prepared(&game, &profile));

@@ -182,6 +182,31 @@ fn a_game_is_verified_hooked_published_and_restored_on_quit() {
 }
 
 #[test]
+fn a_publication_that_cannot_reach_the_game_is_journaled_not_acknowledged() {
+    let (game, profile) = FakeGame::new();
+    let games = Games::running(&game);
+    let mut h = start(&games, &profile, Options::default());
+    settle(&mut h.runtime);
+    game.info.store_fails.set(true);
+    h.runtime.command(RuntimeCommand::Publish(mask(&[0])));
+    let events = h.runtime.events();
+    let [RuntimeEvent::Journal(entry)] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(entry.event.severity, crate::journal::Severity::Error);
+    assert_eq!(entry.event.kind, EntryKind::Hooks);
+    // The session stays attached: the next publication that lands is acknowledged.
+    game.info.store_fails.set(false);
+    h.runtime.command(RuntimeCommand::Publish(mask(&[3])));
+    let events = h.runtime.events();
+    let [RuntimeEvent::Ack(ack)] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(ack.mask().bits(), mask(&[3]).bits());
+    assert_eq!(game.info.word.get(), 0b1000);
+}
+
+#[test]
 fn publications_are_ignored_until_the_game_is_hooked() {
     let (game, profile) = FakeGame::new();
     let games = Games::default();

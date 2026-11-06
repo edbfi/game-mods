@@ -113,19 +113,19 @@ pub(crate) trait Allocation {
     fn retain(self: Box<Self>);
 }
 
-/// The control word shared with the game.
+/// The control word, in a page of its own in the game.
 pub(crate) trait Controls {
     /// Its address in the game.
     fn remote(&self) -> Va;
-    /// Stores `word` with one interlocked 32-bit store.
-    fn store(&self, word: u32);
+    /// Writes `word` into the game.
+    fn store(&self, word: u32) -> Result<(), OsError>;
     /// The word the game sees now, which a shutdown callback may have zeroed behind the session's back.
-    fn load(&self) -> u32;
-    /// Unmaps the game's view. Only for controls no cave can read: a cave block never published.
+    fn load(&self) -> Result<u32, OsError>;
+    /// Frees the game's page. Only for controls no cave can read: a cave block never published.
     fn withdraw(&self);
-    // Dropping the controls zeroes them, tells a close request waiting on the session that nothing more will be
-    // restored, and unmaps the trainer's view; the game's view stays. A failed restoration does not tell it, so
-    // a close request keeps waiting while the owner tries again.
+    // Dropping the controls zeroes them and tells a close request waiting on the session that nothing more will
+    // be restored; the game's page stays. A failed restoration does not tell it, so a close request keeps
+    // waiting while the owner tries again.
 }
 
 /// The objects proving this trainer owns the process.
@@ -702,7 +702,7 @@ fn text_check(core: &Core, text: &mut [u8]) -> TextCheck {
 }
 
 impl Session<Prepared> {
-    /// Where the control word is mapped in the game.
+    /// Where the control word is in the game.
     #[cfg(all(test, windows))]
     pub(crate) fn controls_at(&self) -> Va {
         self.state.hooks.controls.remote()
@@ -772,26 +772,32 @@ impl Session<Prepared> {
 impl Session<Installed> {
     /// Stores `mask` in the control word, unless it is already there, and acknowledges it.
     ///
-    /// This is one local interlocked store. It never freezes the game or touches code. Once this trainer was
-    /// asked to shut down or stop, it stores and acknowledges zero instead: a shutdown callback zeroed the
+    /// This is one 4-byte write into the game. It never freezes the game or touches code. Once this trainer
+    /// was asked to shut down or stop, it stores and acknowledges zero instead: a shutdown callback zeroed the
     /// word, and a late publication must not undo that.
-    pub fn publish(&mut self, mask: DesiredMask) -> Ack {
+    ///
+    /// # Errors
+    ///
+    /// The word could not be read or written, so nothing is acknowledged: the last acknowledgement may no
+    /// longer hold either, and the game may see either word.
+    pub fn publish(&mut self, mask: DesiredMask) -> Result<Ack, OsError> {
         let ending = || self.core.game.interrupted() || self.state.owner.stop_requested();
         let mut mask = if ending() { DesiredMask::ZERO } else { mask };
+        let controls = &self.state.hooks.controls;
         // Compared with the word itself, not the last publication: a panic or close may have zeroed it.
-        if self.state.hooks.controls.load() != mask.bits().word() {
-            self.state.hooks.controls.store(mask.bits().word());
+        if controls.load()? != mask.bits().word() {
+            controls.store(mask.bits().word())?;
         }
         // A close notice requests shutdown before it zeroes the word. If it ran between the check above and
         // the store, its zero may have been overwritten: the request is visible now, so zero again.
         if !mask.bits().is_empty() && ending() {
             mask = DesiredMask::ZERO;
-            self.state.hooks.controls.store(0);
+            controls.store(0)?;
         }
         let state = &mut self.state;
         state.published = mask;
         state.revision += 1;
-        Ack::new(state.revision, ControlMask::published(mask))
+        Ok(Ack::new(state.revision, ControlMask::published(mask)))
     }
 
     /// The mask the game sees.
@@ -857,7 +863,8 @@ impl Session<Recovery> {
         verify: VerifyRestore,
     ) -> Result<Session<Detached>, Box<TransitionFailure<Recovery>>> {
         let hooks = &mut self.state.hooks;
-        hooks.controls.store(0);
+        // Only a head start: restoring the sites turns every cheat off whatever the word holds.
+        let _zeroed = hooks.controls.store(0);
         let changed = if self.core.game.exited() {
             Changed {
                 outcome: Err(TrainerError::Exited),

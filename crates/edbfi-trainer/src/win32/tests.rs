@@ -185,15 +185,15 @@ fn a_real_process_is_installed_toggled_paused_and_restored() {
     assert_eq!(dummy.ask("drain"), "battery 98");
     assert_eq!(dummy.ask("fire"), "rounds 28");
 
-    session.publish(mask(&[0, 1, 2]));
+    session.publish(mask(&[0, 1, 2])).unwrap();
     assert_eq!(dummy.ask("alpha"), "alpha 1");
     assert_eq!(dummy.ask("drain"), "battery 98");
     assert_eq!(dummy.ask("fire"), "rounds 28");
     // Only the red class is kept; a blue selection leaves the red weapon spending rounds.
-    session.publish(mask(&[3]));
+    session.publish(mask(&[3])).unwrap();
     assert_eq!(dummy.ask("fire"), "rounds 27");
     // Paused.
-    session.publish(DesiredMask::ZERO);
+    session.publish(DesiredMask::ZERO).unwrap();
     assert_eq!(dummy.ask("alpha"), "alpha 0");
     assert_eq!(dummy.ask("drain"), "battery 97");
 
@@ -225,7 +225,7 @@ fn a_setter_blocked_across_detach_returns_into_the_retained_cave() {
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
-    session.publish(mask(&[2]));
+    session.publish(mask(&[2])).unwrap();
     assert_eq!(dummy.ask("fire-held"), "held");
     let image = session.image();
     let detached = session.restore(VerifyRestore::Text).unwrap();
@@ -236,7 +236,7 @@ fn a_setter_blocked_across_detach_returns_into_the_retained_cave() {
     assert_eq!(dummy.ask("fire"), "rounds 29");
     // A second attach to the same game gets fresh caves and controls.
     let mut session = attach(&dummy, &profile);
-    session.publish(mask(&[2]));
+    session.publish(mask(&[2])).unwrap();
     assert_eq!(dummy.ask("fire"), "rounds 29");
     session.restore(VerifyRestore::Sites).unwrap();
     assert_eq!(dummy.ask("fire"), "rounds 28");
@@ -248,7 +248,7 @@ fn a_game_that_exits_ends_the_session_without_restoring() {
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     dummy.child.kill().unwrap();
     dummy.child.wait().unwrap();
     let proof = session.exit_proof().unwrap();
@@ -261,7 +261,7 @@ fn notice_restores(dummy: &mut Dummy, profile: &ValidProfile<'static>, notice: f
     let shutdown = bridge::install().unwrap();
     bridge::reset_for_tests();
     let mut session = attach(dummy, profile);
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     assert_eq!(dummy.ask("alpha"), "alpha 1");
     let started = Instant::now();
     let waiter = std::thread::spawn(move || {
@@ -327,7 +327,7 @@ fn a_cancelled_session_end_changes_nothing() {
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     assert_eq!(send(WM_ENDSESSION, 0), 0);
     assert!(!shutdown.requested());
     assert_eq!(dummy.ask("alpha"), "alpha 1");
@@ -342,7 +342,7 @@ fn a_panic_zeroes_the_controls_at_once() {
     let mut dummy = Dummy::start();
     let profile = profile(&dummy);
     let mut session = attach(&dummy, &profile);
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     assert_eq!(dummy.ask("alpha"), "alpha 1");
     let _caught = std::thread::spawn(|| panic!("a deliberate test panic")).join();
     assert_eq!(dummy.ask("alpha"), "alpha 0");
@@ -397,7 +397,7 @@ fn an_abandoned_preparation_takes_its_control_word_out_of_the_game() {
     assert!(at.get() >= 1 << 33, "the control word is above 8 GiB: {at}");
     let game = WinGame::open(dummy.pid(), false).unwrap();
     assert_eq!(game.query(at).unwrap().state, RegionState::Committed);
-    // No cave was ever published, so dropping the session unmaps the game's view.
+    // No cave was ever published, so dropping the session frees the control word's page.
     drop(prepared);
     assert_eq!(game.query(at).unwrap().state, RegionState::Free);
 }
@@ -864,10 +864,10 @@ fn the_process_and_stop_handles_signal_an_exit_and_a_stop_request() {
     assert_eq!(quiet(&session), Ok(None));
 
     // After a shutdown request a publication stores zero, whatever it asked for.
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     assert_eq!(dummy.ask("alpha"), "alpha 1");
     shutdown.request();
-    session.publish(mask(&[0]));
+    session.publish(mask(&[0])).unwrap();
     assert_eq!(session.published(), DesiredMask::ZERO);
     assert_eq!(dummy.ask("alpha"), "alpha 0");
     bridge::reset_for_tests();

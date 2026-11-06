@@ -189,7 +189,6 @@ mod tests {
             (RecoveryAction::CloseDuplicates, 8),
             (RecoveryAction::Retry, 1),
             (RecoveryAction::ReportBug, 1),
-            (RecoveryAction::UpdateWindows, 1),
         ] {
             assert_eq!(
                 failed(recovery, Vec::new()).exit_code(),

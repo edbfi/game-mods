@@ -430,7 +430,7 @@ impl Game for WinGame {
     }
 
     fn controls(&self, at: Va) -> Result<Box<dyn Controls>, OsError> {
-        Ok(Box::new(super::controls::Mapping::new(
+        Ok(Box::new(super::controls::Page::new(
             Arc::clone(&self.handle),
             at,
         )?))

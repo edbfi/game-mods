@@ -1,28 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The control word: one page of a pagefile-backed section, mapped into the trainer and into the game.
+//! The control word: the first four bytes of one read-write page the trainer allocates in the game.
 //!
-//! The game's view is made with `MapViewOfFileNuma2`, which Windows 10 version 1703 introduced. It is looked
-//! up at run time, first in `kernelbase.dll` then in `kernel32.dll`, so the trainer never imports it; without
-//! it the trainer refuses rather than falling back to anything weaker. Both views see the same physical page,
-//! so one interlocked store on the trainer's view is what the game's caves read.
+//! The trainer reads and writes the word through the process handle, as it does the caves. Windows does not
+//! promise that a 4-byte `WriteProcessMemory` is a single store, but it never needs to be: each cave loads the
+//! word once and tests its own bits, no bit straddles a byte, and any mix of old and new bits is a selection
+//! the dashboard could have made. A cave racing a write sees every bit either before or after it.
 //!
-//! The game's view is never unmapped: a cave may read it after the trainer has gone. The trainer's view is
-//! zeroed and unmapped when the mapping drops, after the shutdown bridge has stopped every callback from
-//! using it.
+//! The page is never freed once a cave may read it, even after the trainer has gone; dropping the controls
+//! only zeroes it, after the shutdown bridge has stopped every callback from using the lease.
 
 use std::ffi::c_void;
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::ptr::NonNull;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 
-use windows_sys::Win32::Foundation::{
-    ERROR_BUSY, ERROR_PROC_NOT_FOUND, FALSE, HANDLE, INVALID_HANDLE_VALUE, TRUE,
-};
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+use windows_sys::Win32::Foundation::{ERROR_BUSY, FALSE, HANDLE, TRUE};
+use windows_sys::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows_sys::Win32::System::Memory::{
-    CreateFileMappingW, FILE_MAP_READ, FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS, MapViewOfFile,
-    PAGE_READWRITE, UnmapViewOfFile,
+    MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAllocEx, VirtualFreeEx,
 };
 use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent};
 
@@ -32,163 +27,92 @@ use crate::session::Controls;
 
 use super::bridge::{self, Lease};
 use super::process::none;
-use super::{last_error, owned, wide};
+use super::{last_error, owned};
 
 /// One page.
 const SIZE: usize = 4096;
-/// `NUMA_NO_PREFERRED_NODE`.
-const NO_PREFERRED_NODE: u32 = 0xFFFF_FFFF;
+/// `ERROR_PARTIAL_COPY`: fewer bytes moved than asked.
+const ERROR_PARTIAL_COPY: u32 = 299;
 
-/// `MapViewOfFileNuma2`.
-type MapRemote = unsafe extern "system" fn(
-    section: HANDLE,
-    process: HANDLE,
-    offset: u64,
-    base: *const c_void,
-    size: usize,
-    allocation: u32,
-    protection: u32,
-    node: u32,
-) -> *mut c_void;
-
-/// `UnmapViewOfFile2`.
-type UnmapRemote = unsafe extern "system" fn(process: HANDLE, base: *mut c_void, flags: u32) -> i32;
-
-/// Finds `name` in `kernelbase.dll`, then `kernel32.dll`, or explains that this Windows is too old.
-fn export(
-    name: &std::ffi::CStr,
-    call: &'static str,
-) -> Result<unsafe extern "system" fn() -> isize, OsError> {
-    for module in ["kernelbase.dll", "kernel32.dll"] {
-        let module = wide(module);
-        // SAFETY: `module` is a NUL-terminated UTF-16 string; both modules are loaded in every process.
-        let handle = unsafe { GetModuleHandleW(module.as_ptr()) };
-        if handle.is_null() {
-            continue;
-        }
-        // SAFETY: `handle` is a loaded module and the name is a NUL-terminated ANSI string.
-        if let Some(found) = unsafe { GetProcAddress(handle, name.as_ptr().cast()) } {
-            return Ok(found);
-        }
+/// Writes `word` at `at` in `process`. Safe from a panic hook or a console handler: no allocation, lock or I/O.
+pub(super) fn write_word(process: HANDLE, at: Va, word: u32) -> Result<(), OsError> {
+    let bytes = word.to_ne_bytes();
+    let mut done = 0;
+    // SAFETY: `bytes` is readable for its length and `done` writable; the kernel checks the remote range.
+    let written = unsafe {
+        WriteProcessMemory(
+            process,
+            at.get() as usize as *const c_void,
+            bytes.as_ptr().cast(),
+            bytes.len(),
+            &raw mut done,
+        )
+    };
+    if written == FALSE {
+        return Err(last_error("WriteProcessMemory"));
     }
-    Err(OsError::new(call, ERROR_PROC_NOT_FOUND))
-}
-
-/// Finds `MapViewOfFileNuma2`.
-fn map_remote() -> Result<MapRemote, OsError> {
-    let found = export(c"MapViewOfFileNuma2", "MapViewOfFileNuma2")?;
-    // SAFETY: the export has this documented signature; both are `extern "system"` function pointers of the
-    // same size.
-    Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, MapRemote>(found) })
-}
-
-/// Finds `UnmapViewOfFile2`, which the same Windows versions export.
-fn unmap_remote() -> Result<UnmapRemote, OsError> {
-    let found = export(c"UnmapViewOfFile2", "UnmapViewOfFile2")?;
-    // SAFETY: as in `map_remote`, for `UnmapViewOfFile2`'s documented signature.
-    Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, UnmapRemote>(found) })
+    if done != bytes.len() {
+        return Err(OsError::new("WriteProcessMemory", ERROR_PARTIAL_COPY));
+    }
+    Ok(())
 }
 
 /// The control word, shared with one game.
-pub(crate) struct Mapping {
+pub(crate) struct Page {
     process: Arc<OwnedHandle>,
-    _section: OwnedHandle,
-    word: NonNull<AtomicU32>,
     remote: Va,
     lease: NonNull<Lease>,
     registered: bool,
 }
 
-impl Mapping {
-    /// Maps a zeroed control word into the trainer, and into `process` at exactly `at`.
+impl Page {
+    /// Allocates a zeroed control page in `process` at exactly `at`.
     pub(crate) fn new(process: Arc<OwnedHandle>, at: Va) -> Result<Self, OsError> {
-        let map = map_remote()?;
-        // SAFETY: a pagefile-backed section takes no pointers but the null attributes and name.
-        let raw = unsafe {
-            CreateFileMappingW(
-                INVALID_HANDLE_VALUE,
-                none(),
-                PAGE_READWRITE,
-                0,
-                SIZE as u32,
-                none(),
-            )
-        };
-        let section = owned(raw, "CreateFileMappingW")?;
-        // SAFETY: `section` is a live read-write section of one page.
-        let view = unsafe {
-            MapViewOfFile(
-                section.as_raw_handle(),
-                FILE_MAP_READ | FILE_MAP_WRITE,
-                0,
-                0,
-                SIZE,
-            )
-        };
-        let word = NonNull::new(view.Value.cast::<AtomicU32>())
-            .ok_or_else(|| last_error("MapViewOfFile"))?;
-        let unmap = || {
-            // SAFETY: `view` is the trainer's own view, mapped above and not yet unmapped.
-            let _unmapped = unsafe { UnmapViewOfFile(view) };
-        };
-        // SAFETY: the view is page-aligned, so 4-byte aligned, and stays mapped for this function.
-        unsafe { word.as_ref() }.store(0, Ordering::SeqCst);
         // SAFETY: a manual-reset, unsignalled, unnamed event takes no pointers but the null ones.
         let raw = unsafe { CreateEventW(none(), TRUE, FALSE, none()) };
-        let completion = match owned(raw, "CreateEventW") {
-            Ok(event) => event,
-            Err(error) => {
-                unmap();
-                return Err(error);
-            }
-        };
-        // The lease is owned through a raw pointer from here on, so the pointer the bridge holds stays valid
-        // however the mapping moves; it is freed only after the bridge has no reader of it.
-        let lease = NonNull::from(Box::leak(Box::new(Lease::new(word, completion))));
-        let free = || {
-            // SAFETY: `lease` came from `Box::leak` above, and is either unpublished or retired with no reader.
-            drop(unsafe { Box::from_raw(lease.as_ptr()) });
-        };
-        // With the shutdown bridge installed, every session must be reachable from it, one at a time. The slot
-        // is taken before the game gets a view, so a refusal leaves nothing in the game.
-        let registered = bridge::publish(lease);
-        if !registered && bridge::get().is_some() {
-            free();
-            unmap();
-            return Err(OsError::new("MapViewOfFileNuma2", ERROR_BUSY));
-        }
-        // SAFETY: `map` is `MapViewOfFileNuma2`; `section` and `process` are live handles.
-        let remote = unsafe {
-            map(
-                section.as_raw_handle(),
+        let completion = owned(raw, "CreateEventW")?;
+        // Committed pages start zeroed. The page exists before the bridge can reach it, so a callback never
+        // writes at an address the game may be using for something else.
+        // SAFETY: the kernel checks the remote range; nothing local is passed.
+        let raw = unsafe {
+            VirtualAllocEx(
                 process.as_raw_handle(),
-                0,
                 at.get() as usize as *const c_void,
                 SIZE,
-                0,
+                MEM_RESERVE | MEM_COMMIT,
                 PAGE_READWRITE,
-                NO_PREFERRED_NODE,
             )
         };
-        if remote.is_null() {
-            let error = last_error("MapViewOfFileNuma2");
-            if registered {
-                // Release a close notice that found this lease before retiring it.
-                // SAFETY: `lease` came from `Box::leak` above and is still live.
-                let completion = unsafe { lease.as_ref() }.completion();
-                // SAFETY: the completion event is a live event handle owned by the lease.
-                let _set = unsafe { SetEvent(completion) };
-                bridge::retire(lease);
-            }
+        if raw.is_null() {
+            return Err(last_error("VirtualAllocEx"));
+        }
+        let free = || {
+            // SAFETY: `raw` is this page, allocated above, which no cave can reach yet.
+            let _freed = unsafe { VirtualFreeEx(process.as_raw_handle(), raw, 0, MEM_RELEASE) };
+        };
+        let remote = Va::new(raw as usize as u64);
+        if remote != at {
             free();
-            unmap();
-            return Err(error);
+            return Err(OsError::new("VirtualAllocEx", 487));
+        }
+        // The lease is owned through a raw pointer from here on, so the pointer the bridge holds stays valid
+        // however the page moves; it is freed only after the bridge has no reader of it.
+        let lease = NonNull::from(Box::leak(Box::new(Lease::new(
+            Arc::clone(&process),
+            remote,
+            completion,
+        ))));
+        // With the shutdown bridge installed, every session must be reachable from it, one at a time.
+        let registered = bridge::publish(lease);
+        if !registered && bridge::get().is_some() {
+            // SAFETY: `lease` came from `Box::leak` above and was never published.
+            drop(unsafe { Box::from_raw(lease.as_ptr()) });
+            free();
+            return Err(OsError::new("VirtualAllocEx", ERROR_BUSY));
         }
         Ok(Self {
             process,
-            _section: section,
-            word,
-            remote: Va::new(remote as usize as u64),
+            remote,
             lease,
             registered,
         })
@@ -198,44 +122,57 @@ impl Mapping {
         // SAFETY: the lease lives until `drop` frees it.
         unsafe { self.lease.as_ref() }
     }
-
-    fn word(&self) -> &AtomicU32 {
-        // SAFETY: the view stays mapped until `drop`, and is page-aligned.
-        unsafe { self.word.as_ref() }
-    }
 }
 
-impl Controls for Mapping {
+impl Controls for Page {
     fn remote(&self) -> Va {
         self.remote
     }
 
-    fn store(&self, word: u32) {
-        self.word().store(word, Ordering::SeqCst);
+    fn store(&self, word: u32) -> Result<(), OsError> {
+        write_word(self.process.as_raw_handle(), self.remote, word)
     }
 
-    fn load(&self) -> u32 {
-        self.word().load(Ordering::SeqCst)
+    fn load(&self) -> Result<u32, OsError> {
+        let mut bytes = [0; 4];
+        let mut done = 0;
+        // SAFETY: `bytes` is writable for its length and `done` writable; the kernel checks the remote range.
+        let read = unsafe {
+            ReadProcessMemory(
+                self.process.as_raw_handle(),
+                self.remote.get() as usize as *const c_void,
+                bytes.as_mut_ptr().cast(),
+                bytes.len(),
+                &raw mut done,
+            )
+        };
+        if read == FALSE {
+            return Err(last_error("ReadProcessMemory"));
+        }
+        if done != bytes.len() {
+            return Err(OsError::new("ReadProcessMemory", ERROR_PARTIAL_COPY));
+        }
+        Ok(u32::from_ne_bytes(bytes))
     }
 
     fn withdraw(&self) {
-        if let Ok(unmap) = unmap_remote() {
-            // SAFETY: `remote` is this mapping's view in the game, which no cave can reach yet; the process
-            // handle is live with `PROCESS_VM_OPERATION`.
-            let _unmapped = unsafe {
-                unmap(
-                    self.process.as_raw_handle(),
-                    self.remote.get() as usize as *mut c_void,
-                    0,
-                )
-            };
-        }
+        // SAFETY: `remote` is this page, which no cave can reach yet; the process handle is live with
+        // `PROCESS_VM_OPERATION`.
+        let _freed = unsafe {
+            VirtualFreeEx(
+                self.process.as_raw_handle(),
+                self.remote.get() as usize as *mut c_void,
+                0,
+                MEM_RELEASE,
+            )
+        };
     }
 }
 
-impl Drop for Mapping {
+impl Drop for Page {
     fn drop(&mut self) {
-        self.word().store(0, Ordering::SeqCst);
+        // A game that already exited has no page left to zero.
+        let _zeroed = self.store(0);
         // Nothing more will be restored: release any close notice waiting on this session.
         // SAFETY: the completion event is a live event handle owned by the lease.
         let _set = unsafe { SetEvent(self.lease().completion()) };
@@ -244,10 +181,5 @@ impl Drop for Mapping {
         }
         // SAFETY: the lease came from `Box::leak` in `new`, and no callback can reach it any more.
         drop(unsafe { Box::from_raw(self.lease.as_ptr()) });
-        let view = MEMORY_MAPPED_VIEW_ADDRESS {
-            Value: self.word.as_ptr().cast(),
-        };
-        // SAFETY: no callback can reach the view any more, and this is the trainer's own mapping of it.
-        let _unmapped = unsafe { UnmapViewOfFile(view) };
     }
 }

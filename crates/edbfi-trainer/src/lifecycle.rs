@@ -96,14 +96,10 @@ impl Failure {
     }
 
     /// Whether [`RuntimeCommand::Retry`] can help: never while hooks remain, nor when only a different game
-    /// build or Windows version would.
+    /// build would.
     #[must_use]
     pub const fn can_retry(&self) -> bool {
-        !self.left_hooks()
-            && !matches!(
-                self.recovery,
-                RecoveryAction::UnsupportedBuild | RecoveryAction::UpdateWindows
-            )
+        !self.left_hooks() && !matches!(self.recovery, RecoveryAction::UnsupportedBuild)
     }
 }
 
@@ -164,8 +160,9 @@ impl SettingsProblem {
 pub enum RuntimeEvent {
     /// The runtime moved to a new phase.
     Phase(Phase),
-    /// A publication completed. The runtime sends exactly one per [`RuntimeCommand::Publish`] it carries out,
-    /// in the order it received them; the dashboard matches each to its publication by that order.
+    /// A publication completed. The runtime sends one per [`RuntimeCommand::Publish`] it carries out, in the
+    /// order it received them; the dashboard matches each to its publication by that order. A publication that
+    /// could not reach the game sends none and is recorded in the journal instead.
     Ack(Ack),
     /// Something was recorded in the journal.
     Journal(Entry),
