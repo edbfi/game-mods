@@ -182,7 +182,7 @@ fn a_game_is_verified_hooked_published_and_restored_on_quit() {
 }
 
 #[test]
-fn a_publication_that_cannot_reach_the_game_is_journaled_not_acknowledged() {
+fn a_publication_that_cannot_reach_the_game_is_journaled_and_reported_failed() {
     let (game, profile) = FakeGame::new();
     let games = Games::running(&game);
     let mut h = start(&games, &profile, Options::default());
@@ -190,7 +190,7 @@ fn a_publication_that_cannot_reach_the_game_is_journaled_not_acknowledged() {
     game.info.store_fails.set(true);
     h.runtime.command(RuntimeCommand::Publish(mask(&[0])));
     let events = h.runtime.events();
-    let [RuntimeEvent::Journal(entry)] = events.as_slice() else {
+    let [RuntimeEvent::Journal(entry), RuntimeEvent::PublishFailed] = events.as_slice() else {
         panic!("{events:?}");
     };
     assert_eq!(entry.event.severity, crate::journal::Severity::Error);

@@ -389,6 +389,7 @@ impl<'p> App<'p> {
         match msg {
             Msg::Runtime(RuntimeEvent::Phase(phase)) => self.enter(phase),
             Msg::Runtime(RuntimeEvent::Ack(ack)) => self.acknowledge(ack),
+            Msg::Runtime(RuntimeEvent::PublishFailed) => self.unacknowledged(),
             Msg::Runtime(RuntimeEvent::Journal(entry)) => {
                 let failed_save = self.model.notice.as_ref().is_some_and(|n| n.until_saved);
                 if entry.event.severity >= Severity::Warning && !failed_save {
@@ -582,6 +583,19 @@ impl<'p> App<'p> {
             let rose = new.word() & !old.word() != 0;
             self.effects
                 .push(Effect::Chime(if rose { Chime::Rise } else { Chime::Fall }));
+        }
+    }
+
+    /// The oldest publication in flight never reached the game.
+    fn unacknowledged(&mut self) {
+        if !self.model.phase.is_attached() {
+            return;
+        }
+        // Acknowledgements and failures arrive in publication order, so the oldest in flight is the one.
+        self.in_flight.pop_front();
+        if self.in_flight.is_empty() {
+            // Nothing else is on its way: the next change publishes again, even of the same mask.
+            self.published = self.model.acked.map(DesiredMask::new);
         }
     }
 

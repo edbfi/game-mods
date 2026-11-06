@@ -160,10 +160,13 @@ impl SettingsProblem {
 pub enum RuntimeEvent {
     /// The runtime moved to a new phase.
     Phase(Phase),
-    /// A publication completed. The runtime sends one per [`RuntimeCommand::Publish`] it carries out, in the
-    /// order it received them; the dashboard matches each to its publication by that order. A publication that
-    /// could not reach the game sends none and is recorded in the journal instead.
+    /// A publication completed. For each [`RuntimeCommand::Publish`] it carries out, the runtime sends this or
+    /// [`RuntimeEvent::PublishFailed`], in the order it received them; the dashboard matches each to its
+    /// publication by that order.
     Ack(Ack),
+    /// A publication could not reach the game, in place of its [`RuntimeEvent::Ack`]. Unless the game exited,
+    /// the journal says why.
+    PublishFailed,
     /// Something was recorded in the journal.
     Journal(Entry),
     /// A [`Phase::Settings`] problem was resolved: these settings now apply.
