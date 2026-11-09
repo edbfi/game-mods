@@ -111,7 +111,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       # No build cache in a release (zizmor cache-poisoning).
-      - uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with: { tool: "just,cargo-xwin@0.23.1" }
       - run: rustup toolchain install   # the version in rust-toolchain.toml
       # Lua checks the Dawn of War scripts; clang and llvm-rc build the trainer's Windows resources.
