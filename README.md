@@ -1,4 +1,16 @@
-# game-mods
+<p align="center">
+  <img src="assets/svg/game-mods-logo.svg" alt="game-mods logo" width="256" height="256">
+</p>
+
+<h1 align="center">game-mods</h1>
+
+<p align="center"><strong>Game mods, trainers, and scripts with tested release builds.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/edbfi/game-mods/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat" alt="License: AGPL-3.0-only"></a>
+  <a href="https://github.com/rust-lang/rust" title="Rust source"><img src="https://img.shields.io/badge/Rust-000000?style=flat&amp;logo=rust&amp;logoColor=white" alt="Rust"></a>
+  <a href="https://github.com/lua/lua" title="Lua team's official development mirror, updated irregularly"><img src="https://img.shields.io/badge/Lua-2C2D72?style=flat&amp;logo=lua&amp;logoColor=white" alt="Lua"></a>
+</p>
 
 Mods for games I play. One folder per game, one subfolder per mod.
 

@@ -1,0 +1,12 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">game-mods logo</title>
+  <desc id="desc">A game controller crossed by a wrench on a dark rounded square.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#172b3a" stroke="#7dd3fc" stroke-width="4"/>
+  <path d="M83 88h90c18 0 28 12 33 31l12 48c5 20-17 34-31 19l-25-26H94l-25 26c-14 15-36 1-31-19l12-48c5-19 15-31 33-31Z" fill="#edf7fa" stroke="#172b3a" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M71 113v28m-14-14h28" fill="none" stroke="#172b3a" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="181" cy="116" r="7" fill="#172b3a"/>
+  <circle cx="193" cy="136" r="7" fill="#172b3a"/>
+  <path d="M164 45a28 28 0 0 0-34 34L79 130a15 15 0 0 0 21 21l51-51a28 28 0 0 0 34-34l-18 18-21-21Z" fill="#fbbf24" stroke="#172b3a" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="90" cy="140" r="4" fill="#172b3a"/>
+</svg>
