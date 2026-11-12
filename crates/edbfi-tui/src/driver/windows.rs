@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The dashboard on a Windows console: the owner thread's one blocking wait, and the platform the
 //! [`Driver`] draws and reads through.
 //!

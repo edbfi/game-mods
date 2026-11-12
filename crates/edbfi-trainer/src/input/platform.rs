@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Where the [`Arbiter`](super::Arbiter)'s events come from on Windows.
 //!
 //! [`Keyboard`] hears keyboard and foreground notices on the hidden window's thread and wakes the owner

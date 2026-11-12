@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! [`Profile::validate`]: every invariant a profile must hold, checked in a constant.
 //!
 //! Constant evaluation has no iterators, trait calls or formatting, so the checks are plain loops and the build

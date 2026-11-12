@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The proof every cave passes before a builder returns it.
 //!
 //! It decodes the cave's code independently of the assembler that wrote it, then walks every path from the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Strict reading of the settings file, with the line and column of every problem.
 #![forbid(unsafe_code)]
 

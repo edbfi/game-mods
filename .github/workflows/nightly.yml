@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Nightly builds of every mod, on each push to main and weekly, so one stays within the 90-day
 # artifact retention (immortality.yml keeps the schedule enabled). nightly.link serves the
 # most recently updated successful push or schedule run on main: re-run only the newest run.

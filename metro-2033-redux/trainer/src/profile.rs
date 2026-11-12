@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Metro 2033 Redux, Steam build: every reverse-engineered fact the trainer relies on.
 //!
 //! Hook sites are numbered S1–S17; each one's comment names the analysis in `docs/` behind it. RVAs are

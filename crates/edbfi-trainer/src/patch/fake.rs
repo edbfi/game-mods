@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A pretend game process for tests: pages with protections, threads with positions, and a fault plan that
 //! fails, half-performs or panics any call on any occurrence.
 #![forbid(unsafe_code)]

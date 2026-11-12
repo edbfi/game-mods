@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Every <game>/<mod>/justfile is a mod; recipes here run it from its own folder.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 

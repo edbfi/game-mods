@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The two short tones the trainer plays when a cheat turns on or off.
 //!
 //! Each tone is a complete WAVE file built in memory: a sine with a sin² envelope, so it starts and ends at

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The control word: the first four bytes of one read-write page the trainer allocates in the game.
 //!
 //! The trainer reads and writes the word through the process handle, as it does the caves. Windows does not

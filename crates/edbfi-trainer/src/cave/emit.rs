@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The assembler wrapper the builders share: original decoding, a literal pool, game-instruction tagging and
 //! the hand-off to the proof.
 #![forbid(unsafe_code)]

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The whole lifecycle against a real process: the `dummy_game` example, attached, toggled, paused,
 //! restored and attached again, plus the close, session-end and panic paths. Run by `cargo test`, which
 //! builds the example first.

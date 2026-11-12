@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Drawing primitives. Every string passes through [`text::sanitize`] on its way to the buffer, and every
 //! position is clipped to the drawing area, so no input can escape its cell range or the terminal's control.
 #![forbid(unsafe_code)]

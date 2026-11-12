@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install only once the repo's ruleset exists: without a required check, auto-merge merges at once.
 # The PAT makes the merge start push CI, which a GITHUB_TOKEN merge would not. No --subject or
 # --body, so the squash commit takes the PR title.

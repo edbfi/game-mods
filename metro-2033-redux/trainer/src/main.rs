@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! `metro-trainer`: the Metro 2033 Redux trainer. Run `metro-trainer --help` for its command line.
 #![forbid(unsafe_code)]
 

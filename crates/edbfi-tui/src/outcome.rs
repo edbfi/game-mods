@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! How a run ended: the process exit code and the lines printed after the dashboard closes.
 //!
 //! | Code | Meaning |

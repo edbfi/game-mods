@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Code patches in another process, and the record of what the trainer owns there.
 //!
 //! Everything here works through `Process`, a private seam the Windows backend implements and the tests fake,

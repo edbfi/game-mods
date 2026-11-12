@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The trainer's console output, as the dashboard draws on it.
 //!
 //! [`Output`] turns on virtual-terminal processing and UTF-8 for the console and puts back what it found when

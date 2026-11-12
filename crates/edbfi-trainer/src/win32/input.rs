@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Keyboard and foreground notices for the owner thread, heard on the hidden window's thread.
 //!
 //! The hidden top-level window registers for Raw Input from every keyboard, even while another window has

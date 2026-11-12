@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The arbiter against a simulated keyboard: every console behaviour the trainer promises, then generated
 //! traces checking that one physical press acts at most once.
 

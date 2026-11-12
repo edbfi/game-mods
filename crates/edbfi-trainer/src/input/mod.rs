@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! What the user did, as the dashboard receives it.
 //!
 //! The input layer turns key events into [`Command`]s: a bound chord that fired, a key pressed in the trainer's

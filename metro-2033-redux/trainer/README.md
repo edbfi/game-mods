@@ -112,3 +112,9 @@ site matches it exactly once. The capture is game code: keep it out of the repo.
 analysis, not just a new hash.
 
 Game binaries, captures and extracted assets never go in the repo or a release.
+
+## License
+
+Original code by edbfi is licensed under the GNU Affero General Public License, either version 3 or
+(at your option) any later version (`AGPL-3.0-or-later`), © edbfi. See `LICENSE` in the download or the
+[repository license](../../LICENSE). Dependencies retain their own licenses.

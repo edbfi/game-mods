@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The driver against a pretend runtime and platform: wakes, the input gate, Ctrl+C, saves and a lost
 //! console.
 

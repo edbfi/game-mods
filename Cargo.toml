@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Rust trainers live in <game>/trainer; shared libraries in crates/. Other Rust mods add themselves to members.
 [workspace]
 members = ["crates/*", "*/trainer"]
@@ -8,7 +8,7 @@ resolver = "3"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.99.1"
-license = "AGPL-3.0-only"
+license = "AGPL-3.0-or-later"
 publish = false
 
 # Exact pins. Every build, test and check runs with --locked.

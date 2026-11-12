@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! No-reload caves: keep a selected class's loaded rounds when the player's own weapon fires.
 //!
 //! The prologue saves the flags, RAX, RCX, RDX and R8, reads the control word once into R8D, and takes the

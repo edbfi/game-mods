@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The commands on Windows: the dashboard, a read-only `check` and `stop`.
 #![forbid(unsafe_code)]
 

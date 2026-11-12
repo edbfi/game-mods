@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Hook caves: the code a hooked site jumps to, generated from a profile's [`Site`]s and proven before use.
 //!
 //! [`plan`] turns a profile into one [`Hook`] per site: the exact jump written over the site, and the cave it

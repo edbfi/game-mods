@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Metro profile against the reverse-engineered facts, restated independently of the profile's own tables.
 #![expect(
     clippy::unwrap_used,

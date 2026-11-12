@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Package a mod and check its zip, for the unprivileged build jobs of release.yml and nightly.yml.
 #
 #   package-mod.sh <game>/<mod> <version> [<extract-dir>]

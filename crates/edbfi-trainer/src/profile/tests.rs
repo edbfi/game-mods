@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 use super::synthetic::SYNTHETIC;
 use super::*;
 use crate::addr::Rva;

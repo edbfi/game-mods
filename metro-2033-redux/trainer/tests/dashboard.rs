@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Metro dashboard: every phase and dialog drawn at 100×30 and 40×12, each colour and glyph mode, and
 //! property tests for reachability, clipping and redraws at any size.
 //!

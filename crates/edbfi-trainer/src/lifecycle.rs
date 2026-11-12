@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! What the runtime tells the dashboard, and what the dashboard asks of it.
 //!
 //! The runtime owns the session and its typestates; the dashboard only sees a [`Phase`], the [`Ack`] of each

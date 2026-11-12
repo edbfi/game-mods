@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The named objects that make a trainer the one owner of a game process, and the stop request other
 //! trainer processes send it.
 //!

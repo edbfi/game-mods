@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! `metro-trainer`'s `main` with the `dummy_game` example's profile instead of Metro's: the same command
 //! line, driver and shutdown handling, attached to a process the Windows tests own.
 //!

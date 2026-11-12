@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Runs the dashboard: routes each wake to the runtime or the input arbiter, carries out the app's effects,
 //! and draws once when something visible changed.
 //!

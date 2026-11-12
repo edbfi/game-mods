@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # No concurrency: GitHub takes the newest run as the required result, even a cancelled one.
 # Checks read the PR through the API, never the event payload, which re-runs replay.
 name: PR policy

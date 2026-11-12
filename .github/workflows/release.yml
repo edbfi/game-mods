@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Release automation, after EasyHDR's release.yml. Publish a GitHub release tagged
 # <game>/<mod>/v<semver>, e.g. metro-2033-redux/trainer/v0.1.0. Then:
 #   verify   (unprivileged) the tag names a mod at the released commit, which is on main;

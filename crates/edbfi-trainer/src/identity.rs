@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Portable identity checks: file and code digests, loaded-header comparison and relocation normalisation.
 //!
 //! A game build is identified by the SHA-256 of its executable file. Because the supported executable unpacks

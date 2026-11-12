@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Gate caves: run the original unless the site's control bit is set, in which case do the gate's effect.
 //!
 //! The prologue saves the flags and RAX, reads the control word once and tests the bit. Each path starts by

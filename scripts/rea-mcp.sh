@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Starts the REA MCP server from the main checkout's .rea install, so every worktree shares it.
 set -eu
 root=$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)

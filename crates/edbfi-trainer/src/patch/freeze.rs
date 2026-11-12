@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Holding every game thread still while code changes.
 //!
 //! [`Freeze::new`] enumerates the game's threads until the sorted id set is unchanged twice in a row (three

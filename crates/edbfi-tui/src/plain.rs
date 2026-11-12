@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The dashboard as plain ASCII lines, for redirected output and a lost console.
 //!
 //! The first report lists everything: the state, both files and every row. Later reports list only what

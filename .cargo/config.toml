@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # A static CRT keeps the trainer a single self-contained executable.
 [target.x86_64-pc-windows-msvc]
 # LNK4099: the static CRT references PDBs that are never shipped.

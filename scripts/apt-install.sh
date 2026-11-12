@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install Ubuntu packages on a CI runner: apt-install.sh <package>...
 # A stalled mirror once held apt for a whole job, so each download has a deadline and is retried. The runner image
 # tunes apt's own retries and timeouts for mirror failover, so they stay as they are. A mirror that trickles data

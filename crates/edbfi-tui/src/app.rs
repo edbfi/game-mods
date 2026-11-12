@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The dashboard as a pure reducer: [`App::update`] takes one [`Msg`] and returns the [`Effect`]s the driver
 //! must carry out, and drawing `&App` is a deterministic function of its state and the area.
 //!

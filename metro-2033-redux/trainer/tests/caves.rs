@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Metro hook caves: how they are planned and placed, and, on Linux x86-64, what they do when they run.
 //!
 //! The execution tests lay out a stand-in for the game in one mapping: the image at its base, with each site's

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Putting the zeroed control word and the proven caves into the game, before any site is hooked.
 //!
 //! The cave block goes where every site can reach its cave with a rel32 jump. The free regions in that reach

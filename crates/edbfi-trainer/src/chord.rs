@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Hotkey chords: a virtual key plus an exact set of Ctrl, Alt and Shift.
 //!
 //! Chords are identified by Windows virtual-key codes, not scan codes. Settings spell them canonically, such as

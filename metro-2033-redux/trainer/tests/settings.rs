@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Metro settings file: schema 1's exact keys and first-run contents. Changing either needs a schema bump,
 //! and removing or renaming a key is a breaking change.
 #![expect(

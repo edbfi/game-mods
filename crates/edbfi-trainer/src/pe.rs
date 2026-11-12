@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Bounds-checked parsing of 64-bit PE image files: headers, sections and base relocations.
 //!
 //! Only what identity verification needs is parsed. Every offset read from the file is checked before use, so

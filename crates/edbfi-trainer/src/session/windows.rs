@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Finding and opening the game on Windows, asking a running trainer to stop, and the handles the owner
 //! waits on: the game's process, signalled when it exits, and the stop event, signalled when another trainer
 //! process asks this one to restore and exit.

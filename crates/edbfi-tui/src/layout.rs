@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Which screen fits the terminal, and where its parts go.
 //!
 //! There is one breakpoint function and three screens: two panes when the whole profile fits, tabs from 40×12,
