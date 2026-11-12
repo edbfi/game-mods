@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Embeds the Windows manifest and version resource.
 //!
 //! `EDBFI_VERSION` (`X.Y.Z`, default `0.0.0`) and `EDBFI_COMMIT` (hex, default empty) come from packaging and CI,
@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     writeln!(rc, "      VALUE \"FileVersion\", \"{version}\"")?;
     writeln!(rc, "      VALUE \"InternalName\", \"metro-trainer\"")?;
-    writeln!(rc, "      VALUE \"LegalCopyright\", \"AGPL-3.0-only\"")?;
+    writeln!(rc, "      VALUE \"LegalCopyright\", \"AGPL-3.0-or-later\"")?;
     writeln!(
         rc,
         "      VALUE \"OriginalFilename\", \"metro-trainer.exe\""

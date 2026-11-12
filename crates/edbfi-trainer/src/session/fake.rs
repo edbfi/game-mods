@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A pretend game for session tests: the synthetic profile's code loaded at a relocated base, with a matching
 //! executable file and a profile whose fingerprints are that file's.
 #![forbid(unsafe_code)]

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Metro dashboard against a simulated runtime, for review on any terminal without the game.
 //!
 //! `cargo run -p metro-2033-redux-trainer --example demo [-- --ascii] [-- --mono | --truecolour]`

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Hearing about a closing console window, logoff, shutdown or panic, so the game is restored first.
 //!
 //! [`install`] sets up, once per process, a console control handler, a panic hook and a hidden window that

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # From edbfi-ci templates/ci-shell.yml, plus the root Rust workspace. Every added PR job belongs in ci-ok.
 # No paths: filter: a skipped workflow leaves the required checks pending.
 name: CI

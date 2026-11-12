@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! What the owner thread does between the dashboard and the game.
 //!
 //! [`Runtime`] owns the settings file, the journal and the game's session typestates. The driver tells it

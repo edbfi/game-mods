@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/svg/game-mods-logo.svg" alt="game-mods logo" width="256" height="256">
+  <img src="assets/svg/game-mods-logo.svg" alt="game-mods logo" width="160" height="160">
 </p>
 
 <h1 align="center">game-mods</h1>
@@ -7,7 +7,7 @@
 <p align="center"><strong>Game mods, trainers, and scripts with tested release builds.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/edbfi/game-mods/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat" alt="License: AGPL-3.0-only"></a>
+  <a href="https://github.com/edbfi/game-mods/blob/main/LICENSE"><img src="https://img.shields.io/badge/original%20code-AGPL--3.0--or--later-blue?style=flat" alt="Original code: AGPL-3.0-or-later (see licensing exceptions)"></a>
   <a href="https://github.com/rust-lang/rust" title="Rust source"><img src="https://img.shields.io/badge/Rust-000000?style=flat&amp;logo=rust&amp;logoColor=white" alt="Rust"></a>
   <a href="https://github.com/lua/lua" title="Lua team's official development mirror, updated irregularly"><img src="https://img.shields.io/badge/Lua-2C2D72?style=flat&amp;logo=lua&amp;logoColor=white" alt="Lua"></a>
 </p>
@@ -44,4 +44,13 @@ Each mod has a `justfile` with `test`, `build` and `package <version>`. From the
 
 ## License
 
-[AGPL-3.0-only](LICENSE), © edbfi.
+Original code by edbfi, except the Munitorum Logistics sources noted below, is licensed under the
+[GNU Affero General Public License](LICENSE), either version 3 or (at your option) any later version
+(`AGPL-3.0-or-later`), © edbfi.
+
+The [Munitorum Logistics sources](dawn-of-war-de/munitorum-logistics/src/) retain their existing licensing
+and provenance notices, including the template's `AGPL-3.0-only` grant, game-derived catalogs and
+[Easy Reinforcement credit](dawn-of-war-de/munitorum-logistics/README.md).
+The bundled [REA skill](.agents/skills/reverse-engineer-anything/) remains under its
+[MIT license](.agents/skills/reverse-engineer-anything.LICENSE), © 2026 morluto.
+Dependencies retain their own licenses.

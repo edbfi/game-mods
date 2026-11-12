@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The trainer's console input: its modes, and its records as the arbiter reads them.
 //!
 //! The reader opens `CONIN$`, so it reads the console even when standard input is redirected. It turns off

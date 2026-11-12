@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Closing a trainer's terminal while it runs. Windows then gives the trainer a few seconds before it ends
 //! the process, and a trainer connected to a game must put the game back first.
 //!

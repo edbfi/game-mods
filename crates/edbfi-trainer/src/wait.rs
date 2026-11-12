@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Waiting for the first of several Windows events: the owner thread's one blocking call.
 #![forbid(unsafe_code)]
 

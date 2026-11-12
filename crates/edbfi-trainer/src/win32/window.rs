@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The hidden top-level window that hears about logoff, shutdown, keyboards and the foreground.
 //!
 //! A console process that loads `user32.dll` no longer gets logoff or shutdown console notices; Windows sends

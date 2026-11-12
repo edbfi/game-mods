@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Check a packaged mod's files on Windows, for the unprivileged verify jobs of ci.yml, nightly.yml and release.yml.
 #
 #   verify-mod-artifact.sh <game>/<mod> <version> <dir>

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Where the cave allocation may go: every cave within a rel32 jump of its site.
 //!
 //! Cave `i` sits at `base + i * PAGE`, and the jump at site `i` reaches `base + i * PAGE` from `site + 5`

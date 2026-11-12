@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The profile of the `dummy_game` example, the stand-in game the Windows tests attach to.
 //!
 //! The dummy's code holds three sites: a predicate gated to return true on bit 0, a battery drain skipped on

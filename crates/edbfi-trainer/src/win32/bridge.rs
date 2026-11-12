@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The process-wide bridge between asynchronous shutdown notices and the owner thread.
 //!
 //! Windows tells a console process about a closing window, logoff or shutdown on a thread of its own, and

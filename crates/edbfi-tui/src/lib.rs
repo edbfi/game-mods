@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Terminal dashboard shared by edbfi game trainers.
 //!
 //! [`app::App`] is a pure reducer over the runtime's phase, acknowledgements and user input. Drawing `&App`

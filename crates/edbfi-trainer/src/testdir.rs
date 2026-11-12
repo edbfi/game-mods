@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A scratch folder for one test, removed when it drops.
 #![forbid(unsafe_code)]
 

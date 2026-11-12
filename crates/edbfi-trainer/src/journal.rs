@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The trainer's diagnostic record: the last [`Journal::ACTIVITY`] entries for the dashboard, and a log file
 //! that never grows past [`Journal::LOG_CAP`].
 //!

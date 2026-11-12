@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The dashboard's visual vocabulary: named tones, the colour depth to draw them with, and the glyphs.
 //!
 //! Tones are semantic, so a screen never picks a colour directly. The terminal's own background is always kept;

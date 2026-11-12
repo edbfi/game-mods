@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Linux x86-64 execution harness for generated hook caves: the one place test code runs machine code.
 //!
 //! An [`Arena`] is one anonymous mapping that stands in for the game: the image at its base, then the caves,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Where a mod keeps its settings and logs: `edbfi\<game>\<mod>\` under the user's roaming and local
 //! application data on Windows, and under the XDG config and state folders elsewhere.
 #![forbid(unsafe_code)]

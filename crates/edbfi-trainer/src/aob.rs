@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Byte signatures with wildcards ("array of bytes" patterns).
 //!
 //! Patterns are written as whitespace-separated tokens: two hex digits in either case, or `?`/`??` for any

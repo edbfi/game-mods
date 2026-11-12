@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The settings file on disk: exclusive creation, atomic replacement, and never losing someone else's edit.
 //!
 //! A [`Store`] holds a writer lease on its folder, so a second trainer using the same file refuses to start

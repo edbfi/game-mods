@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Proving a running process is the supported build, without changing it.
 //!
 //! In order: the executable file's SHA-256 is the profile's; the loaded main module is that file, the same

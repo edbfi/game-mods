@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The trainer's console output: virtual-terminal processing, UTF-8 and the title, put back on drop.
 //!
 //! The screen opens `CONOUT$`, so it reaches the console even when standard output is redirected. Only one is

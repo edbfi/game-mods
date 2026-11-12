@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Making text safe and fitting it into terminal cells.
 //!
 //! Paths, error messages and journal entries can hold any character. [`sanitize`] replaces everything that

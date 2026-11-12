@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # From edbfi-ci templates/pre-commit/shell and rust. Keep this filename: Dependabot's pre-commit updater
 # can't read prek.toml. CI runs prek run --all-files --hook-stage manual.
 default_install_hook_types: [pre-commit, commit-msg]

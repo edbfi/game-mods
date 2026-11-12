@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A small profile of a made-up game, for tests and examples. It describes no real executable.
 //!
 //! It has one of each shape: an ordinary gate, a call gate, a class toggle pair under an all-classes toggle,

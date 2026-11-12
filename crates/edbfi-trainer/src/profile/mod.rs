@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A game profile: everything the trainer knows about one supported game build, written as reviewed data.
 //!
 //! A profile declares the build's identity, the player and weapon layout, the cheats a user can select, the

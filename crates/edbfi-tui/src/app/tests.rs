@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The reducer against the synthetic profile: status words, publication and acknowledgement, persistence,
 //! dialogs and closed input.
 

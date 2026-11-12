@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The 32-bit control word shared with the game, and the masks that feed it.
 //!
 //! Hooks read one aligned 32-bit word to decide whether a cheat applies. The trainer computes a

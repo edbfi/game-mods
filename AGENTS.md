@@ -18,7 +18,7 @@ CI comes from [edbfi-ci](https://github.com/edbfi/edbfi-ci); its rules apply her
   (Cargo's in the root `/target/`).
 - Conventional Commits scoped `<game>/<mod>` (e.g. `fix(metro-2033-redux/trainer): …`), with a DCO sign-off
   (`git commit -s`), through a PR.
-- New source files carry `SPDX-License-Identifier: AGPL-3.0-only`.
+- New source files carry `SPDX-License-Identifier: AGPL-3.0-or-later`.
 - No PowerShell: scripts are POSIX sh or bash, run through `just`.
 - Docs hold only what the code can't say. No reports in the repo: evidence goes in the PR body.
 

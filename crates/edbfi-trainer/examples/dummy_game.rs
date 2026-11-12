@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A stand-in game for the trainer's Windows tests. It is not a game and patches nothing itself.
 //!
 //! Its code holds one site of each hook shape the tests install: a predicate that returns false (a

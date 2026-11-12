@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Profile-bound ids, the user's selection, and the effective control mask.
 //!
 //! Ids, selections and option sets are minted only by a [`ValidProfile`] and carry its brand, so an id from one

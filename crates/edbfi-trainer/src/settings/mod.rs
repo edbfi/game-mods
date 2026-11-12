@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The user's saved choices: a strict TOML file the trainer reads, upgrades and rewrites itself.
 //!
 //! [`Settings`] holds what persists: the selection, the options, every binding, `sounds` and `start_paused`.

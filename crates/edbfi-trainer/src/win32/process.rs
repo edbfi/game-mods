@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! A game process opened by handle: discovery, memory, threads and allocation.
 
 use std::ffi::c_void;

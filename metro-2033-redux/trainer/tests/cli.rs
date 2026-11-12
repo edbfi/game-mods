@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! The trainer executable's command line, run as a user runs it. `EDBFI_TRAINER_EXE` points these tests at
 //! another build of it, such as the release candidate that CI cross-builds.
 #![expect(

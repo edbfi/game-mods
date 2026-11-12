@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Image-relative and absolute addresses, and the rel32 displacement of an `E9` jump.
 #![forbid(unsafe_code)]
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Which key events act, and which are ignored.
 //!
 //! Keys reach the trainer by two paths. On the game path, Windows wakes the trainer on every keyboard event

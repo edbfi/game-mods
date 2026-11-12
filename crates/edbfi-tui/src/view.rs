@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Drawing the dashboard: the wide two-pane screen, the compact tabs, the tiny strip, cards and dialogs.
 #![forbid(unsafe_code)]
 

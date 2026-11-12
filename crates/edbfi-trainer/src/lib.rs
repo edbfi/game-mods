@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Shared trainer core for edbfi game mods: process identity, verified hook caves, controls and settings.
 //!
 //! Win32 `unsafe` lives only in the private `win32` module; everything else is safe code.

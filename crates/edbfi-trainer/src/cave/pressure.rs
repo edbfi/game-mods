@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Pressure caves: keep the pressure class's pressure at its normal level, for the player's weapon only.
 //!
 //! A consumption site runs its original first, under the game's own MXCSR, then corrects the result register;
