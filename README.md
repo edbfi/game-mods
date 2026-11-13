@@ -10,6 +10,7 @@
   <a href="https://github.com/edbfi/game-mods/blob/main/LICENSE"><img src="https://img.shields.io/badge/original%20code-AGPL--3.0--or--later-blue?style=flat" alt="Original code: AGPL-3.0-or-later (see licensing exceptions)"></a>
   <a href="https://github.com/rust-lang/rust" title="Rust source"><img src="https://img.shields.io/badge/Rust-000000?style=flat&amp;logo=rust&amp;logoColor=white" alt="Rust"></a>
   <a href="https://github.com/lua/lua" title="Lua team's official development mirror, updated irregularly"><img src="https://img.shields.io/badge/Lua-2C2D72?style=flat&amp;logo=lua&amp;logoColor=white" alt="Lua"></a>
+  <a href="https://github.com/edbfi/game-mods/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/edbfi/game-mods/ci.yml?branch=main&amp;event=push&amp;label=CI&amp;style=flat" alt="CI"></a>
 </p>
 
 Mods for games I play. One folder per game, one subfolder per mod.
