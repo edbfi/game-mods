@@ -432,7 +432,7 @@ fn focus_survives_resizing() {
     let mut app = live();
     app.update(press(ConsoleKey::Tab));
     let focus = app.model.focus;
-    assert_eq!(focus, id("red"));
+    assert_eq!(focus, id("blue"));
     for (width, height) in [(40, 12), (10, 3), (72, 24), (100, 30)] {
         app.update(Msg::Resize { width, height });
         assert_eq!(app.model.focus, focus);

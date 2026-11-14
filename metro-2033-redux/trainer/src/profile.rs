@@ -46,30 +46,30 @@ const fn class(key: &'static str, label: &'static str, index: u8, ids: &'static 
 }
 
 /// The 24 weapon classes in control-word order: class `i` is bit `7 + i`. Each id is a global the game fills
-/// by interning a `WEAPON_*` name; a weapon's configuration starts with the same DWORD. Labels are the game's
-/// internal names except where a live capture corroborated the display name (Kalash, Shambler, Revolver) or
-/// the analysis names the weapon (Hellsing).
+/// by interning a `WEAPON_*` name; a weapon's configuration starts with the same DWORD. Labels use English
+/// weapon names where established; unverified internal variants are marked explicitly. The settings keys
+/// retain the game's internal names.
 pub const CLASSES: [Class; 24] = [
     class("ak74", "Kalash", 0, &[Rva::new(0xf5d090)]),
-    class("aksu", "aksu", 1, &[Rva::new(0xf5d094)]),
-    class("rpk", "rpk", 2, &[Rva::new(0xf5d098)]),
-    class("ashot", "ashot", 3, &[Rva::new(0xf5d09c)]),
-    class("vsv", "vsv", 4, &[Rva::new(0xf5d0a0)]),
-    class("ventil", "ventil", 5, &[Rva::new(0xf5d0a4)]),
-    class("padonag", "padonag", 6, &[Rva::new(0xf5d0a8)]),
-    class("preved", "preved", 7, &[Rva::new(0xf5d0ac)]),
-    class("vyhlop", "vyhlop", 8, &[Rva::new(0xf5d0b0)]),
-    class("saiga", "saiga", 9, &[Rva::new(0xf5d0b4)]),
-    class("tumak", "tumak", 10, &[Rva::new(0xf5d0b8)]),
-    class("2012", "2012", 11, &[Rva::new(0xf5d0bc)]),
-    class("gatling", "gatling", 12, &[Rva::new(0xf5d0c0)]),
-    class("ubludok", "ubludok", 13, &[Rva::new(0xf5d0c4)]),
+    class("aksu", "AKSU", 1, &[Rva::new(0xf5d094)]),
+    class("rpk", "RPK", 2, &[Rva::new(0xf5d098)]),
+    class("ashot", "Ashot", 3, &[Rva::new(0xf5d09c)]),
+    class("vsv", "VSV", 4, &[Rva::new(0xf5d0a0)]),
+    class("ventil", "Valve", 5, &[Rva::new(0xf5d0a4)]),
+    class("padonag", "Padonag (internal)", 6, &[Rva::new(0xf5d0a8)]),
+    class("preved", "Preved", 7, &[Rva::new(0xf5d0ac)]),
+    class("vyhlop", "Vyhlop (internal)", 8, &[Rva::new(0xf5d0b0)]),
+    class("saiga", "Saiga", 9, &[Rva::new(0xf5d0b4)]),
+    class("tumak", "Tumak (internal)", 10, &[Rva::new(0xf5d0b8)]),
+    class("2012", "Kalash 2012", 11, &[Rva::new(0xf5d0bc)]),
+    class("gatling", "Gatling", 12, &[Rva::new(0xf5d0c0)]),
+    class("ubludok", "Bastard", 13, &[Rva::new(0xf5d0c4)]),
     class("uboynicheg", "Shambler", 14, &[Rva::new(0xf5d0c8)]),
-    class("bigun", "bigun", 15, &[Rva::new(0xf5d0cc)]),
+    class("bigun", "Bigun", 15, &[Rva::new(0xf5d0cc)]),
     // The 2B, 3B and 4B registrations are Duplet variants.
     class(
         "duplet",
-        "duplet",
+        "Duplet",
         16,
         &[
             Rva::new(0xf5d0d0),
@@ -79,12 +79,17 @@ pub const CLASSES: [Class; 24] = [
         ],
     ),
     class("revolver", "Revolver", 17, &[Rva::new(0xf5d0d4)]),
-    class("abzac", "abzac", 18, &[Rva::new(0xf5d0d8)]),
-    class("hellbreath", "hellbreath", 19, &[Rva::new(0xf5d0dc)]),
-    class("hellshock", "hellshock", 20, &[Rva::new(0xf5d0e0)]),
-    class("tihar", "tihar", 21, &[Rva::new(0xf5d0e4)]),
-    class("helsing", "Hellsing", 22, &[Rva::new(0xf5d0e8)]),
-    class("flamethrower", "flamethrower", 23, &[Rva::new(0xf5d0f8)]),
+    class("abzac", "Abzats", 18, &[Rva::new(0xf5d0d8)]),
+    class("hellbreath", "Hellbreath", 19, &[Rva::new(0xf5d0dc)]),
+    class(
+        "hellshock",
+        "Hellshock (internal)",
+        20,
+        &[Rva::new(0xf5d0e0)],
+    ),
+    class("tihar", "Tikhar", 21, &[Rva::new(0xf5d0e4)]),
+    class("helsing", "Helsing", 22, &[Rva::new(0xf5d0e8)]),
+    class("flamethrower", "Flamethrower", 23, &[Rva::new(0xf5d0f8)]),
 ];
 
 const fn cheat(
@@ -486,8 +491,8 @@ pub const METRO: Profile = Profile {
     toggles: &TOGGLES,
     options: &[GameOption {
         key: "keep_hellsing_pressure",
-        label: "Keep Hellsing pressure",
-        hint: "Holds normal Hellsing pressure with unlimited ammo or no reload.",
+        label: "Keep Helsing pressure",
+        hint: "Holds normal Helsing pressure with unlimited ammo or no reload.",
         since: SCHEMA,
         default: true,
     }],

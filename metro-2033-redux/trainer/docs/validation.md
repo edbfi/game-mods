@@ -26,7 +26,7 @@ The owner's 2026-11-05 run used the `metro-trainer.exe` that CI built from `d6ce
 | Unlimited ammo | PARTIAL | Worked in shooting-range challenges with the C++ trainer. The Rust trainer and currency isolation are unchecked. |
 | Unlimited throwables, medkits, filters; indestructible mask | PENDING | Per-feature acceptance below. |
 | Global and individual no reload | PENDING | Per-weapon and transition checks. |
-| Hellsing pressure | PENDING | See [pressure acceptance](#pressure-acceptance). |
+| Helsing pressure | PENDING | See [pressure acceptance](#pressure-acceptance). |
 | God mode | PENDING | Scripted kills, suffocation, falls and transitions. |
 | Unlimited flashlight | PENDING | Flashlight and night-vision drain. |
 | Feature and currency isolation | PENDING | No gameplay comparison yet. |
@@ -65,9 +65,9 @@ Test each feature on its own before testing combinations.
 
 ## Pressure acceptance
 
-Synthetic tests run the pressure hooks against native code; the live checks remain. With the Hellsing, test unlimited
-ammo, global no reload and Hellsing no reload on their own: each must keep normal pressure. Switch each on with the
-pressure already low and check that it recovers. With **Keep Hellsing pressure** off, pumping by hand must still be
+Synthetic tests run the pressure hooks against native code; the live checks remain. With the Helsing, test unlimited
+ammo, global no reload and Helsing no reload on their own: each must keep normal pressure. Switch each on with the
+pressure already low and check that it recovers. With **Keep Helsing pressure** off, pumping by hand must still be
 needed. NPCs and other weapons keep their own pressure behaviour in every case.
 
 ## Automated checks

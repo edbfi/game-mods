@@ -16,63 +16,63 @@ Cheats:
     God mode                Alt+2         OFF
     Unlimited flashlight    Alt+3         OFF
 No reload by weapon:
+    Abzats                                OFF
+    AKSU                                  OFF
+    Ashot                                 OFF
+    Bastard                               OFF
+    Bigun                                 OFF
+    Duplet                                OFF
+    Flamethrower                          OFF
+    Gatling                               OFF
+    Hellbreath                            OFF
+    Hellshock (internal)                  OFF
+  * Helsing                               OFF
     Kalash                                OFF
-    aksu                                  OFF
-    rpk                                   OFF
-    ashot                                 OFF
-    vsv                                   OFF
-    ventil                                OFF
-    padonag                               OFF
-    preved                                OFF
-    vyhlop                                OFF
-    saiga                                 OFF
-    tumak                                 OFF
-    2012                                  OFF
-    gatling                               OFF
-    ubludok                               OFF
-    Shambler                              OFF
-    bigun                                 OFF
-    duplet                                OFF
+    Kalash 2012                           OFF
+    Padonag (internal)                    OFF
+    Preved                                OFF
     Revolver                              OFF
-    abzac                                 OFF
-    hellbreath                            OFF
-    hellshock                             OFF
-    tihar                                 OFF
-  * Hellsing                              OFF
-    flamethrower                          OFF
+    RPK                                   OFF
+    Saiga                                 OFF
+    Shambler                              OFF
+    Tikhar                                OFF
+    Tumak (internal)                      OFF
+    Valve                                 OFF
+    VSV                                   OFF
+    Vyhlop (internal)                     OFF
 Options:
     All cheats              Alt+F8        INACTIVE
-  * Keep Hellsing pressure                ON
+  * Keep Helsing pressure                 ON
   * Chimes                                ON
     Start paused                          OFF
 ---
 State: ATTACHED - PAUSED - Alt+F8 resumes
 Unlimited ammo: PAUSED (Alt+F1)
 No reload, all weapons: PAUSED (Alt+1)
+Abzats: PAUSED
+AKSU: PAUSED
+Ashot: PAUSED
+Bastard: PAUSED
+Bigun: PAUSED
+Duplet: PAUSED
+Flamethrower: PAUSED
+Gatling: PAUSED
+Hellbreath: PAUSED
+Hellshock (internal): PAUSED
+Helsing: PAUSED
 Kalash: PAUSED
-aksu: PAUSED
-rpk: PAUSED
-ashot: PAUSED
-vsv: PAUSED
-ventil: PAUSED
-padonag: PAUSED
-preved: PAUSED
-vyhlop: PAUSED
-saiga: PAUSED
-tumak: PAUSED
-2012: PAUSED
-gatling: PAUSED
-ubludok: PAUSED
-Shambler: PAUSED
-bigun: PAUSED
-duplet: PAUSED
+Kalash 2012: PAUSED
+Padonag (internal): PAUSED
+Preved: PAUSED
 Revolver: PAUSED
-abzac: PAUSED
-hellbreath: PAUSED
-hellshock: PAUSED
-tihar: PAUSED
-Hellsing: PAUSED
-flamethrower: PAUSED
+RPK: PAUSED
+Saiga: PAUSED
+Shambler: PAUSED
+Tikhar: PAUSED
+Tumak (internal): PAUSED
+Valve: PAUSED
+VSV: PAUSED
+Vyhlop (internal): PAUSED
 All cheats: PAUSED (Alt+F8)
 ---
 State: SETTINGS
@@ -84,28 +84,28 @@ Settings need attention
   Keys: Enter reload  D defaults  Q quit
 Unlimited ammo: OFF (Alt+F1)
 No reload, all weapons: OFF (Alt+1)
+Abzats: OFF
+AKSU: OFF
+Ashot: OFF
+Bastard: OFF
+Bigun: OFF
+Duplet: OFF
+Flamethrower: OFF
+Gatling: OFF
+Hellbreath: OFF
+Hellshock (internal): OFF
+Helsing: OFF
 Kalash: OFF
-aksu: OFF
-rpk: OFF
-ashot: OFF
-vsv: OFF
-ventil: OFF
-padonag: OFF
-preved: OFF
-vyhlop: OFF
-saiga: OFF
-tumak: OFF
-2012: OFF
-gatling: OFF
-ubludok: OFF
-Shambler: OFF
-bigun: OFF
-duplet: OFF
+Kalash 2012: OFF
+Padonag (internal): OFF
+Preved: OFF
 Revolver: OFF
-abzac: OFF
-hellbreath: OFF
-hellshock: OFF
-tihar: OFF
-Hellsing: OFF
-flamethrower: OFF
+RPK: OFF
+Saiga: OFF
+Shambler: OFF
+Tikhar: OFF
+Tumak (internal): OFF
+Valve: OFF
+VSV: OFF
+Vyhlop (internal): OFF
 All cheats: INACTIVE (Alt+F8)
