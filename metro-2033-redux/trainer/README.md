@@ -21,7 +21,7 @@ has passed unless that page says so.
 | Unlimited flashlight | Stops the battery draining, for the flashlight and night vision. |
 
 The cheats keep what you have: they don't give you missing items, mend a broken mask, refill an empty filter or
-charge a flat battery. **Keep Hellsing pressure** (on by default) holds the Hellsing's normal pressure while unlimited
+charge a flat battery. **Keep Helsing pressure** (on by default) holds the Helsing's normal pressure while unlimited
 ammo or a no-reload cheat covers it; turn it off to keep pumping by hand.
 
 ## Install

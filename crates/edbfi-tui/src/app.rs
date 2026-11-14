@@ -319,13 +319,16 @@ impl<'p> App<'p> {
             .groups
             .iter()
             .map(|group| {
-                let toggles: Vec<ToggleId> = profile
+                let mut toggles: Vec<ToggleId> = profile
                     .toggles()
                     .filter(|(_, toggle)| toggle.group == group.key)
                     .map(|(id, _)| id)
                     .collect();
                 let classes =
                     !toggles.is_empty() && toggles.iter().all(|id| class_toggles.contains(id));
+                if classes {
+                    toggles.sort_by_cached_key(|id| profile.toggle(*id).label.to_lowercase());
+                }
                 GroupRows {
                     title: group.title,
                     toggles,

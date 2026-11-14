@@ -515,6 +515,63 @@ fn plain_report_lists_everything_then_changes() {
     );
 }
 
+#[test]
+fn weapon_rows_are_alphabetical_and_toggle_the_original_settings_keys() {
+    let keys = [
+        "abzac",
+        "aksu",
+        "ashot",
+        "ubludok",
+        "bigun",
+        "duplet",
+        "flamethrower",
+        "gatling",
+        "hellbreath",
+        "hellshock",
+        "helsing",
+        "ak74",
+        "2012",
+        "padonag",
+        "preved",
+        "revolver",
+        "rpk",
+        "saiga",
+        "uboynicheg",
+        "tihar",
+        "tumak",
+        "ventil",
+        "vsv",
+        "vyhlop",
+    ];
+    let profile = profile();
+    for size in [WIDE, (72, 24), SMALL] {
+        let mut app = live(size, Appearance::default());
+        run(&mut app, press(ConsoleKey::Tab));
+        run(&mut app, press(ConsoleKey::Key(Key::HOME)));
+        for key in keys {
+            let id = profile.toggle_id(key).unwrap();
+            let label = profile.toggle(id).label;
+            let buffer = render(&app, size);
+            let focused = (0..size.1)
+                .map(|y| {
+                    (0..size.0)
+                        .map(|x| buffer[(x, y)].symbol())
+                        .collect::<String>()
+                })
+                .find_map(|line| line.split_once('►').map(|(_, text)| text.to_owned()))
+                .unwrap_or_else(|| panic!("no focused weapon at {size:?}"));
+            assert!(
+                focused.trim_start_matches([' ', '●']).starts_with(label),
+                "{key} at {size:?}: {focused}"
+            );
+            let before = app.settings().selection.contains(id);
+            run(&mut app, press(ConsoleKey::Enter));
+            assert_eq!(app.settings().selection.contains(id), !before, "{key}");
+            run(&mut app, press(ConsoleKey::Down));
+        }
+    }
+}
+
 // ----- behaviour -----
 
 #[test]

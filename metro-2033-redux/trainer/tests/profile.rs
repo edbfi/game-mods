@@ -119,20 +119,39 @@ fn classes_and_ids_in_bit_order() {
 }
 
 #[test]
-fn only_corroborated_weapon_names_are_display_names() {
-    let renamed = [
+fn weapon_labels_match_the_english_names_and_mark_unverified_variants() {
+    let names = [
         ("ak74", "Kalash"),
+        ("aksu", "AKSU"),
+        ("rpk", "RPK"),
+        ("ashot", "Ashot"),
+        ("vsv", "VSV"),
+        ("ventil", "Valve"),
+        ("padonag", "Padonag (internal)"),
+        ("preved", "Preved"),
+        ("vyhlop", "Vyhlop (internal)"),
+        ("saiga", "Saiga"),
+        ("tumak", "Tumak (internal)"),
+        ("2012", "Kalash 2012"),
+        ("gatling", "Gatling"),
+        ("ubludok", "Bastard"),
         ("uboynicheg", "Shambler"),
+        ("bigun", "Bigun"),
+        ("duplet", "Duplet"),
         ("revolver", "Revolver"),
-        ("helsing", "Hellsing"),
+        ("abzac", "Abzats"),
+        ("hellbreath", "Hellbreath"),
+        ("hellshock", "Hellshock (internal)"),
+        ("tihar", "Tikhar"),
+        ("helsing", "Helsing"),
+        ("flamethrower", "Flamethrower"),
     ];
-    for class in METRO.classes {
-        let expected = renamed
-            .iter()
-            .find(|(key, _)| *key == class.key)
-            .map_or(class.key, |(_, label)| *label);
-        assert_eq!(class.label, expected);
-    }
+    let actual = METRO
+        .classes
+        .iter()
+        .map(|class| (class.key, class.label))
+        .collect::<Vec<_>>();
+    assert_eq!(actual, names);
 }
 
 #[test]
