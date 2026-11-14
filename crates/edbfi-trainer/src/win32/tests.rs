@@ -43,18 +43,16 @@ fn serial() -> std::sync::MutexGuard<'static, ()> {
 
 fn dummy_path() -> PathBuf {
     let exe = std::env::current_exe().unwrap();
-    let path = exe
-        .parent()
-        .and_then(|deps| deps.parent())
-        .unwrap()
-        .join("examples")
-        .join("dummy_game.exe");
-    assert!(
-        path.exists(),
-        "{} is missing: run `cargo test` without target filters so the example is built",
-        path.display()
-    );
-    path
+    // Cargo may run tests from deps/ or from build/<package>/<hash>/out/.
+    exe.ancestors()
+        .map(|dir| dir.join("examples").join("dummy_game.exe"))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "dummy_game.exe is missing above {}: run `cargo test` without target filters so the example is built",
+                exe.display()
+            )
+        })
 }
 
 /// The dummy game, running.
