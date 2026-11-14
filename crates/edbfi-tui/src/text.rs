@@ -8,6 +8,7 @@
 
 use std::borrow::Cow;
 
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 /// Whether `c` reorders text: the Unicode bidirectional controls and marks.
@@ -63,10 +64,11 @@ pub fn fit_end(text: &str, max: usize, ellipsis: &str) -> String {
         return String::new();
     };
     let mut out = String::new();
-    for c in text.chars() {
-        out.push(c);
+    for cluster in text.graphemes(true) {
+        let previous_len = out.len();
+        out.push_str(cluster);
         if width(&out) > room {
-            out.pop();
+            out.truncate(previous_len);
             break;
         }
     }
@@ -84,10 +86,10 @@ pub fn fit_start(text: &str, max: usize, ellipsis: &str) -> String {
         return String::new();
     };
     let mut tail = String::new();
-    for c in text.chars().rev() {
-        tail.insert(0, c);
+    for cluster in text.graphemes(true).rev() {
+        tail.insert_str(0, cluster);
         if width(&tail) > room {
-            tail.remove(0);
+            tail.drain(..cluster.len());
             break;
         }
     }
@@ -97,7 +99,7 @@ pub fn fit_start(text: &str, max: usize, ellipsis: &str) -> String {
 }
 
 /// `text` broken into lines of at most `max` cells, at spaces where possible. A word longer than a line is
-/// split. Never returns an empty list, and every line fits unless `max` is narrower than one character.
+/// split. Never returns an empty list, and every line fits unless `max` is narrower than one grapheme cluster.
 #[must_use]
 pub fn wrap(text: &str, max: usize) -> Vec<String> {
     let max = max.max(1);
@@ -121,14 +123,14 @@ pub fn wrap(text: &str, max: usize) -> Vec<String> {
             used = w;
             continue;
         }
-        for c in word.chars() {
+        for cluster in word.graphemes(true) {
             let previous_len = line.len();
-            line.push(c);
+            line.push_str(cluster);
             // Sequence width can differ from the sum of character widths (for example VS16).
             if width(&line) > max && used > 0 {
                 line.truncate(previous_len);
                 lines.push(std::mem::take(&mut line));
-                line.push(c);
+                line.push_str(cluster);
             }
             used = width(&line);
         }
@@ -198,8 +200,9 @@ mod tests {
             }
         }
         assert_eq!(wrap("0\u{fe0f}a", 2), ["0\u{fe0f}", "a"]);
-        assert_eq!(fit_end("0\u{fe0f}ab", 2, "…"), "0…");
-        assert_eq!(fit_start("ab0\u{fe0f}", 2, "…"), "…\u{fe0f}");
+        assert_eq!(wrap("a0\u{fe0f}", 2), ["a", "0\u{fe0f}"]);
+        assert_eq!(fit_end("0\u{fe0f}ab", 2, "…"), "…");
+        assert_eq!(fit_start("ab0\u{fe0f}", 2, "…"), "…");
     }
 
     proptest! {
@@ -217,9 +220,9 @@ mod tests {
             prop_assert!(width(&fit_end(&text, max, "…")) <= max);
             prop_assert!(width(&fit_start(&text, max, "…")) <= max);
             // Some characters, such as Khmer BEYYAL (U+17D8), occupy three cells.
-            // The wrap contract permits a single character wider than the line.
-            let widest = text.chars()
-                .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
+            // The wrap contract permits a single grapheme cluster wider than the line.
+            let widest = text.graphemes(true)
+                .map(width)
                 .max().unwrap_or(0);
             for line in wrap(&text, max.max(2)) {
                 prop_assert!(width(&line) <= max.max(2).max(widest));

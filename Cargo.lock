@@ -327,6 +327,7 @@ dependencies = [
  "edbfi-trainer",
  "proptest",
  "ratatui",
+ "unicode-segmentation",
  "unicode-width",
 ]
 
