@@ -8,7 +8,7 @@
 
 use std::borrow::Cow;
 
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 /// Whether `c` reorders text: the Unicode bidirectional controls and marks.
 const fn is_bidi_control(c: char) -> bool {
@@ -53,10 +53,6 @@ pub fn width(text: &str) -> usize {
     text.width()
 }
 
-fn char_width(c: char) -> usize {
-    c.width().unwrap_or(0)
-}
-
 /// `text` cut to at most `max` cells, ending in `ellipsis` if anything was cut.
 #[must_use]
 pub fn fit_end(text: &str, max: usize, ellipsis: &str) -> String {
@@ -67,14 +63,12 @@ pub fn fit_end(text: &str, max: usize, ellipsis: &str) -> String {
         return String::new();
     };
     let mut out = String::new();
-    let mut used = 0;
     for c in text.chars() {
-        let w = char_width(c);
-        if used + w > room {
+        out.push(c);
+        if width(&out) > room {
+            out.pop();
             break;
         }
-        used += w;
-        out.push(c);
     }
     out.push_str(ellipsis);
     out
@@ -89,18 +83,16 @@ pub fn fit_start(text: &str, max: usize, ellipsis: &str) -> String {
     let Some(room) = max.checked_sub(width(ellipsis)) else {
         return String::new();
     };
-    let mut tail = Vec::new();
-    let mut used = 0;
+    let mut tail = String::new();
     for c in text.chars().rev() {
-        let w = char_width(c);
-        if used + w > room {
+        tail.insert(0, c);
+        if width(&tail) > room {
+            tail.remove(0);
             break;
         }
-        used += w;
-        tail.push(c);
     }
     let mut out = ellipsis.to_owned();
-    out.extend(tail.iter().rev());
+    out.push_str(&tail);
     out
 }
 
@@ -130,13 +122,15 @@ pub fn wrap(text: &str, max: usize) -> Vec<String> {
             continue;
         }
         for c in word.chars() {
-            let cw = char_width(c);
-            if used + cw > max && used > 0 {
-                lines.push(std::mem::take(&mut line));
-                used = 0;
-            }
+            let previous_len = line.len();
             line.push(c);
-            used += cw;
+            // Sequence width can differ from the sum of character widths (for example VS16).
+            if width(&line) > max && used > 0 {
+                line.truncate(previous_len);
+                lines.push(std::mem::take(&mut line));
+                line.push(c);
+            }
+            used = width(&line);
         }
     }
     lines.push(line);
@@ -190,6 +184,22 @@ mod tests {
         );
         assert_eq!(wrap("abcdefghij", 4), ["abcd", "efgh", "ij"]);
         assert_eq!(wrap("", 4), [""]);
+        assert_eq!(wrap("៘a", 2), ["៘", "a"]);
+    }
+
+    #[test]
+    fn emoji_variation_selectors_count_towards_the_line_width() {
+        let text = "0\u{fe0f}𞥞🌀 ቊ￼a𞀰¡﹔";
+        for max in 1..=8 {
+            assert!(width(&fit_end(text, max, "…")) <= max);
+            assert!(width(&fit_start(text, max, "…")) <= max);
+            for line in wrap(text, max.max(2)) {
+                assert!(width(&line) <= max.max(2));
+            }
+        }
+        assert_eq!(wrap("0\u{fe0f}a", 2), ["0\u{fe0f}", "a"]);
+        assert_eq!(fit_end("0\u{fe0f}ab", 2, "…"), "0…");
+        assert_eq!(fit_start("ab0\u{fe0f}", 2, "…"), "…\u{fe0f}");
     }
 
     proptest! {
@@ -206,8 +216,13 @@ mod tests {
             let text = sanitize(&text);
             prop_assert!(width(&fit_end(&text, max, "…")) <= max);
             prop_assert!(width(&fit_start(&text, max, "…")) <= max);
+            // Some characters, such as Khmer BEYYAL (U+17D8), occupy three cells.
+            // The wrap contract permits a single character wider than the line.
+            let widest = text.chars()
+                .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
+                .max().unwrap_or(0);
             for line in wrap(&text, max.max(2)) {
-                prop_assert!(width(&line) <= max.max(2));
+                prop_assert!(width(&line) <= max.max(2).max(widest));
             }
         }
     }
