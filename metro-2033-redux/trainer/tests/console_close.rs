@@ -42,22 +42,18 @@ const CONTROL_EXIT: u32 = 0xC000_013A;
 /// One trainer at a time.
 static SERIAL: Mutex<()> = Mutex::new(());
 
-fn examples() -> PathBuf {
-    let exe = std::env::current_exe().unwrap();
-    exe.parent()
-        .and_then(Path::parent)
-        .unwrap()
-        .join("examples")
-}
-
 fn example(name: &str) -> PathBuf {
-    let path = examples().join(format!("{name}.exe"));
-    assert!(
-        path.exists(),
-        "{} is missing: run `cargo test --workspace` without target filters so the examples are built",
-        path.display()
-    );
-    path
+    let exe = std::env::current_exe().unwrap();
+    // Cargo may run tests from deps/ or from build/<package>/<hash>/out/.
+    exe.ancestors()
+        .map(|dir| dir.join("examples").join(format!("{name}.exe")))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "{name}.exe is missing above {}: run `cargo test --workspace` without target filters so the examples are built",
+                exe.display()
+            )
+        })
 }
 
 fn trainer_exe() -> PathBuf {
