@@ -5,9 +5,9 @@
       "source": "morluto/rea",
       "sourceType": "github",
       "skillPath": ".agents/skills/reverse-engineer-anything/SKILL.md",
-      "computedHash": "3b750ed8d66f5f4a3ab2eef9e390b64be7cccd876ca016ad6c2eb10ac57bfabe",
-      "ref": "rea-agents-6.9.0",
-      "commit": "d74549e495c58eb4a560279fd9f05508401ea0a0"
+      "computedHash": "4de4afff51f97b62611a10f0c2c6dd9376774c8310f04fbd15e534c4a164762e",
+      "ref": "rea-agents-6.10.1",
+      "commit": "8bb01b514ac766c0c3ecc8f362bd38186eaec9c2"
     }
   }
 }
